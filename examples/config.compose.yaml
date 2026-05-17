@@ -5,10 +5,10 @@ postgres:
   dsn: "postgres://llm_monitor:llm_monitor@postgres:5432/llm_monitor?sslmode=disable"
 
 target:
-  name: "local-placeholder"
-  base_url: "http://host.docker.internal:3001"
+  name: "local-ollama"
+  base_url: "http://host.docker.internal:11434"
   http_check_path: "/v1/models"
-  timeout: "5s"
+  timeout: "120s"
 
 auth:
   enabled: false
@@ -29,11 +29,11 @@ schedules:
   http_check: "30s"
   auth_check: "60s"
   model_snapshot: "5m"
-  model_runs: "60m"
+  model_runs: "1m"
 
 models:
   absence_alert_after: "24h"
-  max_concurrency: 4
+  max_concurrency: 1
 
 tests:
   chat_prompts:

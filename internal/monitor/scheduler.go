@@ -93,9 +93,17 @@ func (s *Scheduler) Start(ctx context.Context) {
 	s.startOnce.Do(func() {
 		go s.loop(ctx, s.cfg.Schedules.HTTPCheck.Duration, s.RunHTTPCheck)
 		go s.loop(ctx, s.cfg.Schedules.AuthCheck.Duration, s.RunAuthCheck)
-		go s.loop(ctx, s.cfg.Schedules.ModelSnapshot.Duration, s.RefreshModels)
-		go s.loop(ctx, s.cfg.Schedules.ModelRuns.Duration, s.RunModelTests)
+		go s.startModelLoops(ctx)
 	})
+}
+
+// startModelLoops loads model inventory before the first performance run.
+func (s *Scheduler) startModelLoops(ctx context.Context) {
+	if err := s.RefreshModels(ctx); err != nil {
+		s.logger.Error("scheduled task failed", "error", err)
+	}
+	go s.loopAfterInterval(ctx, s.cfg.Schedules.ModelSnapshot.Duration, s.RefreshModels)
+	s.loop(ctx, s.cfg.Schedules.ModelRuns.Duration, s.RunModelTests)
 }
 
 // loop runs a task immediately, then repeatedly on its configured interval.
@@ -103,6 +111,22 @@ func (s *Scheduler) loop(ctx context.Context, interval time.Duration, fn func(co
 	if err := fn(ctx); err != nil {
 		s.logger.Error("scheduled task failed", "error", err)
 	}
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if err := fn(ctx); err != nil {
+				s.logger.Error("scheduled task failed", "error", err)
+			}
+		}
+	}
+}
+
+// loopAfterInterval runs a task only after the first interval has elapsed.
+func (s *Scheduler) loopAfterInterval(ctx context.Context, interval time.Duration, fn func(context.Context) error) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {

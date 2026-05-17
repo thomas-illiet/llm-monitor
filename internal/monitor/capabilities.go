@@ -20,21 +20,17 @@ func preservedRunnableCapability(detection capabilityDetection, knownCapability 
 	return ""
 }
 
-// detectModelCapability classifies a model by probing embedding before chat.
+// detectModelCapability classifies a model by probing chat before embedding.
 func (s *Scheduler) detectModelCapability(ctx context.Context, modelID, embeddingInput string) string {
 	return s.detectModelCapabilityDetails(ctx, modelID, embeddingInput).Capability
 }
 
 // detectModelCapabilityDetails classifies a model and records probe diagnostics.
 func (s *Scheduler) detectModelCapabilityDetails(ctx context.Context, modelID, embeddingInput string) capabilityDetection {
-	embedding := s.client.RunEmbedding(ctx, modelID, embeddingInput)
-	details := map[string]any{
-		"embedding": runDetails(embedding),
-	}
-	if embedding.OK && embedding.VectorDimensions != nil && *embedding.VectorDimensions > 0 {
-		details["selected_capability"] = capabilityEmbedding
-		return capabilityDetection{Capability: capabilityEmbedding, ProbeDetails: details}
-	}
+	return s.detectChatFirstCapability(ctx, modelID, embeddingInput)
+}
+
+func (s *Scheduler) detectChatFirstCapability(ctx context.Context, modelID, embeddingInput string) capabilityDetection {
 	chat := s.client.RunChat(ctx, llm.ChatRequest{
 		Model:       modelID,
 		PromptID:    "capability-probe",
@@ -42,12 +38,20 @@ func (s *Scheduler) detectModelCapabilityDetails(ctx context.Context, modelID, e
 		MaxTokens:   1,
 		Temperature: 0,
 	})
-	details["chat"] = runDetails(chat)
+	details := map[string]any{
+		"chat": runDetails(chat),
+	}
 	if chat.OK {
 		details["selected_capability"] = capabilityChat
 		return capabilityDetection{Capability: capabilityChat, ProbeDetails: details}
 	}
-	if isTransientProbeFailure(embedding) || isTransientProbeFailure(chat) {
+	embedding := s.client.RunEmbedding(ctx, modelID, embeddingInput)
+	details["embedding"] = runDetails(embedding)
+	if embedding.OK && embedding.VectorDimensions != nil && *embedding.VectorDimensions > 0 {
+		details["selected_capability"] = capabilityEmbedding
+		return capabilityDetection{Capability: capabilityEmbedding, ProbeDetails: details}
+	}
+	if isTransientProbeFailure(chat) || isTransientProbeFailure(embedding) {
 		probeReason := transientCapabilityProbeReason(embedding, chat)
 		details["selected_capability"] = capabilityUnknown
 		details["probe_status"] = "transient_error"

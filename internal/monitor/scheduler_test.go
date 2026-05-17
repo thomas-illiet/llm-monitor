@@ -48,8 +48,30 @@ func (c *capabilityProbeClient) RunEmbedding(context.Context, string, string) ll
 	return c.embeddingResult
 }
 
-// TestDetectModelCapabilityEmbeddingSuccessSkipsChat verifies embedding success stops probing.
-func TestDetectModelCapabilityEmbeddingSuccessSkipsChat(t *testing.T) {
+// TestDetectModelCapabilityFallsBackToEmbedding verifies embedding is selected when chat is unsupported.
+func TestDetectModelCapabilityFallsBackToEmbedding(t *testing.T) {
+	dimensions := 3
+	client := &capabilityProbeClient{
+		embeddingResult: llm.RunResult{OK: true, VectorDimensions: &dimensions},
+		chatResult:      llm.RunResult{OK: false, StatusCode: http.StatusBadRequest, Error: "not a chat model"},
+	}
+	scheduler := testScheduler(client)
+
+	got := scheduler.detectModelCapability(context.Background(), "embedding-test", "probe text")
+
+	if got != capabilityEmbedding {
+		t.Fatalf("got %q, want %q", got, capabilityEmbedding)
+	}
+	if client.chatCalls != 1 {
+		t.Fatalf("chat calls = %d, want 1", client.chatCalls)
+	}
+	if client.embeddingCalls != 1 {
+		t.Fatalf("embedding calls = %d, want 1", client.embeddingCalls)
+	}
+}
+
+// TestDetectModelCapabilityPrefersChatForGeneralModels keeps Ollama chat models from being misclassified as embeddings.
+func TestDetectModelCapabilityPrefersChatForGeneralModels(t *testing.T) {
 	dimensions := 3
 	client := &capabilityProbeClient{
 		embeddingResult: llm.RunResult{OK: true, VectorDimensions: &dimensions},
@@ -57,37 +79,16 @@ func TestDetectModelCapabilityEmbeddingSuccessSkipsChat(t *testing.T) {
 	}
 	scheduler := testScheduler(client)
 
-	got := scheduler.detectModelCapability(context.Background(), "text-embedding-test", "probe text")
-
-	if got != capabilityEmbedding {
-		t.Fatalf("got %q, want %q", got, capabilityEmbedding)
-	}
-	if client.embeddingCalls != 1 {
-		t.Fatalf("embedding calls = %d, want 1", client.embeddingCalls)
-	}
-	if client.chatCalls != 0 {
-		t.Fatalf("chat calls = %d, want 0", client.chatCalls)
-	}
-}
-
-// TestDetectModelCapabilityFallsBackToChat verifies chat probing after embedding rejection.
-func TestDetectModelCapabilityFallsBackToChat(t *testing.T) {
-	client := &capabilityProbeClient{
-		embeddingResult: llm.RunResult{OK: false, Error: "not an embedding model"},
-		chatResult:      llm.RunResult{OK: true},
-	}
-	scheduler := testScheduler(client)
-
-	got := scheduler.detectModelCapability(context.Background(), "gpt-test", "probe text")
+	got := scheduler.detectModelCapability(context.Background(), "smollm2:135m", "probe text")
 
 	if got != capabilityChat {
 		t.Fatalf("got %q, want %q", got, capabilityChat)
 	}
-	if client.embeddingCalls != 1 {
-		t.Fatalf("embedding calls = %d, want 1", client.embeddingCalls)
-	}
 	if client.chatCalls != 1 {
 		t.Fatalf("chat calls = %d, want 1", client.chatCalls)
+	}
+	if client.embeddingCalls != 0 {
+		t.Fatalf("embedding calls = %d, want 0", client.embeddingCalls)
 	}
 }
 
