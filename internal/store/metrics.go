@@ -69,6 +69,16 @@ func (s *Store) ModelStatusSamples(ctx context.Context, since time.Time) ([]Metr
 
 // KPISummary aggregates recent GuideLLM-style latency, throughput, SLO, and token metrics.
 func (s *Store) KPISummary(ctx context.Context, since time.Time, slo SLOThresholds) (KPISummary, error) {
+	return s.kpiSummary(ctx, since, slo, "")
+}
+
+// KPISummaryForModel aggregates recent latency, throughput, SLO, and token metrics for one model.
+func (s *Store) KPISummaryForModel(ctx context.Context, modelID string, since time.Time, slo SLOThresholds) (KPISummary, error) {
+	return s.kpiSummary(ctx, since, slo, modelID)
+}
+
+// kpiSummary runs the KPI aggregate query, optionally scoped to a model ID.
+func (s *Store) kpiSummary(ctx context.Context, since time.Time, slo SLOThresholds, modelID string) (KPISummary, error) {
 	var summary KPISummary
 	var requestP50, requestP90, requestP95, requestP99 pgtype.Float8
 	var ttftP50, ttftP90, ttftP95, ttftP99 pgtype.Float8
@@ -88,7 +98,7 @@ func (s *Store) KPISummary(ctx context.Context, since time.Time, slo SLOThreshol
 				input_tokens,
 				output_tokens,
 				output_tokens_per_second
-			FROM chat_runs WHERE started_at >= $1
+			FROM chat_runs WHERE started_at >= $1 AND ($5 = '' OR model_id = $5)
 			UNION ALL
 			SELECT
 				'embedding' AS kind,
@@ -101,7 +111,7 @@ func (s *Store) KPISummary(ctx context.Context, since time.Time, slo SLOThreshol
 				input_tokens,
 				NULL::integer AS output_tokens,
 				NULL::double precision AS output_tokens_per_second
-			FROM embedding_runs WHERE started_at >= $1
+			FROM embedding_runs WHERE started_at >= $1 AND ($5 = '' OR model_id = $5)
 		),
 		classified AS (
 			SELECT *,
@@ -139,7 +149,7 @@ func (s *Store) KPISummary(ctx context.Context, since time.Time, slo SLOThreshol
 			COALESCE(SUM(input_tokens), 0),
 			COALESCE(SUM(output_tokens), 0)
 		FROM classified
-	`, since, slo.TTFTP99MS, slo.ITLP99MS, slo.RequestLatencyP99MS).Scan(
+	`, since, slo.TTFTP99MS, slo.ITLP99MS, slo.RequestLatencyP99MS, modelID).Scan(
 		&summary.TotalRuns,
 		&summary.SuccessRate,
 		&requestP50,
@@ -201,11 +211,26 @@ func safeFloat(value pgtype.Float8) float64 {
 
 // MetricSamples loads raw metric points used to build configured chart series.
 func (s *Store) MetricSamples(ctx context.Context, metric, groupBy string, since time.Time) ([]MetricSample, error) {
+	return s.metricSamples(ctx, metric, groupBy, since, "")
+}
+
+// MetricSamplesForModel loads raw metric points for one model.
+func (s *Store) MetricSamplesForModel(ctx context.Context, metric, groupBy string, since time.Time, modelID string) ([]MetricSample, error) {
+	return s.metricSamples(ctx, metric, groupBy, since, modelID)
+}
+
+// metricSamples loads raw metric points, optionally scoped to a model ID.
+func (s *Store) metricSamples(ctx context.Context, metric, groupBy string, since time.Time, modelID string) ([]MetricSample, error) {
 	query, err := metricQuery(metric, groupBy)
+	args := []any{since}
+	if modelID != "" {
+		query, err = metricQueryForModel(metric, groupBy)
+		args = append(args, modelID)
+	}
 	if err != nil {
 		return nil, err
 	}
-	rows, err := s.pool.Query(ctx, query, since)
+	rows, err := s.pool.Query(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -353,6 +378,16 @@ func modelPerformanceOrderBy(sort string) string {
 
 // metricQuery returns the SQL needed for a supported dashboard metric.
 func metricQuery(metric, groupBy string) (string, error) {
+	return metricQueryWithModelScope(metric, groupBy, false)
+}
+
+// metricQueryForModel returns the SQL needed for a model-scoped dashboard metric.
+func metricQueryForModel(metric, groupBy string) (string, error) {
+	return metricQueryWithModelScope(metric, groupBy, true)
+}
+
+// metricQueryWithModelScope builds chart sample SQL and can constrain run-backed metrics to one model.
+func metricQueryWithModelScope(metric, groupBy string, modelScoped bool) (string, error) {
 	valueExpr := map[string]string{
 		"latency_ms":               "request_latency_ms",
 		"request_latency_ms":       "request_latency_ms",
@@ -384,6 +419,9 @@ func metricQuery(metric, groupBy string) (string, error) {
 		return "", fmt.Errorf("unsupported chart group_by %q", groupBy)
 	}
 	if metric == "auth_latency_ms" {
+		if modelScoped {
+			return "", fmt.Errorf("unsupported model-scoped chart metric %q", metric)
+		}
 		return fmt.Sprintf(`
 			SELECT checked_at AS at, 'auth' AS model_id, 'auth' AS capability, 'auth' AS sample_group, %s AS value
 			FROM auth_checks
@@ -392,6 +430,9 @@ func metricQuery(metric, groupBy string) (string, error) {
 		`, valueExpr), nil
 	}
 	if metric == "http_latency_ms" {
+		if modelScoped {
+			return "", fmt.Errorf("unsupported model-scoped chart metric %q", metric)
+		}
 		return fmt.Sprintf(`
 			SELECT checked_at AS at, 'http' AS model_id, 'http' AS capability, 'http' AS sample_group, %s AS value
 			FROM http_checks
@@ -403,6 +444,12 @@ func metricQuery(metric, groupBy string) (string, error) {
 	switch metric {
 	case "ttft_ms", "itl_ms", "tpot_ms", "output_tokens_per_second":
 		filterExpr = valueExpr + " IS NOT NULL"
+	}
+	chatWhere := "c.started_at >= $1"
+	embeddingWhere := "e.started_at >= $1"
+	if modelScoped {
+		chatWhere += " AND c.model_id = $2"
+		embeddingWhere += " AND e.model_id = $2"
 	}
 	return fmt.Sprintf(`
 		WITH runs AS (
@@ -420,7 +467,7 @@ func metricQuery(metric, groupBy string) (string, error) {
 				c.output_tokens_per_second
 			FROM chat_runs c
 			LEFT JOIN model_states m ON m.model_id = c.model_id
-			WHERE c.started_at >= $1
+			WHERE %s
 			UNION ALL
 			SELECT
 				e.started_at AS at,
@@ -436,11 +483,11 @@ func metricQuery(metric, groupBy string) (string, error) {
 				NULL::double precision AS output_tokens_per_second
 			FROM embedding_runs e
 			LEFT JOIN model_states m ON m.model_id = e.model_id
-			WHERE e.started_at >= $1
+			WHERE %s
 		)
 		SELECT at, model_id, capability, %s AS sample_group, %s AS value
 		FROM runs
 		WHERE %s
 		ORDER BY at ASC
-	`, groupExpr, valueExpr, filterExpr), nil
+	`, chatWhere, embeddingWhere, groupExpr, valueExpr, filterExpr), nil
 }

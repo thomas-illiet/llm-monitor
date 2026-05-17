@@ -22,6 +22,16 @@ type DashboardResponse struct {
 	HTTP               *store.CheckRecord  `json:"http,omitempty"`
 }
 
+// ModelDashboardResponse is the model-scoped payload consumed by the dashboard detail section.
+type ModelDashboardResponse struct {
+	GeneratedAt time.Time           `json:"generated_at"`
+	Model       store.ModelState    `json:"model"`
+	KPIs        store.KPISummary    `json:"kpis"`
+	SLO         store.SLOThresholds `json:"slo"`
+	Charts      []ChartResponse     `json:"charts"`
+	Runs        []store.RecentRun   `json:"runs"`
+}
+
 // StatusResponse is the compact health summary returned by status endpoints.
 type StatusResponse struct {
 	OK            bool      `json:"ok"`

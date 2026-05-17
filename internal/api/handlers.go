@@ -28,12 +28,7 @@ func (r *Router) status(w http.ResponseWriter, req *http.Request) {
 func (r *Router) dashboard(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 	now := time.Now().UTC()
-	window := r.cfg.Dashboard.DefaultWindow.Duration
-	if raw := req.URL.Query().Get("range"); raw != "" {
-		if parsed, err := time.ParseDuration(raw); err == nil {
-			window = parsed
-		}
-	}
+	window := parseDashboardWindow(req.URL.Query(), r.cfg.Dashboard.DefaultWindow.Duration)
 	since := now.Add(-window)
 	models, err := r.store.ListModelStates(ctx)
 	if err != nil {
@@ -84,6 +79,51 @@ func (r *Router) dashboard(w http.ResponseWriter, req *http.Request) {
 	writeJSON(w, http.StatusOK, response)
 }
 
+// modelDashboard returns model-scoped KPI, chart, and run telemetry.
+func (r *Router) modelDashboard(w http.ResponseWriter, req *http.Request) {
+	query, errMessage := parseModelDashboardQuery(req.URL.Query(), r.cfg.Dashboard.DefaultWindow.Duration)
+	if errMessage != "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": errMessage})
+		return
+	}
+	ctx := req.Context()
+	now := time.Now().UTC()
+	since := now.Add(-query.Window)
+	models, err := r.store.ListModelStates(ctx)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	model := findModelState(models, query.ModelID)
+	if model == nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "model not found"})
+		return
+	}
+	slo := r.sloThresholds()
+	kpis, err := r.store.KPISummaryForModel(ctx, query.ModelID, since, slo)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	runs, err := r.store.RecentRunsForModel(ctx, query.ModelID, since, 30)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	charts := make([]ChartResponse, 0, len(modelDashboardCharts))
+	for _, chartCfg := range modelDashboardCharts {
+		charts = append(charts, r.buildModelChart(ctx, chartCfg, query.ModelID, since, now, query.Window))
+	}
+	writeJSON(w, http.StatusOK, ModelDashboardResponse{
+		GeneratedAt: now,
+		Model:       *model,
+		KPIs:        kpis,
+		SLO:         slo,
+		Charts:      charts,
+		Runs:        runs,
+	})
+}
+
 // modelEvents returns a model-scoped event timeline for dashboard modals.
 func (r *Router) modelEvents(w http.ResponseWriter, req *http.Request) {
 	query, errMessage := parseModelEventsQuery(req.URL.Query())
@@ -104,6 +144,16 @@ func (r *Router) modelEvents(w http.ResponseWriter, req *http.Request) {
 		Offset:  query.Offset,
 		Filters: page.Filters,
 	})
+}
+
+// findModelState returns the current state for one model.
+func findModelState(models []store.ModelState, modelID string) *store.ModelState {
+	for i := range models {
+		if models[i].ModelID == modelID {
+			return &models[i]
+		}
+	}
+	return nil
 }
 
 // buildStatus derives the top-level OK state from checks and model inventory.

@@ -43,6 +43,51 @@ var dashboardCharts = []dashboardChartConfig{
 	},
 }
 
+var modelDashboardCharts = []dashboardChartConfig{
+	{
+		ID:      "model-request-latency",
+		Title:   "Request latency",
+		Type:    "line",
+		Metric:  "request_latency_ms",
+		GroupBy: "capability",
+	},
+	{
+		ID:      "model-ttft",
+		Title:   "Time to first token",
+		Type:    "line",
+		Metric:  "ttft_ms",
+		GroupBy: "capability",
+	},
+	{
+		ID:      "model-itl",
+		Title:   "Inter-token latency",
+		Type:    "line",
+		Metric:  "itl_ms",
+		GroupBy: "capability",
+	},
+	{
+		ID:      "model-tpot",
+		Title:   "Time per output token",
+		Type:    "line",
+		Metric:  "tpot_ms",
+		GroupBy: "capability",
+	},
+	{
+		ID:      "model-output-throughput",
+		Title:   "Output throughput",
+		Type:    "line",
+		Metric:  "output_tokens_per_second",
+		GroupBy: "capability",
+	},
+	{
+		ID:      "model-errors",
+		Title:   "Errors",
+		Type:    "bar",
+		Metric:  "errors",
+		GroupBy: "capability",
+	},
+}
+
 // buildChart converts one static dashboard chart into labels and datasets.
 func (r *Router) buildChart(ctx context.Context, cfg dashboardChartConfig, since, now time.Time, window time.Duration) ChartResponse {
 	interval := cfg.Interval
@@ -56,6 +101,22 @@ func (r *Router) buildChart(ctx context.Context, cfg dashboardChartConfig, since
 		return response
 	}
 	response.Labels, response.Datasets = bucketSamples(samples, cfg.Models, since, now, interval, isSummedMetric(cfg.Metric))
+	return response
+}
+
+// buildModelChart converts one static model chart into labels and datasets.
+func (r *Router) buildModelChart(ctx context.Context, cfg dashboardChartConfig, modelID string, since, now time.Time, window time.Duration) ChartResponse {
+	interval := cfg.Interval
+	if interval == 0 {
+		interval = dashboardChartInterval(window)
+	}
+	response := ChartResponse{ID: cfg.ID, Title: cfg.Title, Type: cfg.Type, Metric: cfg.Metric}
+	samples, err := r.store.MetricSamplesForModel(ctx, cfg.Metric, cfg.GroupBy, since, modelID)
+	if err != nil {
+		response.Error = err.Error()
+		return response
+	}
+	response.Labels, response.Datasets = bucketSamples(samples, nil, since, now, interval, isSummedMetric(cfg.Metric))
 	return response
 }
 

@@ -16,6 +16,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
+  openDashboard: [modelId: string]
   openEvents: [modelId: string]
 }>()
 
@@ -117,6 +118,9 @@ const tableRows = computed<ModelInventoryRow[]>(() => {
             />
           </template>
           <VList density="compact" min-width="160">
+            <VListItem prepend-icon="mdi-view-dashboard-outline" @click="emit('openDashboard', item.model_id)">
+              <VListItemTitle>Dashboard</VListItemTitle>
+            </VListItem>
             <VListItem prepend-icon="mdi-timeline-clock-outline" @click="emit('openEvents', item.model_id)">
               <VListItemTitle>Events</VListItemTitle>
             </VListItem>

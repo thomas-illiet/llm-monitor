@@ -19,6 +19,23 @@ func TestMetricQuerySupportsHTTPChecks(t *testing.T) {
 	}
 }
 
+// TestMetricQueryForModelScopesRunBackedMetrics verifies model dashboards constrain run samples.
+func TestMetricQueryForModelScopesRunBackedMetrics(t *testing.T) {
+	query, err := metricQueryForModel("ttft_ms", "capability")
+	if err != nil {
+		t.Fatalf("metricQueryForModel() error = %v", err)
+	}
+	if !strings.Contains(query, "c.model_id = $2") {
+		t.Fatalf("query = %q, want chat model filter", query)
+	}
+	if !strings.Contains(query, "e.model_id = $2") {
+		t.Fatalf("query = %q, want embedding model filter", query)
+	}
+	if _, err := metricQueryForModel("http_latency_ms", "check"); err == nil {
+		t.Fatal("metricQueryForModel() accepted an HTTP check metric")
+	}
+}
+
 // TestMetricQueryRejectsUnsupportedInputs verifies invalid metrics and groupings fail.
 func TestMetricQueryRejectsUnsupportedInputs(t *testing.T) {
 	if _, err := metricQuery("unknown_metric", "model"); err == nil {

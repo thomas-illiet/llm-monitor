@@ -14,6 +14,16 @@ export interface DashboardData {
   http?: CheckRecord
 }
 
+/** Model-scoped payload returned by `/api/model-dashboard`. */
+export interface ModelDashboardData {
+  generated_at: string
+  model: ModelState
+  kpis: KpiSummary
+  slo: SloThresholds
+  charts: ConfiguredChart[]
+  runs: RecentRun[]
+}
+
 /** Supported preset KPI time-window values shown by the dashboard UI. */
 export type KpiRangeValue = '1h' | '12h' | '24h' | '168h' | '720h' | '8760h'
 

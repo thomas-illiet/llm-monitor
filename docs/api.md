@@ -34,6 +34,19 @@ Returns the full dashboard payload. Optional query parameter:
 
 The response includes generated time, status, KPIs, SLOs, static dashboard charts, model status history, current models, recent events, recent runs, recent alerts, and latest auth/HTTP checks.
 
+## `GET /api/model-dashboard`
+
+Returns KPI, chart, and recent probe telemetry for one model. Query parameters:
+
+- `model_id`: required
+- `range`: optional Go duration string such as `24h`, `168h`, `720h`, or `8760h`
+
+```text
+/api/model-dashboard?model_id=gpt-test&range=24h
+```
+
+The response includes generated time, the current model state, model-scoped KPIs, SLOs, model-scoped charts, and recent runs in the selected window. Missing `model_id` returns `400`; unknown models return `404`.
+
 ## `GET /api/model-events`
 
 Returns a paginated model event timeline. Query parameters:

@@ -5,9 +5,25 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"llmservicemonitor/internal/store"
 )
+
+type modelDashboardQuery struct {
+	ModelID string
+	Window  time.Duration
+}
+
+// parseDashboardWindow maps a range query parameter to a dashboard window.
+func parseDashboardWindow(values url.Values, fallback time.Duration) time.Duration {
+	if raw := values.Get("range"); raw != "" {
+		if parsed, err := time.ParseDuration(raw); err == nil {
+			return parsed
+		}
+	}
+	return fallback
+}
 
 // parseLimit parses a bounded positive limit with a generous dashboard cap.
 func parseLimit(raw string, fallback int) int {
@@ -27,6 +43,18 @@ func parseModelEventsQuery(values url.Values) (store.ModelEventQuery, string) {
 		Statuses:   cleanQueryValues(values["status"]),
 		Sources:    cleanQueryValues(values["source"]),
 		EventTypes: cleanQueryValues(values["event_type"]),
+	}, ""
+}
+
+// parseModelDashboardQuery maps URL query parameters to one model dashboard request.
+func parseModelDashboardQuery(values url.Values, fallbackWindow time.Duration) (modelDashboardQuery, string) {
+	modelID := strings.TrimSpace(values.Get("model_id"))
+	if modelID == "" {
+		return modelDashboardQuery{}, "model_id is required"
+	}
+	return modelDashboardQuery{
+		ModelID: modelID,
+		Window:  parseDashboardWindow(values, fallbackWindow),
 	}, ""
 }
 

@@ -74,6 +74,22 @@ func TestStaticDashboardCharts(t *testing.T) {
 	})
 }
 
+// TestStaticModelDashboardCharts verifies the model detail chart set is code-owned.
+func TestStaticModelDashboardCharts(t *testing.T) {
+	got := make([]string, 0, len(modelDashboardCharts))
+	for _, chart := range modelDashboardCharts {
+		got = append(got, chart.ID)
+	}
+	assertStrings(t, got, []string{
+		"model-request-latency",
+		"model-ttft",
+		"model-itl",
+		"model-tpot",
+		"model-output-throughput",
+		"model-errors",
+	})
+}
+
 // TestDashboardChartInterval verifies static charts adapt to the active KPI window.
 func TestDashboardChartInterval(t *testing.T) {
 	tests := []struct {
@@ -215,6 +231,43 @@ func TestParseModelEventsQueryRequiresModelID(t *testing.T) {
 	}
 }
 
+// TestParseModelDashboardQuery verifies model dashboard query normalization.
+func TestParseModelDashboardQuery(t *testing.T) {
+	values := url.Values{}
+	values.Set("model_id", " test-model ")
+	values.Set("range", "12h")
+
+	got, errMessage := parseModelDashboardQuery(values, 24*time.Hour)
+	if errMessage != "" {
+		t.Fatalf("parseModelDashboardQuery returned error %q", errMessage)
+	}
+	if got.ModelID != "test-model" {
+		t.Fatalf("ModelID = %q, want test-model", got.ModelID)
+	}
+	if got.Window != 12*time.Hour {
+		t.Fatalf("Window = %s, want 12h", got.Window)
+	}
+}
+
+// TestParseModelDashboardQueryFallbacks verifies missing model and invalid ranges are handled.
+func TestParseModelDashboardQueryFallbacks(t *testing.T) {
+	_, errMessage := parseModelDashboardQuery(url.Values{}, 24*time.Hour)
+	if errMessage != "model_id is required" {
+		t.Fatalf("error = %q, want model_id is required", errMessage)
+	}
+
+	values := url.Values{}
+	values.Set("model_id", "test-model")
+	values.Set("range", "not-a-duration")
+	got, errMessage := parseModelDashboardQuery(values, 24*time.Hour)
+	if errMessage != "" {
+		t.Fatalf("parseModelDashboardQuery returned error %q", errMessage)
+	}
+	if got.Window != 24*time.Hour {
+		t.Fatalf("Window = %s, want fallback 24h", got.Window)
+	}
+}
+
 // TestModelEventsResponseShape verifies the JSON contract for model event pages.
 func TestModelEventsResponseShape(t *testing.T) {
 	payload := ModelEventsResponse{
@@ -255,6 +308,39 @@ func TestModelEventsResponseShape(t *testing.T) {
 	assertStrings(t, got.Filters.Statuses, []string{"ok"})
 	assertStrings(t, got.Filters.Sources, []string{"scheduler"})
 	assertStrings(t, got.Filters.EventTypes, []string{"scheduled_run"})
+}
+
+// TestModelDashboardResponseShape verifies the JSON contract for model detail payloads.
+func TestModelDashboardResponseShape(t *testing.T) {
+	payload := ModelDashboardResponse{
+		GeneratedAt: time.Date(2026, 5, 17, 10, 0, 0, 0, time.UTC),
+		Model:       store.ModelState{ModelID: "test-model", Capability: "chat", Status: "active"},
+		KPIs:        store.KPISummary{TotalRuns: 2, SuccessRate: 1},
+		SLO:         store.SLOThresholds{TTFTP99MS: 1000},
+		Charts:      []ChartResponse{{ID: "model-ttft", Title: "Time to first token", Type: "line", Metric: "ttft_ms"}},
+		Runs:        []store.RecentRun{{Kind: "chat", ModelID: "test-model"}},
+	}
+
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("Marshal() error = %v", err)
+	}
+	var got struct {
+		Model struct {
+			ModelID string `json:"model_id"`
+		} `json:"model"`
+		KPIs struct {
+			TotalRuns int64 `json:"total_runs"`
+		} `json:"kpis"`
+		Charts []any `json:"charts"`
+		Runs   []any `json:"runs"`
+	}
+	if err := json.Unmarshal(raw, &got); err != nil {
+		t.Fatalf("Unmarshal() error = %v", err)
+	}
+	if got.Model.ModelID != "test-model" || got.KPIs.TotalRuns != 2 || len(got.Charts) != 1 || len(got.Runs) != 1 {
+		t.Fatalf("response shape = %#v, want model, kpis, charts, and runs", got)
+	}
 }
 
 // assertStrings compares two string slices in order.

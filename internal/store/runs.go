@@ -1,6 +1,9 @@
 package store
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // RecordChatRun stores performance metrics from one chat completion probe.
 func (s *Store) RecordChatRun(ctx context.Context, record ChatRunRecord) error {
@@ -25,6 +28,20 @@ func (s *Store) RecordEmbeddingRun(ctx context.Context, record EmbeddingRunRecor
 
 // RecentRuns returns recent chat and embedding probes in one timeline.
 func (s *Store) RecentRuns(ctx context.Context, limit int) ([]RecentRun, error) {
+	return s.recentRuns(ctx, "", nil, limit)
+}
+
+// RecentRunsForModel returns recent chat and embedding probes for one model.
+func (s *Store) RecentRunsForModel(ctx context.Context, modelID string, since time.Time, limit int) ([]RecentRun, error) {
+	return s.recentRuns(ctx, modelID, &since, limit)
+}
+
+// recentRuns returns recent probes, optionally scoped to a model ID.
+func (s *Store) recentRuns(ctx context.Context, modelID string, since *time.Time, limit int) ([]RecentRun, error) {
+	var sinceArg any
+	if since != nil {
+		sinceArg = *since
+	}
 	rows, err := s.pool.Query(ctx, `
 		SELECT kind, model_id, prompt_id, started_at, ok, status_code, latency_ms, input_tokens, output_tokens, total_tokens, error
 		FROM (
@@ -34,9 +51,11 @@ func (s *Store) RecentRuns(ctx context.Context, limit int) ([]RecentRun, error) 
 			SELECT 'embedding' AS kind, model_id, '' AS prompt_id, started_at, ok, status_code, latency_ms, input_tokens, NULL::integer AS output_tokens, total_tokens, error
 			FROM embedding_runs
 		) runs
+		WHERE ($2 = '' OR model_id = $2)
+			AND ($3::timestamptz IS NULL OR started_at >= $3)
 		ORDER BY started_at DESC
 		LIMIT $1
-	`, limit)
+	`, limit, modelID, sinceArg)
 	if err != nil {
 		return nil, err
 	}

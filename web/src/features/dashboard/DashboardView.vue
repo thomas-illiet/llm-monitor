@@ -5,6 +5,7 @@ import PublicStatusPanel from '@/features/dashboard/components/PublicStatusPanel
 import KpiRangeSelector from '@/features/dashboard/components/KpiRangeSelector.vue'
 import KpiCards from '@/features/dashboard/components/KpiCards.vue'
 import ConfiguredCharts from '@/features/dashboard/components/ConfiguredCharts.vue'
+import ModelDashboardDialog from '@/features/dashboard/components/ModelDashboardDialog.vue'
 import ModelInventoryTable from '@/features/dashboard/components/ModelInventoryTable.vue'
 import ModelEventsDialog from '@/features/dashboard/components/ModelEventsDialog.vue'
 import { useDashboardData } from '@/features/dashboard/composables/useDashboardData'
@@ -15,6 +16,8 @@ const { selectedKpiRange } = usePersistentKpiRange()
 const { data, loading, error, refresh } = useDashboardData({ kpiRange: selectedKpiRange })
 const hasInitialData = computed(() => data.value !== null)
 const { isDark, toggleTheme } = usePersistentTheme()
+const selectedDashboardModel = shallowRef<string | null>(null)
+const dashboardDialogOpen = shallowRef(false)
 const selectedEventsModel = shallowRef<string | null>(null)
 const eventsDialogOpen = shallowRef(false)
 
@@ -39,6 +42,12 @@ const publicCharts = computed(() => {
 function openModelEvents(modelId: string) {
   selectedEventsModel.value = modelId
   eventsDialogOpen.value = true
+}
+
+/** Opens the model dashboard dialog for the selected inventory row. */
+function openModelDashboard(modelId: string) {
+  selectedDashboardModel.value = modelId
+  dashboardDialogOpen.value = true
 }
 </script>
 
@@ -87,7 +96,19 @@ function openModelEvents(modelId: string) {
             :model-status-history="data.model_status_history"
           />
 
-          <ModelInventoryTable :models="data.models" :runs="data.runs" @open-events="openModelEvents" />
+          <ModelInventoryTable
+            :models="data.models"
+            :runs="data.runs"
+            @open-dashboard="openModelDashboard"
+            @open-events="openModelEvents"
+          />
+          <ModelDashboardDialog
+            v-model="dashboardDialogOpen"
+            v-model:model-id="selectedDashboardModel"
+            :is-dark="isDark"
+            :kpi-range="selectedKpiRange"
+            :models="data.models"
+          />
           <ModelEventsDialog v-model="eventsDialogOpen" :model-id="selectedEventsModel" />
         </template>
       </div>
