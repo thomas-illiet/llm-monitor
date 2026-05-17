@@ -1,0 +1,35 @@
+# Local runtime config and secrets
+config.yaml
+config.local.yaml
+config.*.local.yaml
+.env
+.env.*
+!.env.example
+secrets/
+certs/
+
+# Go build and test artifacts
+/server
+/llm-monitor
+*.test
+coverage.out
+coverage.html
+*.coverprofile
+
+# Frontend dependencies and generated output
+node_modules/
+web/node_modules/
+web/dist/
+web/.vite/
+
+# Logs and temporary files
+*.log
+tmp/
+temp/
+
+# OS and editor metadata
+.DS_Store
+**/.DS_Store
+.idea/
+.vscode/
+.claude/
