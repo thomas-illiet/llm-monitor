@@ -18,9 +18,13 @@ interface KpiCard {
   icon: Component
 }
 
-/** Formats millisecond values for compact KPI cards. */
-function ms(value: number) {
-  return `${Math.round(value)} ms`
+/** Formats millisecond values for compact KPI cards, switching to seconds at 1s. */
+function duration(value: number) {
+  const milliseconds = Math.round(value)
+  if (milliseconds < 1000) return `${milliseconds} ms`
+
+  const seconds = Math.round(milliseconds / 100) / 10
+  return `${seconds} s`
 }
 
 /** Formats a ratio as a one-decimal percentage. */
@@ -73,8 +77,8 @@ const cards = computed<KpiCard[]>(() => {
     return [
       {
         label: 'Request p99',
-        value: ms(props.kpis.request_latency_p99_ms),
-        detail: `SLO ${ms(props.slo.request_latency_p99_ms)} · p95 ${ms(props.kpis.request_latency_p95_ms)}`,
+        value: duration(props.kpis.request_latency_p99_ms),
+        detail: `SLO ${duration(props.slo.request_latency_p99_ms)} · p95 ${duration(props.kpis.request_latency_p95_ms)}`,
         accent: thresholdAccent(props.kpis.request_latency_p99_ms, props.slo.request_latency_p99_ms),
         icon: Zap
       },
@@ -119,22 +123,22 @@ const cards = computed<KpiCard[]>(() => {
   return [
     {
       label: 'TTFT p99',
-      value: ms(props.kpis.ttft_p99_ms),
-      detail: `SLO ${ms(props.slo.ttft_p99_ms)} · p50 ${ms(props.kpis.ttft_p50_ms)}`,
+      value: duration(props.kpis.ttft_p99_ms),
+      detail: `SLO ${duration(props.slo.ttft_p99_ms)} · p50 ${duration(props.kpis.ttft_p50_ms)}`,
       accent: thresholdAccent(props.kpis.ttft_p99_ms, props.slo.ttft_p99_ms),
       icon: Timer
     },
     {
       label: 'ITL p99',
-      value: ms(props.kpis.itl_p99_ms),
-      detail: `SLO ${ms(props.slo.itl_p99_ms)} · p50 ${ms(props.kpis.itl_p50_ms)}`,
+      value: duration(props.kpis.itl_p99_ms),
+      detail: `SLO ${duration(props.slo.itl_p99_ms)} · p50 ${duration(props.kpis.itl_p50_ms)}`,
       accent: thresholdAccent(props.kpis.itl_p99_ms, props.slo.itl_p99_ms),
       icon: Activity
     },
     {
       label: 'Request p99',
-      value: ms(props.kpis.request_latency_p99_ms),
-      detail: `SLO ${ms(props.slo.request_latency_p99_ms)} · p95 ${ms(props.kpis.request_latency_p95_ms)}`,
+      value: duration(props.kpis.request_latency_p99_ms),
+      detail: `SLO ${duration(props.slo.request_latency_p99_ms)} · p95 ${duration(props.kpis.request_latency_p95_ms)}`,
       accent: thresholdAccent(props.kpis.request_latency_p99_ms, props.slo.request_latency_p99_ms),
       icon: Zap
     },
