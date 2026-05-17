@@ -81,9 +81,15 @@ func main() {
 		os.Exit(1)
 	}
 
+	handler, err := api.NewRouter(cfg, db, staticRoot, logger)
+	if err != nil {
+		logger.Error("build http router", "error", err)
+		os.Exit(1)
+	}
+
 	server := &http.Server{
 		Addr:              cfg.Server.Address,
-		Handler:           api.NewRouter(cfg, db, staticRoot, logger),
+		Handler:           handler,
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -39,11 +40,36 @@ dashboard:
 	if cfg.Models.MaxConcurrency != 4 {
 		t.Fatalf("unexpected max concurrency %d", cfg.Models.MaxConcurrency)
 	}
+	if cfg.MCP.Enabled {
+		t.Fatal("mcp should be disabled by default")
+	}
+	if cfg.MCP.Path != "/mcp" {
+		t.Fatalf("unexpected mcp path %q", cfg.MCP.Path)
+	}
 	if cfg.Dashboard.DefaultWindow.Duration != 24*time.Hour {
 		t.Fatalf("unexpected dashboard window %s", cfg.Dashboard.DefaultWindow.Duration)
 	}
 	if cfg.Dashboard.SLO.TTFTP99MS != 200 || cfg.Dashboard.SLO.ITLP99MS != 50 || cfg.Dashboard.SLO.RequestLatencyP99MS != 3000 {
 		t.Fatalf("unexpected dashboard slo defaults: %#v", cfg.Dashboard.SLO)
+	}
+}
+
+// TestValidateMCPRequiresBearerToken verifies enabled MCP endpoints require a dedicated secret.
+func TestValidateMCPRequiresBearerToken(t *testing.T) {
+	cfg := Config{
+		Postgres: PostgresConfig{DSN: "postgres://user:pass@localhost:5432/monitor"},
+		Target:   TargetConfig{BaseURL: "https://llm.example.test"},
+		MCP:      MCPConfig{Enabled: true},
+	}
+	cfg.ApplyDefaults()
+	err := cfg.Validate()
+	if err == nil || !strings.Contains(err.Error(), "mcp.bearer_token or mcp.bearer_token_file is required") {
+		t.Fatalf("Validate() error = %v, want mcp bearer token requirement", err)
+	}
+
+	cfg.MCP.BearerTokenFile = "/run/secrets/mcp-token"
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate() with bearer token file error = %v", err)
 	}
 }
 

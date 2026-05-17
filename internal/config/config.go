@@ -40,6 +40,7 @@ type Config struct {
 	Target    TargetConfig    `yaml:"target"`
 	Auth      AuthConfig      `yaml:"auth"`
 	SMTP      SMTPConfig      `yaml:"smtp"`
+	MCP       MCPConfig       `yaml:"mcp"`
 	Schedules ScheduleConfig  `yaml:"schedules"`
 	Models    ModelsConfig    `yaml:"models"`
 	Tests     TestsConfig     `yaml:"tests"`
@@ -101,6 +102,15 @@ type SMTPConfig struct {
 	To                 []string `yaml:"to"`
 	StartTLS           bool     `yaml:"starttls"`
 	InsecureSkipVerify bool     `yaml:"insecure_skip_verify"`
+}
+
+// MCPConfig controls the optional Streamable HTTP MCP endpoint.
+type MCPConfig struct {
+	Enabled         bool     `yaml:"enabled"`
+	Path            string   `yaml:"path"`
+	BearerToken     string   `yaml:"bearer_token"`
+	BearerTokenFile string   `yaml:"bearer_token_file"`
+	AllowedOrigins  []string `yaml:"allowed_origins"`
 }
 
 // ScheduleConfig controls recurring monitor intervals.
@@ -190,6 +200,9 @@ func (c *Config) ApplyDefaults() {
 	if c.SMTP.Port == 0 {
 		c.SMTP.Port = 587
 	}
+	if c.MCP.Path == "" {
+		c.MCP.Path = "/mcp"
+	}
 	if c.Schedules.HTTPCheck.Duration == 0 {
 		c.Schedules.HTTPCheck.Duration = 30 * time.Second
 	}
@@ -251,6 +264,20 @@ func (c Config) Validate() error {
 		}
 		if len(c.SMTP.To) == 0 {
 			problems = append(problems, "smtp.to is required when smtp.enabled=true")
+		}
+	}
+	if c.MCP.Enabled {
+		if c.MCP.Path == "" || !strings.HasPrefix(c.MCP.Path, "/") || c.MCP.Path == "/" {
+			problems = append(problems, "mcp.path must start with / and cannot be /")
+		}
+		if c.MCP.BearerToken == "" && c.MCP.BearerTokenFile == "" {
+			problems = append(problems, "mcp.bearer_token or mcp.bearer_token_file is required when mcp.enabled=true")
+		}
+	}
+	for _, origin := range c.MCP.AllowedOrigins {
+		if strings.TrimSpace(origin) == "" {
+			problems = append(problems, "mcp.allowed_origins cannot contain empty values")
+			break
 		}
 	}
 	if len(problems) > 0 {

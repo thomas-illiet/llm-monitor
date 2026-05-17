@@ -16,6 +16,15 @@ auth:
 smtp:
   enabled: false
 
+mcp:
+  enabled: true
+  path: "/mcp"
+  bearer_token: "dev-mcp-token"
+  allowed_origins:
+    - "http://localhost:18080"
+    - "http://localhost:6274"
+    - "http://127.0.0.1:6274"
+
 schedules:
   http_check: "30s"
   auth_check: "60s"

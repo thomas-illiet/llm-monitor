@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"llmservicemonitor/internal/config"
+	"llmservicemonitor/internal/mcpserver"
 	"llmservicemonitor/internal/store"
 )
 
@@ -23,6 +24,7 @@ type DashboardStore interface {
 	MetricSamples(ctx context.Context, metric, groupBy string, since time.Time) ([]store.MetricSample, error)
 	ModelStatusSamples(ctx context.Context, since time.Time) ([]store.MetricSample, error)
 	ListModelEvents(ctx context.Context, query store.ModelEventQuery) (store.ModelEventPage, error)
+	ModelPerformance(ctx context.Context, query store.ModelPerformanceQuery) ([]store.ModelPerformanceRow, error)
 }
 
 // Router owns API configuration, persistence access, and embedded frontend assets.
@@ -34,13 +36,20 @@ type Router struct {
 }
 
 // NewRouter registers API endpoints and the embedded frontend fallback handler.
-func NewRouter(cfg config.Config, db DashboardStore, static fs.FS, logger *slog.Logger) http.Handler {
+func NewRouter(cfg config.Config, db DashboardStore, static fs.FS, logger *slog.Logger) (http.Handler, error) {
 	router := &Router{cfg: cfg, store: db, static: static, logger: logger}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", router.healthz)
 	mux.HandleFunc("GET /api/status", router.status)
 	mux.HandleFunc("GET /api/dashboard", router.dashboard)
 	mux.HandleFunc("GET /api/model-events", router.modelEvents)
+	if cfg.MCP.Enabled {
+		handler, err := mcpserver.NewHandler(cfg, db, logger)
+		if err != nil {
+			return nil, err
+		}
+		mux.Handle(cfg.MCP.Path, handler)
+	}
 	mux.HandleFunc("/", router.frontend)
-	return mux
+	return mux, nil
 }

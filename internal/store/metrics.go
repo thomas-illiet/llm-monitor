@@ -221,6 +221,136 @@ func (s *Store) MetricSamples(ctx context.Context, metric, groupBy string, since
 	return samples, rows.Err()
 }
 
+// ModelPerformance summarizes recent chat and embedding run performance by model.
+func (s *Store) ModelPerformance(ctx context.Context, query ModelPerformanceQuery) ([]ModelPerformanceRow, error) {
+	if query.Limit <= 0 {
+		query.Limit = 20
+	}
+	orderBy := modelPerformanceOrderBy(query.Sort)
+	rows, err := s.pool.Query(ctx, `
+		WITH runs AS (
+			SELECT
+				model_id,
+				started_at,
+				ok,
+				status_code,
+				COALESCE(request_latency_ms, latency_ms) AS latency_ms,
+				error
+			FROM chat_runs
+			WHERE started_at >= $1
+			UNION ALL
+			SELECT
+				model_id,
+				started_at,
+				ok,
+				status_code,
+				latency_ms,
+				error
+			FROM embedding_runs
+			WHERE started_at >= $1
+		),
+		aggregated AS (
+			SELECT
+				model_id,
+				COUNT(*) AS runs,
+				COALESCE(AVG(CASE WHEN ok THEN 1.0 ELSE 0.0 END), 0) AS success_rate,
+				COUNT(*) FILTER (WHERE NOT ok) AS error_count,
+				AVG(latency_ms) AS avg_latency_ms,
+				percentile_cont(0.50) WITHIN GROUP (ORDER BY latency_ms) AS p50_latency_ms,
+				percentile_cont(0.95) WITHIN GROUP (ORDER BY latency_ms) AS p95_latency_ms,
+				percentile_cont(0.99) WITHIN GROUP (ORDER BY latency_ms) AS p99_latency_ms,
+				MIN(started_at) AS first_run_at,
+				MAX(started_at) AS last_run_at
+			FROM runs
+			GROUP BY model_id
+		),
+		latest_errors AS (
+			SELECT DISTINCT ON (model_id)
+				model_id,
+				status_code,
+				error
+			FROM runs
+			WHERE NOT ok
+			ORDER BY model_id, started_at DESC
+		)
+		SELECT
+			aggregated.model_id,
+			aggregated.runs,
+			aggregated.success_rate,
+			aggregated.error_count,
+			aggregated.avg_latency_ms,
+			aggregated.p50_latency_ms,
+			aggregated.p95_latency_ms,
+			aggregated.p99_latency_ms,
+			aggregated.first_run_at,
+			aggregated.last_run_at,
+			latest_errors.status_code,
+			latest_errors.error
+		FROM aggregated
+		LEFT JOIN latest_errors ON latest_errors.model_id = aggregated.model_id
+		ORDER BY `+orderBy+`
+		LIMIT $2
+	`, query.Since, query.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []ModelPerformanceRow
+	for rows.Next() {
+		var row ModelPerformanceRow
+		var avgLatency, p50Latency, p95Latency, p99Latency pgtype.Float8
+		var latestStatus pgtype.Int4
+		var latestError pgtype.Text
+		if err := rows.Scan(
+			&row.ModelID,
+			&row.Runs,
+			&row.SuccessRate,
+			&row.ErrorCount,
+			&avgLatency,
+			&p50Latency,
+			&p95Latency,
+			&p99Latency,
+			&row.FirstRunAt,
+			&row.LastRunAt,
+			&latestStatus,
+			&latestError,
+		); err != nil {
+			return nil, err
+		}
+		row.AvgLatencyMS = safeFloat(avgLatency)
+		row.P50LatencyMS = safeFloat(p50Latency)
+		row.P95LatencyMS = safeFloat(p95Latency)
+		row.P99LatencyMS = safeFloat(p99Latency)
+		if latestStatus.Valid || latestError.Valid {
+			row.LatestError = &ModelPerformanceError{
+				StatusCode: int(latestStatus.Int32),
+				Message:    latestError.String,
+			}
+		}
+		results = append(results, row)
+	}
+	return results, rows.Err()
+}
+
+// modelPerformanceOrderBy returns a safe ORDER BY fragment for supported sorts.
+func modelPerformanceOrderBy(sort string) string {
+	switch sort {
+	case "success_rate":
+		return "success_rate DESC, error_count ASC, model_id ASC"
+	case "avg_latency_ms":
+		return "avg_latency_ms DESC, error_count DESC, model_id ASC"
+	case "p95_latency_ms":
+		return "p95_latency_ms DESC, error_count DESC, model_id ASC"
+	case "p99_latency_ms":
+		return "p99_latency_ms DESC, error_count DESC, model_id ASC"
+	case "model_id":
+		return "model_id ASC"
+	default:
+		return "error_count DESC, success_rate ASC, model_id ASC"
+	}
+}
+
 // metricQuery returns the SQL needed for a supported dashboard metric.
 func metricQuery(metric, groupBy string) (string, error) {
 	valueExpr := map[string]string{

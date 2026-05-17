@@ -8,6 +8,7 @@ Configuration is loaded from `LLM_MONITOR_CONFIG`, defaulting to `config.yaml`. 
 - `target.base_url`: OpenAI-compatible API base URL.
 - `auth.token_url`: required only when `auth.enabled` is `true`.
 - `smtp.host`, `smtp.from`, and `smtp.to`: required only when `smtp.enabled` is `true`.
+- `mcp.bearer_token` or `mcp.bearer_token_file`: required only when `mcp.enabled` is `true`.
 
 ## Secrets
 
@@ -16,8 +17,13 @@ Secrets can be supplied inline for local use or via file fields for deployment:
 - `target.api_key_file`
 - `auth.client_secret_file`
 - `smtp.password_file`
+- `mcp.bearer_token_file`
 
 Prefer file fields in production so Docker/Kubernetes secrets can be mounted read-only.
+
+## MCP Endpoint
+
+The optional MCP Streamable HTTP endpoint is disabled by default. Enable it with `mcp.enabled: true`, set `mcp.path` if `/mcp` is not suitable, and provide a dedicated bearer token. Requests with an `Origin` header are rejected unless the origin exactly matches one of `mcp.allowed_origins`.
 
 ## Probe Scheduling
 

@@ -224,3 +224,31 @@ type MetricSample struct {
 	Group      string
 	Value      float64
 }
+
+// ModelPerformanceQuery controls the read-only MCP model performance summary.
+type ModelPerformanceQuery struct {
+	Since time.Time
+	Sort  string
+	Limit int
+}
+
+// ModelPerformanceError describes the latest failed run for one model.
+type ModelPerformanceError struct {
+	StatusCode int    `json:"status_code"`
+	Message    string `json:"message"`
+}
+
+// ModelPerformanceRow aggregates recent probe performance for one model.
+type ModelPerformanceRow struct {
+	ModelID      string                 `json:"model_id"`
+	Runs         int64                  `json:"runs"`
+	SuccessRate  float64                `json:"success_rate"`
+	ErrorCount   int64                  `json:"error_count"`
+	AvgLatencyMS float64                `json:"avg_latency_ms"`
+	P50LatencyMS float64                `json:"p50_latency_ms"`
+	P95LatencyMS float64                `json:"p95_latency_ms"`
+	P99LatencyMS float64                `json:"p99_latency_ms"`
+	FirstRunAt   time.Time              `json:"first_run_at"`
+	LastRunAt    time.Time              `json:"last_run_at"`
+	LatestError  *ModelPerformanceError `json:"latest_error,omitempty"`
+}

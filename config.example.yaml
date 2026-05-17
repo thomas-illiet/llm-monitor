@@ -35,6 +35,12 @@ smtp:
   to: ["platform@example.com"]
   starttls: true
 
+mcp:
+  enabled: false
+  path: "/mcp"
+  bearer_token_file: "/run/secrets/mcp-bearer-token"
+  allowed_origins: ["https://assistant.example.com"]
+
 schedules:
   http_check: "30s"
   auth_check: "60s"

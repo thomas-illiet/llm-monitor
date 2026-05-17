@@ -50,3 +50,14 @@ Returns a paginated model event timeline. Query parameters:
 ```
 
 Invalid or missing `model_id` returns `400`; server-side failures return `500`.
+
+## `/mcp`
+
+When `mcp.enabled` is `true`, the service exposes a Streamable HTTP MCP endpoint at `mcp.path`, defaulting to `/mcp`. Requests must include `Authorization: Bearer <mcp token>`.
+
+The v1 MCP server exposes only read-only tools:
+
+- `llm_monitor.status`
+- `llm_monitor.kpis`
+- `llm_monitor.models`
+- `llm_monitor.model_performance`
