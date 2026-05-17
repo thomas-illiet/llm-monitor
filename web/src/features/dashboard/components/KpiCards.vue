@@ -92,28 +92,28 @@ const cards = computed<KpiCard[]>(() => {
       {
         label: 'Input tokens',
         value: compact(props.kpis.input_tokens),
-        detail: 'Embedding fixture tokens',
+        detail: 'Fixture tokens',
         accent: '#2563eb',
         icon: Database
       },
       {
         label: 'Vector dimensions',
         value: latestDimensionsRun?.vector_dimensions === undefined ? 'Unknown' : compact(latestDimensionsRun.vector_dimensions),
-        detail: 'Latest recorded embedding vector',
+        detail: 'Latest recorded vector',
         accent: '#6d5bd0',
         icon: Hash
       },
       {
         label: 'Fixture size',
         value: bytes(latestRun?.fixture_bytes),
-        detail: latestRun?.fixture_path ?? 'Fixture path not recorded',
+        detail: 'Fixture bytes',
         accent: '#0f766e',
         icon: FileText
       },
       {
         label: 'Issues',
         value: String(issueCount),
-        detail: `${props.kpis.slo_violation_count} SLO violations · ${props.kpis.error_count} errors`,
+        detail: `${props.kpis.degraded_models} degraded · ${props.kpis.error_count} errors`,
         accent: issueCount === 0 ? '#0f8f6f' : '#b42318',
         icon: AlertTriangle
       }
