@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, shallowRef } from 'vue'
+import { computed, shallowRef, watch } from 'vue'
 import StatusHeader from '@/features/dashboard/components/StatusHeader.vue'
 import PublicStatusPanel from '@/features/dashboard/components/PublicStatusPanel.vue'
 import KpiRangeSelector from '@/features/dashboard/components/KpiRangeSelector.vue'
@@ -9,7 +9,12 @@ import ModelDashboardDialog from '@/features/dashboard/components/ModelDashboard
 import ModelInventoryTable from '@/features/dashboard/components/ModelInventoryTable.vue'
 import ModelEventsDialog from '@/features/dashboard/components/ModelEventsDialog.vue'
 import { useDashboardData } from '@/features/dashboard/composables/useDashboardData'
-import { KPI_RANGE_PRESETS, usePersistentKpiRange } from '@/features/dashboard/composables/usePersistentKpiRange'
+import {
+  KPI_RANGE_PRESETS,
+  clampKpiRangeValue,
+  filterKpiRangePresets,
+  usePersistentKpiRange
+} from '@/features/dashboard/composables/usePersistentKpiRange'
 import { usePersistentTheme } from '@/features/dashboard/composables/usePersistentTheme'
 
 const { selectedKpiRange } = usePersistentKpiRange()
@@ -37,6 +42,17 @@ const publicCharts = computed(() => {
     return !id.includes('auth') && !metric.startsWith('auth_')
   }) ?? []
 })
+
+const kpiRangePresets = computed(() => {
+  return filterKpiRangePresets(KPI_RANGE_PRESETS, data.value?.config.retention.history_seconds ?? 0)
+})
+
+watch(kpiRangePresets, (presets) => {
+  const clamped = clampKpiRangeValue(selectedKpiRange.value, presets)
+  if (clamped !== selectedKpiRange.value) {
+    selectedKpiRange.value = clamped
+  }
+}, { immediate: true })
 
 /** Opens the model event dialog for the selected inventory row. */
 function openModelEvents(modelId: string) {
@@ -87,7 +103,7 @@ function openModelDashboard(modelId: string) {
           <KpiRangeSelector
             v-model="selectedKpiRange"
             :loading="loading"
-            :presets="KPI_RANGE_PRESETS"
+            :presets="kpiRangePresets"
           />
           <KpiCards :kpis="data.kpis" :slo="data.slo" />
           <ConfiguredCharts

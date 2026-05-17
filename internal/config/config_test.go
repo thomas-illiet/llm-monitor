@@ -49,8 +49,49 @@ dashboard:
 	if cfg.Dashboard.DefaultWindow.Duration != 24*time.Hour {
 		t.Fatalf("unexpected dashboard window %s", cfg.Dashboard.DefaultWindow.Duration)
 	}
+	if cfg.Retention.History.Duration != 0 {
+		t.Fatalf("unexpected retention history %s", cfg.Retention.History.Duration)
+	}
 	if cfg.Dashboard.SLO.TTFTP99MS != 200 || cfg.Dashboard.SLO.ITLP99MS != 50 || cfg.Dashboard.SLO.RequestLatencyP99MS != 3000 {
 		t.Fatalf("unexpected dashboard slo defaults: %#v", cfg.Dashboard.SLO)
+	}
+}
+
+// TestLoadParsesRetentionHistoryDays verifies the retention window accepts day units.
+func TestLoadParsesRetentionHistoryDays(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	data := []byte(`
+postgres:
+  dsn: postgres://user:pass@localhost:5432/monitor
+target:
+  base_url: https://llm.example.test
+retention:
+  history: 90d
+`)
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Retention.History.Duration != 90*24*time.Hour {
+		t.Fatalf("retention history = %s, want 2160h", cfg.Retention.History.Duration)
+	}
+}
+
+// TestValidateRejectsNegativeRetentionHistory verifies retention windows cannot be negative.
+func TestValidateRejectsNegativeRetentionHistory(t *testing.T) {
+	cfg := Config{
+		Postgres:  PostgresConfig{DSN: "postgres://user:pass@localhost:5432/monitor"},
+		Target:    TargetConfig{BaseURL: "https://llm.example.test"},
+		Retention: RetentionConfig{History: Duration{Duration: -time.Hour}},
+	}
+	cfg.ApplyDefaults()
+	err := cfg.Validate()
+	if err == nil || !strings.Contains(err.Error(), "retention.history must be greater than or equal to 0") {
+		t.Fatalf("Validate() error = %v, want retention history requirement", err)
 	}
 }
 

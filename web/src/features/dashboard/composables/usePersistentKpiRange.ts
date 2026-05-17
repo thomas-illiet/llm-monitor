@@ -18,6 +18,15 @@ const KPI_RANGE_VALUES = new Set<KpiRangeValue>(
   KPI_RANGE_PRESETS.map(preset => preset.value)
 )
 
+const KPI_RANGE_SECONDS: Record<KpiRangeValue, number> = {
+  '1h': 60 * 60,
+  '12h': 12 * 60 * 60,
+  '24h': 24 * 60 * 60,
+  '168h': 7 * 24 * 60 * 60,
+  '720h': 30 * 24 * 60 * 60,
+  '8760h': 365 * 24 * 60 * 60
+}
+
 /** Validates stored string values before using them as KPI ranges. */
 function isKpiRangeValue(value: string | null): value is KpiRangeValue {
   return value !== null && KPI_RANGE_VALUES.has(value as KpiRangeValue)
@@ -40,4 +49,17 @@ export function usePersistentKpiRange() {
   return {
     selectedKpiRange
   }
+}
+
+/** Filters KPI presets to the configured retention window when retention is enabled. */
+export function filterKpiRangePresets(presets: readonly KpiRangePreset[], historySeconds: number) {
+  if (historySeconds <= 0) return presets
+  const filtered = presets.filter(preset => KPI_RANGE_SECONDS[preset.value] <= historySeconds)
+  return filtered.length > 0 ? filtered : presets.slice(0, 1)
+}
+
+/** Keeps the selected KPI range inside the currently available preset list. */
+export function clampKpiRangeValue(value: KpiRangeValue, presets: readonly KpiRangePreset[]): KpiRangeValue {
+  if (presets.some(preset => preset.value === value)) return value
+  return presets[presets.length - 1]?.value ?? DEFAULT_KPI_RANGE
 }

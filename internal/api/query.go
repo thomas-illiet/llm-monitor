@@ -25,6 +25,14 @@ func parseDashboardWindow(values url.Values, fallback time.Duration) time.Durati
 	return fallback
 }
 
+// capDashboardWindow keeps requested windows inside the configured retention history.
+func capDashboardWindow(window, retention time.Duration) time.Duration {
+	if retention > 0 && window > retention {
+		return retention
+	}
+	return window
+}
+
 // parseLimit parses a bounded positive limit with a generous dashboard cap.
 func parseLimit(raw string, fallback int) int {
 	return parseBoundedPositiveInt(raw, fallback, 1000)

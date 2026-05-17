@@ -28,7 +28,7 @@ func (r *Router) status(w http.ResponseWriter, req *http.Request) {
 func (r *Router) dashboard(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 	now := time.Now().UTC()
-	window := parseDashboardWindow(req.URL.Query(), r.cfg.Dashboard.DefaultWindow.Duration)
+	window := capDashboardWindow(parseDashboardWindow(req.URL.Query(), r.cfg.Dashboard.DefaultWindow.Duration), r.cfg.Retention.History.Duration)
 	since := now.Add(-window)
 	models, err := r.store.ListModelStates(ctx)
 	if err != nil {
@@ -75,6 +75,7 @@ func (r *Router) dashboard(w http.ResponseWriter, req *http.Request) {
 		Alerts:             alerts,
 		Auth:               authCheck,
 		HTTP:               httpCheck,
+		Config:             r.runtimeConfig(),
 	}
 	writeJSON(w, http.StatusOK, response)
 }
@@ -88,6 +89,7 @@ func (r *Router) modelDashboard(w http.ResponseWriter, req *http.Request) {
 	}
 	ctx := req.Context()
 	now := time.Now().UTC()
+	query.Window = capDashboardWindow(query.Window, r.cfg.Retention.History.Duration)
 	since := now.Add(-query.Window)
 	models, err := r.store.ListModelStates(ctx)
 	if err != nil {
@@ -123,6 +125,19 @@ func (r *Router) modelDashboard(w http.ResponseWriter, req *http.Request) {
 		Charts:      charts,
 		Runs:        runs,
 	})
+}
+
+// runtimeConfig returns non-secret configuration values consumed by the SPA.
+func (r *Router) runtimeConfig() RuntimeConfig {
+	history := r.cfg.Retention.History.Duration
+	if history <= 0 {
+		history = 0
+	}
+	return RuntimeConfig{
+		Retention: RetentionRuntimeConfig{
+			HistorySeconds: int64(history / time.Second),
+		},
+	}
 }
 
 // modelEvents returns a model-scoped event timeline for dashboard modals.

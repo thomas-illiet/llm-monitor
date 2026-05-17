@@ -20,6 +20,7 @@ type DashboardResponse struct {
 	Alerts             []store.RecentAlert `json:"alerts"`
 	Auth               *store.CheckRecord  `json:"auth,omitempty"`
 	HTTP               *store.CheckRecord  `json:"http,omitempty"`
+	Config             RuntimeConfig       `json:"config"`
 }
 
 // ModelDashboardResponse is the model-scoped payload consumed by the dashboard detail section.
@@ -41,6 +42,16 @@ type StatusResponse struct {
 	SkippedModels int       `json:"skipped_models"`
 	AuthOK        bool      `json:"auth_ok"`
 	HTTPOK        bool      `json:"http_ok"`
+}
+
+// RuntimeConfig exposes non-secret runtime settings needed by the SPA.
+type RuntimeConfig struct {
+	Retention RetentionRuntimeConfig `json:"retention"`
+}
+
+// RetentionRuntimeConfig exposes the effective retention policy.
+type RetentionRuntimeConfig struct {
+	HistorySeconds int64 `json:"history_seconds"`
 }
 
 // ChartResponse is one chart-ready time series group in the dashboard payload.

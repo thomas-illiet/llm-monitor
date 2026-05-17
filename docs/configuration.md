@@ -36,6 +36,14 @@ The `schedules` block controls independent loops:
 
 Durations use Go strings such as `30s`, `5m`, or `24h`.
 
+## Retention
+
+The optional `retention` block controls automatic pruning of persisted history:
+
+- `history`: how long historical rows are kept. Leave it absent or set it to `0s` to disable pruning.
+
+Durations also support day values such as `30d` or `90d`. When retention is enabled, dashboard KPI ranges longer than `retention.history` are capped server-side and hidden from the dashboard dropdown.
+
 ## Dashboard
 
 The dashboard layout and chart list are static in code. Configuration only controls the default KPI window and the SLO thresholds used for status badges.

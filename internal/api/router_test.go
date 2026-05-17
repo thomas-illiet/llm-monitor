@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"llmservicemonitor/internal/config"
 	"llmservicemonitor/internal/store"
 )
 
@@ -310,6 +311,60 @@ func TestParseModelDashboardQueryFallbacks(t *testing.T) {
 	}
 	if got.Window != 24*time.Hour {
 		t.Fatalf("Window = %s, want fallback 24h", got.Window)
+	}
+}
+
+// TestCapDashboardWindowAppliesRetention verifies dashboard ranges cannot exceed retention.
+func TestCapDashboardWindowAppliesRetention(t *testing.T) {
+	if got := capDashboardWindow(365*24*time.Hour, 90*24*time.Hour); got != 90*24*time.Hour {
+		t.Fatalf("capDashboardWindow() = %s, want 2160h", got)
+	}
+	if got := capDashboardWindow(30*24*time.Hour, 90*24*time.Hour); got != 30*24*time.Hour {
+		t.Fatalf("capDashboardWindow() = %s, want 720h", got)
+	}
+	if got := capDashboardWindow(365*24*time.Hour, 0); got != 365*24*time.Hour {
+		t.Fatalf("capDashboardWindow() = %s, want uncapped 8760h", got)
+	}
+}
+
+// TestRuntimeConfigExposesRetentionHistory verifies non-secret retention config is serialized for the SPA.
+func TestRuntimeConfigExposesRetentionHistory(t *testing.T) {
+	router := Router{cfg: config.Config{
+		Retention: config.RetentionConfig{History: config.Duration{Duration: 90 * 24 * time.Hour}},
+	}}
+
+	got := router.runtimeConfig()
+
+	if got.Retention.HistorySeconds != int64((90*24*time.Hour)/time.Second) {
+		t.Fatalf("history seconds = %d, want 7776000", got.Retention.HistorySeconds)
+	}
+}
+
+// TestDashboardResponseShapeIncludesRuntimeConfig verifies the dashboard payload exposes retention metadata.
+func TestDashboardResponseShapeIncludesRuntimeConfig(t *testing.T) {
+	payload := DashboardResponse{
+		GeneratedAt: time.Date(2026, 5, 17, 10, 0, 0, 0, time.UTC),
+		Config: RuntimeConfig{
+			Retention: RetentionRuntimeConfig{HistorySeconds: 42},
+		},
+	}
+
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("Marshal() error = %v", err)
+	}
+	var got struct {
+		Config struct {
+			Retention struct {
+				HistorySeconds int64 `json:"history_seconds"`
+			} `json:"retention"`
+		} `json:"config"`
+	}
+	if err := json.Unmarshal(raw, &got); err != nil {
+		t.Fatalf("Unmarshal() error = %v", err)
+	}
+	if got.Config.Retention.HistorySeconds != 42 {
+		t.Fatalf("history seconds = %d, want 42", got.Config.Retention.HistorySeconds)
 	}
 }
 

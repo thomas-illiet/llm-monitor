@@ -7,6 +7,8 @@ CREATE TABLE IF NOT EXISTS model_snapshots (
   raw JSONB NOT NULL
 );
 
+CREATE INDEX IF NOT EXISTS model_snapshots_observed_at_idx ON model_snapshots(observed_at DESC);
+
 CREATE TABLE IF NOT EXISTS model_snapshot_items (
   snapshot_id BIGINT NOT NULL REFERENCES model_snapshots(id) ON DELETE CASCADE,
   model_id TEXT NOT NULL,

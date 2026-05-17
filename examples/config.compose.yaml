@@ -31,6 +31,9 @@ schedules:
   model_snapshot: "5m"
   model_runs: "1m"
 
+retention:
+  history: "0s"
+
 models:
   absence_alert_after: "24h"
   max_concurrency: 1

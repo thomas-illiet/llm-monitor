@@ -30,16 +30,16 @@ Returns compact service status, including model inventory counts and latest auth
 
 Returns the full dashboard payload. Optional query parameter:
 
-- `range`: Go duration string such as `24h`, `168h`, `720h`, or `8760h`.
+- `range`: Go duration string such as `24h`, `168h`, `720h`, or `8760h`. When `retention.history` is enabled, windows longer than the retention period are capped.
 
-The response includes generated time, status, KPIs, SLOs, static dashboard charts, model status history, current models, recent events, recent runs, recent alerts, and latest auth/HTTP checks. Chart types are `line`, `bar`, or `stacked-bar`; dataset values can be `null` when a bucket has no sample.
+The response includes generated time, status, KPIs, SLOs, static dashboard charts, model status history, current models, recent events, recent runs, recent alerts, latest auth/HTTP checks, and non-secret runtime config such as `config.retention.history_seconds`. Chart types are `line`, `bar`, or `stacked-bar`; dataset values can be `null` when a bucket has no sample.
 
 ## `GET /api/model-dashboard`
 
 Returns KPI, chart, and recent probe telemetry for one model. Query parameters:
 
 - `model_id`: required
-- `range`: optional Go duration string such as `24h`, `168h`, `720h`, or `8760h`
+- `range`: optional Go duration string such as `24h`, `168h`, `720h`, or `8760h`; capped by `retention.history` when retention is enabled
 
 ```text
 /api/model-dashboard?model_id=gpt-test&range=24h

@@ -12,6 +12,7 @@ export interface DashboardData {
   alerts: RecentAlert[]
   auth?: CheckRecord
   http?: CheckRecord
+  config: RuntimeConfig
 }
 
 /** Model-scoped payload returned by `/api/model-dashboard`. */
@@ -31,6 +32,16 @@ export type KpiRangeValue = '1h' | '12h' | '24h' | '168h' | '720h' | '8760h'
 export interface KpiRangePreset {
   label: string
   value: KpiRangeValue
+}
+
+/** Non-secret runtime settings returned with dashboard data. */
+export interface RuntimeConfig {
+  retention: RetentionRuntimeConfig
+}
+
+/** Effective history retention settings. */
+export interface RetentionRuntimeConfig {
+  history_seconds: number
 }
 
 /** Compact service health summary. */

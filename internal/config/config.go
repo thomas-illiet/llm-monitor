@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -15,17 +16,62 @@ type Duration struct {
 	time.Duration
 }
 
-// UnmarshalYAML parses human-readable duration values such as "30s" or "24h".
+// UnmarshalYAML parses human-readable duration values such as "30s", "24h", or "90d".
 func (d *Duration) UnmarshalYAML(value *yaml.Node) error {
 	if value.Kind == 0 || value.Value == "" {
 		return nil
 	}
-	parsed, err := time.ParseDuration(value.Value)
+	parsed, err := parseDuration(value.Value)
 	if err != nil {
 		return fmt.Errorf("parse duration %q: %w", value.Value, err)
 	}
 	d.Duration = parsed
 	return nil
+}
+
+// parseDuration extends Go duration strings with a day unit for config files.
+func parseDuration(raw string) (time.Duration, error) {
+	raw = strings.TrimSpace(raw)
+	parsed, err := time.ParseDuration(raw)
+	if err == nil || !strings.Contains(raw, "d") {
+		return parsed, err
+	}
+
+	sign := ""
+	if strings.HasPrefix(raw, "+") || strings.HasPrefix(raw, "-") {
+		sign = raw[:1]
+		raw = raw[1:]
+	}
+
+	var converted strings.Builder
+	converted.WriteString(sign)
+	for i := 0; i < len(raw); {
+		start := i
+		for i < len(raw) && ((raw[i] >= '0' && raw[i] <= '9') || raw[i] == '.') {
+			i++
+		}
+		if start == i {
+			return 0, err
+		}
+		number := raw[start:i]
+		unitStart := i
+		for i < len(raw) && !((raw[i] >= '0' && raw[i] <= '9') || raw[i] == '.') {
+			i++
+		}
+		unit := raw[unitStart:i]
+		if unit == "d" {
+			days, parseErr := strconv.ParseFloat(number, 64)
+			if parseErr != nil {
+				return 0, parseErr
+			}
+			converted.WriteString(strconv.FormatFloat(days*24, 'f', -1, 64))
+			converted.WriteString("h")
+			continue
+		}
+		converted.WriteString(number)
+		converted.WriteString(unit)
+	}
+	return time.ParseDuration(converted.String())
 }
 
 // MarshalYAML writes durations back using Go's standard duration string format.
@@ -45,6 +91,7 @@ type Config struct {
 	Models    ModelsConfig    `yaml:"models"`
 	Tests     TestsConfig     `yaml:"tests"`
 	Dashboard DashboardConfig `yaml:"dashboard"`
+	Retention RetentionConfig `yaml:"retention"`
 }
 
 // ServerConfig controls the HTTP listener.
@@ -158,6 +205,11 @@ type SLOConfig struct {
 	TTFTP99MS           float64 `yaml:"ttft_p99_ms"`
 	ITLP99MS            float64 `yaml:"itl_p99_ms"`
 	RequestLatencyP99MS float64 `yaml:"request_latency_p99_ms"`
+}
+
+// RetentionConfig controls optional pruning of persisted history.
+type RetentionConfig struct {
+	History Duration `yaml:"history"`
 }
 
 // Load reads a YAML config file, applies defaults, and validates the result.
@@ -279,6 +331,9 @@ func (c Config) Validate() error {
 			problems = append(problems, "mcp.allowed_origins cannot contain empty values")
 			break
 		}
+	}
+	if c.Retention.History.Duration < 0 {
+		problems = append(problems, "retention.history must be greater than or equal to 0")
 	}
 	if len(problems) > 0 {
 		return errors.New(strings.Join(problems, "; "))

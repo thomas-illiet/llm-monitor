@@ -22,6 +22,7 @@ const (
 
 	defaultEmbeddingProbeInput = "This short text is used to detect embedding model compatibility."
 	chatProbePrompt            = "Reply with ok."
+	historyRetentionInterval   = 24 * time.Hour
 )
 
 // LLMClient describes the OpenAI-compatible operations used by scheduler probes.
@@ -45,6 +46,7 @@ type Repository interface {
 	RecordChatRun(ctx context.Context, record store.ChatRunRecord) error
 	RecordEmbeddingRun(ctx context.Context, record store.EmbeddingRunRecord) error
 	RecordModelEvent(ctx context.Context, record store.ModelEventRecord) error
+	PruneHistoryBefore(ctx context.Context, cutoff time.Time) error
 }
 
 // Scheduler coordinates recurring health checks, model snapshots, probes, and alerts.
@@ -94,6 +96,9 @@ func (s *Scheduler) Start(ctx context.Context) {
 		go s.loop(ctx, s.cfg.Schedules.HTTPCheck.Duration, s.RunHTTPCheck)
 		go s.loop(ctx, s.cfg.Schedules.AuthCheck.Duration, s.RunAuthCheck)
 		go s.startModelLoops(ctx)
+		if s.cfg.Retention.History.Duration > 0 {
+			go s.loop(ctx, historyRetentionInterval, s.RunHistoryRetention)
+		}
 	})
 }
 

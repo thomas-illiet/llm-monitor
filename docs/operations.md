@@ -27,4 +27,4 @@ Alert send attempts are recorded even when SMTP delivery fails, and failures als
 
 ## Routine Maintenance
 
-Monitor PostgreSQL growth for run and event tables. The current schema does not prune history automatically; use external retention policies when long-lived deployments generate high probe volume.
+Monitor PostgreSQL growth for run, check, snapshot, alert, and event tables. Set `retention.history` to a positive duration such as `90d` to prune historical rows automatically once per day; leave it absent or set `0s` to keep all history.
