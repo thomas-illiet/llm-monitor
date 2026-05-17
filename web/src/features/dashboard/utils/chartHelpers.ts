@@ -28,6 +28,7 @@ export function chartTheme(isDark: boolean): DashboardChartTheme {
 
 /** Maps the API chart shape to the vue-chartjs dataset shape. */
 export function chartData(chart: ConfiguredChart): any {
+  const isLine = chart.type === 'line'
   return {
     labels: chart.labels,
     datasets: chart.datasets.map((dataset, index: number) => ({
@@ -35,15 +36,18 @@ export function chartData(chart: ConfiguredChart): any {
       data: dataset.data,
       borderColor: palette[index % palette.length],
       backgroundColor: `${palette[index % palette.length]}33`,
-      borderWidth: 2,
-      tension: 0.25,
-      pointRadius: 1.5
+      borderWidth: isLine ? 2 : 1,
+      borderRadius: isLine ? 0 : 4,
+      tension: 0,
+      spanGaps: false,
+      pointRadius: isLine ? 1.5 : 0
     }))
   }
 }
 
 /** Creates consistent Chart.js options for line and bar dashboard charts. */
 export function chartOptions(chart: ConfiguredChart, colors: DashboardChartTheme): any {
+  const stacked = chart.type === 'stacked-bar'
   return {
     responsive: true,
     maintainAspectRatio: false,
@@ -63,7 +67,11 @@ export function chartOptions(chart: ConfiguredChart, colors: DashboardChartTheme
         bodyColor: colors.tooltipText,
         callbacks: {
           label(context: any) {
-            const value = typeof context.parsed.y === 'number' ? Math.round(context.parsed.y * 100) / 100 : context.formattedValue
+            const parsedY = context.parsed?.y
+            if (typeof parsedY !== 'number' || Number.isNaN(parsedY)) {
+              return `${context.dataset.label}: no sample`
+            }
+            const value = Math.round(parsedY * 100) / 100
             return `${context.dataset.label}: ${value}`
           }
         }
@@ -71,10 +79,12 @@ export function chartOptions(chart: ConfiguredChart, colors: DashboardChartTheme
     },
     scales: {
       x: {
+        stacked,
         grid: { display: false },
         ticks: { color: colors.axis, maxRotation: 0, autoSkip: true, maxTicksLimit: 8 }
       },
       y: {
+        stacked,
         beginAtZero: true,
         grid: { color: colors.grid },
         ticks: { color: colors.axis }

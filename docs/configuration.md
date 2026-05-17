@@ -42,6 +42,8 @@ The dashboard layout and chart list are static in code. Configuration only contr
 
 The built-in charts are:
 
-- Time to first token by model.
-- Request latency by model.
-- HTTP check latency.
+- Time to first token by model, rendered as a line chart.
+- Request latency by model, rendered as a line chart.
+- HTTP check latency, rendered as a bar chart.
+- Model status history, rendered as a stacked bar chart.
+- Model detail latency, throughput, and error charts, rendered as bar or stacked bar charts depending on the metric.

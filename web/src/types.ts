@@ -86,7 +86,7 @@ export interface SloThresholds {
 export interface ConfiguredChart {
   id: string
   title: string
-  type: 'line' | 'bar'
+  type: 'line' | 'bar' | 'stacked-bar'
   metric: string
   labels: string[]
   datasets: ChartDataset[]
@@ -96,7 +96,7 @@ export interface ConfiguredChart {
 /** One chart series with numeric samples. */
 export interface ChartDataset {
   label: string
-  data: number[]
+  data: Array<number | null>
 }
 
 /** Current state of one model in the monitored inventory. */

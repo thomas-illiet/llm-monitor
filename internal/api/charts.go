@@ -37,7 +37,7 @@ var dashboardCharts = []dashboardChartConfig{
 	{
 		ID:      "http-latency",
 		Title:   "HTTP check latency",
-		Type:    "line",
+		Type:    "bar",
 		Metric:  "http_latency_ms",
 		GroupBy: "check",
 	},
@@ -47,42 +47,42 @@ var modelDashboardCharts = []dashboardChartConfig{
 	{
 		ID:      "model-request-latency",
 		Title:   "Request latency",
-		Type:    "line",
+		Type:    "bar",
 		Metric:  "request_latency_ms",
 		GroupBy: "capability",
 	},
 	{
 		ID:      "model-ttft",
 		Title:   "Time to first token",
-		Type:    "line",
+		Type:    "bar",
 		Metric:  "ttft_ms",
 		GroupBy: "capability",
 	},
 	{
 		ID:      "model-itl",
 		Title:   "Inter-token latency",
-		Type:    "line",
+		Type:    "bar",
 		Metric:  "itl_ms",
 		GroupBy: "capability",
 	},
 	{
 		ID:      "model-tpot",
 		Title:   "Time per output token",
-		Type:    "line",
+		Type:    "bar",
 		Metric:  "tpot_ms",
 		GroupBy: "capability",
 	},
 	{
 		ID:      "model-output-throughput",
 		Title:   "Output throughput",
-		Type:    "line",
+		Type:    "bar",
 		Metric:  "output_tokens_per_second",
 		GroupBy: "capability",
 	},
 	{
 		ID:      "model-errors",
 		Title:   "Errors",
-		Type:    "bar",
+		Type:    "stacked-bar",
 		Metric:  "errors",
 		GroupBy: "capability",
 	},
@@ -139,7 +139,7 @@ func (r *Router) buildModelStatusHistory(ctx context.Context, models []store.Mod
 	response := ChartResponse{
 		ID:     "model-status-history",
 		Title:  "Models by status",
-		Type:   "line",
+		Type:   "stacked-bar",
 		Metric: "model_status_count",
 	}
 	samples, err := r.store.ModelStatusSamples(ctx, since)
@@ -244,20 +244,29 @@ func bucketSamples(samples []store.MetricSample, allowedModels []string, since, 
 	sort.Strings(names)
 	datasets := make([]ChartDataset, 0, len(names))
 	for _, group := range names {
-		data := make([]float64, bucketCount)
+		data := make([]*float64, bucketCount)
+		if summed {
+			for i := range data {
+				data[i] = chartValue(0)
+			}
+		}
 		for i, agg := range groups[group] {
 			if agg.count == 0 {
 				continue
 			}
 			if summed {
-				data[i] = agg.sum
+				data[i] = chartValue(agg.sum)
 			} else {
-				data[i] = agg.sum / float64(agg.count)
+				data[i] = chartValue(agg.sum / float64(agg.count))
 			}
 		}
 		datasets = append(datasets, ChartDataset{Label: group, Data: data})
 	}
 	return labels, datasets
+}
+
+func chartValue(value float64) *float64 {
+	return &value
 }
 
 // formatBucketLabel keeps timeline labels readable as chart windows grow.

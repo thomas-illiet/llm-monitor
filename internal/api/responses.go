@@ -56,8 +56,8 @@ type ChartResponse struct {
 
 // ChartDataset is one labeled series inside a chart response.
 type ChartDataset struct {
-	Label string    `json:"label"`
-	Data  []float64 `json:"data"`
+	Label string     `json:"label"`
+	Data  []*float64 `json:"data"`
 }
 
 // ModelEventsResponse is the paginated event timeline returned for one model.

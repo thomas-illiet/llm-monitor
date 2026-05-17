@@ -64,21 +64,30 @@ func TestModelStatusInterval(t *testing.T) {
 // TestStaticDashboardCharts verifies the dashboard chart set is code-owned.
 func TestStaticDashboardCharts(t *testing.T) {
 	got := make([]string, 0, len(dashboardCharts))
+	gotTypes := map[string]string{}
 	for _, chart := range dashboardCharts {
 		got = append(got, chart.ID)
+		gotTypes[chart.ID] = chart.Type
 	}
 	assertStrings(t, got, []string{
 		"ttft-by-model",
 		"request-latency-by-model",
 		"http-latency",
 	})
+	assertChartTypes(t, gotTypes, map[string]string{
+		"ttft-by-model":            "line",
+		"request-latency-by-model": "line",
+		"http-latency":             "bar",
+	})
 }
 
 // TestStaticModelDashboardCharts verifies the model detail chart set is code-owned.
 func TestStaticModelDashboardCharts(t *testing.T) {
 	got := make([]string, 0, len(modelDashboardCharts))
+	gotTypes := map[string]string{}
 	for _, chart := range modelDashboardCharts {
 		got = append(got, chart.ID)
+		gotTypes[chart.ID] = chart.Type
 	}
 	assertStrings(t, got, []string{
 		"model-request-latency",
@@ -87,6 +96,14 @@ func TestStaticModelDashboardCharts(t *testing.T) {
 		"model-tpot",
 		"model-output-throughput",
 		"model-errors",
+	})
+	assertChartTypes(t, gotTypes, map[string]string{
+		"model-request-latency":   "bar",
+		"model-ttft":              "bar",
+		"model-itl":               "bar",
+		"model-tpot":              "bar",
+		"model-output-throughput": "bar",
+		"model-errors":            "stacked-bar",
 	})
 }
 
@@ -153,12 +170,21 @@ func TestBucketSamplesAveragesAndFiltersModels(t *testing.T) {
 		t.Fatalf("datasets len = %d, want 1", len(datasets))
 	}
 	got := datasets[0].Data
-	want := []float64{150, 300, 0}
-	for i := range want {
-		if got[i] != want[i] {
-			t.Fatalf("bucket %d = %v, want %v", i, got[i], want[i])
-		}
+	assertChartData(t, got, []*float64{chartValue(150), chartValue(300), nil})
+}
+
+// TestBucketSamplesSumsEmptyBucketsAsZero verifies summed metrics keep a zero baseline.
+func TestBucketSamplesSumsEmptyBucketsAsZero(t *testing.T) {
+	since := time.Date(2026, 5, 16, 12, 0, 0, 0, time.UTC)
+	_, datasets := bucketSamples([]store.MetricSample{
+		{At: since.Add(10 * time.Minute), ModelID: "model-a", Group: "chat", Value: 1},
+		{At: since.Add(20 * time.Minute), ModelID: "model-a", Group: "chat", Value: 1},
+	}, nil, since, since.Add(2*time.Hour), time.Hour, true)
+
+	if len(datasets) != 1 {
+		t.Fatalf("datasets len = %d, want 1", len(datasets))
 	}
+	assertChartData(t, datasets[0].Data, []*float64{chartValue(2), chartValue(0), chartValue(0)})
 }
 
 // TestParseModelEventsQueryDefaultsAndFilters verifies model event query normalization.
@@ -317,7 +343,7 @@ func TestModelDashboardResponseShape(t *testing.T) {
 		Model:       store.ModelState{ModelID: "test-model", Capability: "chat", Status: "active"},
 		KPIs:        store.KPISummary{TotalRuns: 2, SuccessRate: 1},
 		SLO:         store.SLOThresholds{TTFTP99MS: 1000},
-		Charts:      []ChartResponse{{ID: "model-ttft", Title: "Time to first token", Type: "line", Metric: "ttft_ms"}},
+		Charts:      []ChartResponse{{ID: "model-ttft", Title: "Time to first token", Type: "bar", Metric: "ttft_ms"}},
 		Runs:        []store.RecentRun{{Kind: "chat", ModelID: "test-model"}},
 	}
 
@@ -352,6 +378,39 @@ func assertStrings(t *testing.T, got, want []string) {
 	for i := range want {
 		if got[i] != want[i] {
 			t.Fatalf("values = %v, want %v", got, want)
+		}
+	}
+}
+
+// assertChartTypes compares configured chart types by chart ID.
+func assertChartTypes(t *testing.T, got, want map[string]string) {
+	t.Helper()
+	for id, wantType := range want {
+		if got[id] != wantType {
+			t.Fatalf("chart %q type = %q, want %q", id, got[id], wantType)
+		}
+	}
+}
+
+// assertChartData compares nullable chart values in order.
+func assertChartData(t *testing.T, got, want []*float64) {
+	t.Helper()
+	if len(got) != len(want) {
+		t.Fatalf("data len = %d, want %d", len(got), len(want))
+	}
+	for i := range want {
+		if want[i] == nil {
+			if got[i] != nil {
+				t.Fatalf("bucket %d = %v, want nil", i, *got[i])
+			}
+			continue
+		}
+		if got[i] == nil || *got[i] != *want[i] {
+			var gotValue any
+			if got[i] != nil {
+				gotValue = *got[i]
+			}
+			t.Fatalf("bucket %d = %v, want %v", i, gotValue, *want[i])
 		}
 	}
 }
