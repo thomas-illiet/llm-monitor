@@ -35,6 +35,9 @@ const publicStatus = computed(() => {
   }
 })
 
+const siteName = computed(() => data.value?.config.site_name || 'LLM Service Monitor')
+const siteUrl = computed(() => data.value?.config.site_url || '')
+
 const publicCharts = computed(() => {
   return data.value?.charts.filter(chart => {
     const id = chart.id.toLowerCase()
@@ -52,6 +55,10 @@ watch(kpiRangePresets, (presets) => {
   if (clamped !== selectedKpiRange.value) {
     selectedKpiRange.value = clamped
   }
+}, { immediate: true })
+
+watch(siteName, (name) => {
+  document.title = name
 }, { immediate: true })
 
 /** Opens the model event dialog for the selected inventory row. */
@@ -75,6 +82,8 @@ function openModelDashboard(modelId: string) {
         <StatusHeader
           :status="publicStatus"
           :generated-at="data?.generated_at"
+          :site-name="siteName"
+          :site-url="siteUrl"
           :loading="loading"
           :is-dark="isDark"
           @refresh="refresh"

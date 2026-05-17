@@ -14,7 +14,13 @@ auth:
   enabled: false
 
 smtp:
-  enabled: false
+  enabled: true
+  host: "maildev"
+  port: 1025
+  from: "llm-monitor@local.test"
+  to:
+    - "platform@local.test"
+  starttls: false
 
 mcp:
   enabled: true
@@ -49,6 +55,8 @@ tests:
     max_bytes: 4096
 
 dashboard:
+  site_name: "Local LLM Monitor"
+  site_url: "http://localhost:18080"
   default_window: "24h"
   slo:
     ttft_p99_ms: 200

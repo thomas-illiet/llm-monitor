@@ -47,6 +47,8 @@ type StatusResponse struct {
 // RuntimeConfig exposes non-secret runtime settings needed by the SPA.
 type RuntimeConfig struct {
 	Retention RetentionRuntimeConfig `json:"retention"`
+	SiteName  string                 `json:"site_name"`
+	SiteURL   string                 `json:"site_url,omitempty"`
 }
 
 // RetentionRuntimeConfig exposes the effective retention policy.

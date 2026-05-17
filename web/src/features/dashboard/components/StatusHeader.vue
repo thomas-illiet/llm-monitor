@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { computed, shallowRef, onMounted, onUnmounted } from 'vue'
-import { Activity, RefreshCw, Moon, Sun } from '@lucide/vue'
+import { Activity, ExternalLink, RefreshCw, Moon, Sun } from '@lucide/vue'
 import type { StatusSummary } from '@/types'
 
 const props = defineProps<{
   status?: StatusSummary
   generatedAt?: string
+  siteName: string
+  siteUrl?: string
   loading: boolean
   isDark: boolean
 }>()
@@ -57,6 +59,8 @@ const generatedLabel = computed(() => {
     timeStyle: 'medium'
   }).format(new Date(props.generatedAt))
 })
+
+const openSiteLabel = computed(() => `Open ${props.siteName}`)
 </script>
 
 <template>
@@ -67,8 +71,8 @@ const generatedLabel = computed(() => {
         <span v-if="status?.ok" class="pulse-ring" />
       </div>
       <div>
-        <p class="eyebrow">LLM Service Monitor</p>
-        <h1>Service health and model history</h1>
+        <p class="eyebrow">Service health and model history</p>
+        <h1>{{ siteName }}</h1>
         <p class="tagline" :class="{ 'tagline--fading': taglineFading }">
           {{ taglines[taglineIndex] }}
         </p>
@@ -85,6 +89,20 @@ const generatedLabel = computed(() => {
       </VChip>
       <span class="status-time">{{ generatedLabel }}</span>
       <div class="status-button-group" aria-label="Dashboard actions">
+        <VBtn
+          v-if="siteUrl"
+          class="status-action-button"
+          icon
+          size="small"
+          variant="tonal"
+          :href="siteUrl"
+          target="_blank"
+          rel="noreferrer"
+          :aria-label="openSiteLabel"
+        >
+          <ExternalLink :size="18" />
+          <VTooltip activator="parent" location="bottom">{{ openSiteLabel }}</VTooltip>
+        </VBtn>
         <VBtn
           class="status-action-button"
           icon

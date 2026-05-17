@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -197,6 +198,8 @@ type EmbeddingFixtureConfig struct {
 // DashboardConfig controls KPI windows and SLOs.
 type DashboardConfig struct {
 	DefaultWindow Duration  `yaml:"default_window"`
+	SiteName      string    `yaml:"site_name"`
+	SiteURL       string    `yaml:"site_url"`
 	SLO           SLOConfig `yaml:"slo"`
 }
 
@@ -273,6 +276,11 @@ func (c *Config) ApplyDefaults() {
 	if c.Models.MaxConcurrency <= 0 {
 		c.Models.MaxConcurrency = 4
 	}
+	c.Dashboard.SiteName = strings.TrimSpace(c.Dashboard.SiteName)
+	if c.Dashboard.SiteName == "" {
+		c.Dashboard.SiteName = "LLM Service Monitor"
+	}
+	c.Dashboard.SiteURL = strings.TrimSpace(c.Dashboard.SiteURL)
 	if c.Dashboard.DefaultWindow.Duration == 0 {
 		c.Dashboard.DefaultWindow.Duration = 24 * time.Hour
 	}
@@ -334,6 +342,12 @@ func (c Config) Validate() error {
 	}
 	if c.Retention.History.Duration < 0 {
 		problems = append(problems, "retention.history must be greater than or equal to 0")
+	}
+	if c.Dashboard.SiteURL != "" {
+		parsed, err := url.Parse(c.Dashboard.SiteURL)
+		if err != nil || parsed.Scheme == "" || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+			problems = append(problems, "dashboard.site_url must be an absolute http or https URL")
+		}
 	}
 	if len(problems) > 0 {
 		return errors.New(strings.Join(problems, "; "))

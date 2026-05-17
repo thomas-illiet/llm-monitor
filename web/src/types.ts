@@ -37,6 +37,8 @@ export interface KpiRangePreset {
 /** Non-secret runtime settings returned with dashboard data. */
 export interface RuntimeConfig {
   retention: RetentionRuntimeConfig
+  site_name: string
+  site_url?: string
 }
 
 /** Effective history retention settings. */

@@ -330,6 +330,10 @@ func TestCapDashboardWindowAppliesRetention(t *testing.T) {
 // TestRuntimeConfigExposesRetentionHistory verifies non-secret retention config is serialized for the SPA.
 func TestRuntimeConfigExposesRetentionHistory(t *testing.T) {
 	router := Router{cfg: config.Config{
+		Dashboard: config.DashboardConfig{
+			SiteName: "Platform Monitor",
+			SiteURL:  "https://monitor.example.test",
+		},
 		Retention: config.RetentionConfig{History: config.Duration{Duration: 90 * 24 * time.Hour}},
 	}}
 
@@ -338,14 +342,19 @@ func TestRuntimeConfigExposesRetentionHistory(t *testing.T) {
 	if got.Retention.HistorySeconds != int64((90*24*time.Hour)/time.Second) {
 		t.Fatalf("history seconds = %d, want 7776000", got.Retention.HistorySeconds)
 	}
+	if got.SiteName != "Platform Monitor" || got.SiteURL != "https://monitor.example.test" {
+		t.Fatalf("runtime branding = %q %q, want configured site name and url", got.SiteName, got.SiteURL)
+	}
 }
 
-// TestDashboardResponseShapeIncludesRuntimeConfig verifies the dashboard payload exposes retention metadata.
+// TestDashboardResponseShapeIncludesRuntimeConfig verifies the dashboard payload exposes runtime metadata.
 func TestDashboardResponseShapeIncludesRuntimeConfig(t *testing.T) {
 	payload := DashboardResponse{
 		GeneratedAt: time.Date(2026, 5, 17, 10, 0, 0, 0, time.UTC),
 		Config: RuntimeConfig{
 			Retention: RetentionRuntimeConfig{HistorySeconds: 42},
+			SiteName:  "Platform Monitor",
+			SiteURL:   "https://monitor.example.test",
 		},
 	}
 
@@ -358,6 +367,8 @@ func TestDashboardResponseShapeIncludesRuntimeConfig(t *testing.T) {
 			Retention struct {
 				HistorySeconds int64 `json:"history_seconds"`
 			} `json:"retention"`
+			SiteName string `json:"site_name"`
+			SiteURL  string `json:"site_url"`
 		} `json:"config"`
 	}
 	if err := json.Unmarshal(raw, &got); err != nil {
@@ -365,6 +376,9 @@ func TestDashboardResponseShapeIncludesRuntimeConfig(t *testing.T) {
 	}
 	if got.Config.Retention.HistorySeconds != 42 {
 		t.Fatalf("history seconds = %d, want 42", got.Config.Retention.HistorySeconds)
+	}
+	if got.Config.SiteName != "Platform Monitor" || got.Config.SiteURL != "https://monitor.example.test" {
+		t.Fatalf("runtime branding = %q %q, want configured site name and url", got.Config.SiteName, got.Config.SiteURL)
 	}
 }
 

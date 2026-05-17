@@ -46,7 +46,10 @@ Durations also support day values such as `30d` or `90d`. When retention is enab
 
 ## Dashboard
 
-The dashboard layout and chart list are static in code. Configuration only controls the default KPI window and the SLO thresholds used for status badges.
+The dashboard layout and chart list are static in code. Configuration controls the visible site name, optional public site link, default KPI window, and the SLO thresholds used for status badges.
+
+- `dashboard.site_name`: display name used in the frontend header, browser title, and alert emails. Defaults to `LLM Service Monitor`.
+- `dashboard.site_url`: optional absolute `http` or `https` URL for the public dashboard link shown in the frontend and alert emails.
 
 The built-in charts are:
 

@@ -134,6 +134,8 @@ func (r *Router) runtimeConfig() RuntimeConfig {
 		history = 0
 	}
 	return RuntimeConfig{
+		SiteName: r.cfg.Dashboard.SiteName,
+		SiteURL:  r.cfg.Dashboard.SiteURL,
 		Retention: RetentionRuntimeConfig{
 			HistorySeconds: int64(history / time.Second),
 		},

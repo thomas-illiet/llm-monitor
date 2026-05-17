@@ -13,11 +13,19 @@ services:
       timeout: 3s
       retries: 20
 
+  maildev:
+    image: maildev/maildev:2.2.1
+    ports:
+      - "1080:1080"
+      - "1025:1025"
+
   app:
     build: .
     depends_on:
       postgres:
         condition: service_healthy
+      maildev:
+        condition: service_started
     ports:
       - "18080:8080"
     read_only: true

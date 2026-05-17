@@ -69,6 +69,8 @@ tests:
     max_bytes: 4096
 
 dashboard:
+  site_name: "LLM Service Monitor"
+  site_url: "https://monitor.example.com"
   default_window: "24h"
   slo:
     ttft_p99_ms: 200

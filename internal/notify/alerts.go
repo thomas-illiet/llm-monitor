@@ -8,6 +8,8 @@ import (
 	"time"
 )
 
+const defaultSiteName = "LLM Service Monitor"
+
 // AlertField is one label/value fact displayed in alert email details.
 type AlertField struct {
 	Label string
@@ -16,12 +18,14 @@ type AlertField struct {
 
 // ModelAlert describes one model lifecycle alert before email rendering.
 type ModelAlert struct {
-	Type    string
-	Subject string
-	ModelID string
-	Summary string
-	Fields  []AlertField
-	SentAt  time.Time
+	Type     string
+	Subject  string
+	ModelID  string
+	Summary  string
+	Fields   []AlertField
+	SentAt   time.Time
+	SiteName string
+	SiteURL  string
 }
 
 // modelAlertTone stores visual copy and colors for a model alert type.
@@ -31,6 +35,7 @@ type modelAlertTone struct {
 	Accent     string
 	AccentSoft string
 	Text       string
+	Mark       string
 }
 
 // modelAlertTemplateData is the view model rendered into the HTML template.
@@ -41,6 +46,8 @@ type modelAlertTemplateData struct {
 	Preheader string
 	Tone      modelAlertTone
 	Fields    []AlertField
+	SiteName  string
+	SiteURL   string
 	Year      int
 }
 
@@ -53,6 +60,11 @@ func NewModelAlertMessage(alert ModelAlert) Message {
 			Value: alert.SentAt.Format(time.RFC3339),
 		})
 	}
+	siteName := strings.TrimSpace(alert.SiteName)
+	if siteName == "" {
+		siteName = defaultSiteName
+	}
+	siteURL := strings.TrimSpace(alert.SiteURL)
 
 	data := modelAlertTemplateData{
 		Subject:   alert.Subject,
@@ -61,17 +73,19 @@ func NewModelAlertMessage(alert ModelAlert) Message {
 		Preheader: alert.Summary,
 		Tone:      modelAlertToneFor(alert.Type),
 		Fields:    fields,
+		SiteName:  siteName,
+		SiteURL:   siteURL,
 		Year:      time.Now().UTC().Year(),
 	}
 
 	var html bytes.Buffer
 	if err := modelAlertTemplate.Execute(&html, data); err != nil {
-		return PlainMessage(alert.Subject, modelAlertText(alert.Subject, alert.Summary, fields))
+		return PlainMessage(alert.Subject, modelAlertText(alert.Subject, alert.Summary, fields, siteURL))
 	}
 
 	return Message{
 		Subject:  alert.Subject,
-		TextBody: modelAlertText(alert.Subject, alert.Summary, fields),
+		TextBody: modelAlertText(alert.Subject, alert.Summary, fields, siteURL),
 		HTMLBody: html.String(),
 	}
 }
@@ -89,7 +103,7 @@ func compactFields(fields []AlertField) []AlertField {
 }
 
 // modelAlertText renders the plain-text fallback for an alert email.
-func modelAlertText(subject, summary string, fields []AlertField) string {
+func modelAlertText(subject, summary string, fields []AlertField, siteURL string) string {
 	var builder strings.Builder
 	builder.WriteString(subject)
 	builder.WriteString("\n\n")
@@ -99,6 +113,9 @@ func modelAlertText(subject, summary string, fields []AlertField) string {
 	}
 	for _, field := range fields {
 		fmt.Fprintf(&builder, "%s: %s\n", field.Label, field.Value)
+	}
+	if strings.TrimSpace(siteURL) != "" {
+		fmt.Fprintf(&builder, "\nDashboard: %s", strings.TrimSpace(siteURL))
 	}
 	return strings.TrimSpace(builder.String())
 }
@@ -111,16 +128,18 @@ func modelAlertToneFor(alertType string) modelAlertTone {
 			Label:      "Missing",
 			Eyebrow:    "Attention required",
 			Accent:     "#b42318",
-			AccentSoft: "#fff1f0",
-			Text:       "#7a271a",
+			AccentSoft: "#fff7ed",
+			Text:       "#9a3412",
+			Mark:       "!",
 		}
 	case "returned":
 		return modelAlertTone{
 			Label:      "Recovered",
 			Eyebrow:    "Service recovered",
-			Accent:     "#0f8f6f",
+			Accent:     "#10a37f",
 			AccentSoft: "#e7f7f1",
-			Text:       "#075e49",
+			Text:       "#0f8f6f",
+			Mark:       "OK",
 		}
 	case "first_seen":
 		return modelAlertTone{
@@ -129,6 +148,7 @@ func modelAlertToneFor(alertType string) modelAlertTone {
 			Accent:     "#2563eb",
 			AccentSoft: "#eff6ff",
 			Text:       "#1d4ed8",
+			Mark:       "NEW",
 		}
 	default:
 		return modelAlertTone{
@@ -137,6 +157,7 @@ func modelAlertToneFor(alertType string) modelAlertTone {
 			Accent:     "#475467",
 			AccentSoft: "#f2f4f7",
 			Text:       "#344054",
+			Mark:       "LLM",
 		}
 	}
 }
@@ -148,50 +169,94 @@ var modelAlertTemplate = template.Must(template.New("model-alert").Parse(`<!doct
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{.Subject}}</title>
   </head>
-  <body style="margin:0; padding:0; background:#eef3f1; color:#17211d; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;">
+  <body style="margin:0; padding:0; background:#f7f7f4; color:#202123; font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;">
     <div style="display:none; max-height:0; overflow:hidden; opacity:0; color:transparent;">{{.Preheader}}</div>
-    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#eef3f1; margin:0; padding:32px 12px;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f7f7f4; margin:0; padding:32px 12px 56px;">
       <tr>
         <td align="center">
-          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="width:100%; max-width:640px; background:#ffffff; border:1px solid #d8e2dd; border-radius:16px; overflow:hidden;">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="width:100%; max-width:680px; background:#ffffff; border:1px solid #e5e3dc; border-radius:14px; overflow:hidden; box-shadow:0 4px 16px rgba(0,0,0,0.08);">
             <tr>
-              <td style="background:#17211d; padding:28px 30px 24px;">
-                <p style="margin:0 0 12px; color:#a8bbb4; font-size:12px; line-height:18px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase;">LLM Service Monitor</p>
-                <h1 style="margin:0; color:#ffffff; font-size:28px; line-height:34px; font-weight:700;">{{.Subject}}</h1>
-                {{if .ModelID}}<p style="margin:12px 0 0; color:#dce8e3; font-size:15px; line-height:22px;">Model <strong style="color:#ffffff;">{{.ModelID}}</strong></p>{{end}}
+              <td style="height:4px; line-height:4px; font-size:0; background:#10a37f;">&nbsp;</td>
+            </tr>
+            <tr>
+              <td style="padding:24px 28px 18px; background:#ffffff;">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+                  <tr>
+                    <td width="46" valign="top">
+                      <table role="presentation" cellspacing="0" cellpadding="0" style="width:38px; height:38px; border-radius:9px; background:#e7f7f1;">
+                        <tr>
+                          <td align="center" valign="middle" style="height:38px; color:#10a37f; font-size:12px; line-height:12px; font-weight:800;">LLM</td>
+                        </tr>
+                      </table>
+                    </td>
+                    <td valign="top">
+                      <p style="margin:0; color:#6b7280; font-size:12px; line-height:16px; font-weight:700; letter-spacing:0.04em; text-transform:uppercase;">{{.SiteName}}</p>
+                      <p style="margin:3px 0 0; color:#9ca3af; font-size:13px; line-height:18px;">{{.Tone.Eyebrow}}</p>
+                    </td>
+                  </tr>
+                </table>
+                <h1 style="margin:22px 0 0; color:#202123; font-size:28px; line-height:34px; font-weight:650; letter-spacing:0;">{{.Subject}}</h1>
+                {{if .ModelID}}
+                <p style="margin:12px 0 0;">
+                  <span style="display:inline-block; padding:7px 10px; border:1px solid #e5e3dc; border-radius:999px; background:#fafaf8; color:#202123; font-size:13px; line-height:16px; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;">{{.ModelID}}</span>
+                </p>
+                {{end}}
               </td>
             </tr>
             <tr>
-              <td style="padding:30px;">
-                <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+              <td style="padding:0 28px 28px;">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border:1px solid #e5e3dc; border-left:4px solid {{.Tone.Accent}}; border-radius:12px; overflow:hidden; background:#fafaf8;">
                   <tr>
-                    <td style="border-left:4px solid {{.Tone.Accent}}; padding-left:16px;">
-                      <p style="margin:0 0 12px;">
+                    <td style="padding:20px 20px 18px;">
+                      <p style="margin:0 0 13px;">
                         <span style="display:inline-block; padding:6px 10px; border-radius:999px; background:{{.Tone.AccentSoft}}; color:{{.Tone.Text}}; font-size:12px; line-height:16px; font-weight:700;">{{.Tone.Label}}</span>
                       </p>
-                      <p style="margin:0; color:#17211d; font-size:17px; line-height:26px;">{{.Summary}}</p>
+                      <p style="margin:0; color:#202123; font-size:17px; line-height:26px;">{{.Summary}}</p>
+                    </td>
+                    <td width="96" align="right" valign="top" style="padding:20px 20px 18px 8px;">
+                      <table role="presentation" cellspacing="0" cellpadding="0" style="width:52px; height:52px; border-radius:13px; background:{{.Tone.AccentSoft}};">
+                        <tr>
+                          <td align="center" valign="middle" style="height:52px; color:{{.Tone.Text}}; font-size:13px; line-height:13px; font-weight:800;">{{.Tone.Mark}}</td>
+                        </tr>
+                      </table>
                     </td>
                   </tr>
                 </table>
                 {{if .Fields}}
-                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-top:26px; border:1px solid #e5ebe8; border-radius:12px; overflow:hidden;">
+                <p style="margin:24px 0 10px; color:#6b7280; font-size:12px; line-height:16px; font-weight:700; letter-spacing:0.04em; text-transform:uppercase;">Details</p>
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border:1px solid #e5e3dc; border-radius:12px; overflow:hidden; background:#ffffff;">
                   {{range .Fields}}
                   <tr>
-                    <td style="width:34%; padding:13px 16px; background:#f8faf9; border-bottom:1px solid #e5ebe8; color:#66756f; font-size:13px; line-height:18px; font-weight:700;">{{.Label}}</td>
-                    <td style="padding:13px 16px; border-bottom:1px solid #e5ebe8; color:#17211d; font-size:14px; line-height:20px; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;">{{.Value}}</td>
+                    <td style="width:34%; padding:13px 16px; background:#fafaf8; border-bottom:1px solid #e5e3dc; color:#6b7280; font-size:13px; line-height:18px; font-weight:700;">{{.Label}}</td>
+                    <td style="padding:13px 16px; border-bottom:1px solid #e5e3dc; color:#202123; font-size:14px; line-height:20px; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;">{{.Value}}</td>
                   </tr>
                   {{end}}
+                </table>
+                {{end}}
+                {{if .SiteURL}}
+                <table role="presentation" cellspacing="0" cellpadding="0" style="margin-top:22px;">
+                  <tr>
+                    <td style="border-radius:8px; background:#10a37f;">
+                      <a href="{{.SiteURL}}" target="_blank" style="display:inline-block; padding:10px 14px; color:#ffffff; font-size:13px; line-height:18px; font-weight:700; text-decoration:none;">Open dashboard</a>
+                    </td>
+                  </tr>
                 </table>
                 {{end}}
               </td>
             </tr>
             <tr>
-              <td style="background:#f8faf9; border-top:1px solid #e5ebe8; padding:18px 30px;">
-                <p style="margin:0; color:#7c8b86; font-size:12px; line-height:18px;">{{.Tone.Eyebrow}} from LLM Service Monitor. This message was generated automatically.</p>
+              <td style="background:#fafaf8; border-top:1px solid #e5e3dc; padding:18px 28px 22px;">
+                <p style="margin:0; color:#6b7280; font-size:12px; line-height:18px;">Generated automatically by {{.SiteName}}.</p>
+                <p style="margin:4px 0 0; color:#9ca3af; font-size:12px; line-height:18px;">Check the dashboard for history, probe details, and recent events.</p>
               </td>
             </tr>
           </table>
-          <p style="margin:18px 0 0; color:#8a9893; font-size:12px; line-height:18px;">&copy; {{.Year}} LLM Service Monitor</p>
+          <p style="margin:18px 0 0; color:#9ca3af; font-size:12px; line-height:18px;">&copy; {{.Year}} {{.SiteName}}</p>
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="height:32px;">
+            <tr>
+              <td style="height:32px; line-height:32px; font-size:0;">&nbsp;</td>
+            </tr>
+          </table>
         </td>
       </tr>
     </table>

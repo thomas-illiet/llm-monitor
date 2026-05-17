@@ -80,12 +80,14 @@ func (s *Scheduler) sendModelAlert(ctx context.Context, key, modelID, alertType,
 	}
 	sentAt := time.Now().UTC()
 	err = s.notifier.Send(notify.NewModelAlertMessage(notify.ModelAlert{
-		Type:    alertType,
-		Subject: subject,
-		ModelID: modelID,
-		Summary: body,
-		Fields:  fields,
-		SentAt:  sentAt,
+		Type:     alertType,
+		Subject:  subject,
+		ModelID:  modelID,
+		Summary:  body,
+		Fields:   fields,
+		SentAt:   sentAt,
+		SiteName: s.cfg.Dashboard.SiteName,
+		SiteURL:  s.cfg.Dashboard.SiteURL,
 	}))
 	record := store.EmailAlertRecord{
 		AlertKey: key,

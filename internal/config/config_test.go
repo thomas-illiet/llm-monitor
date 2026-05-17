@@ -49,11 +49,59 @@ dashboard:
 	if cfg.Dashboard.DefaultWindow.Duration != 24*time.Hour {
 		t.Fatalf("unexpected dashboard window %s", cfg.Dashboard.DefaultWindow.Duration)
 	}
+	if cfg.Dashboard.SiteName != "LLM Service Monitor" {
+		t.Fatalf("unexpected site name %q", cfg.Dashboard.SiteName)
+	}
+	if cfg.Dashboard.SiteURL != "" {
+		t.Fatalf("unexpected site url %q", cfg.Dashboard.SiteURL)
+	}
 	if cfg.Retention.History.Duration != 0 {
 		t.Fatalf("unexpected retention history %s", cfg.Retention.History.Duration)
 	}
 	if cfg.Dashboard.SLO.TTFTP99MS != 200 || cfg.Dashboard.SLO.ITLP99MS != 50 || cfg.Dashboard.SLO.RequestLatencyP99MS != 3000 {
 		t.Fatalf("unexpected dashboard slo defaults: %#v", cfg.Dashboard.SLO)
+	}
+}
+
+// TestLoadParsesDashboardBranding verifies dashboard branding is loaded and trimmed.
+func TestLoadParsesDashboardBranding(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	data := []byte(`
+postgres:
+  dsn: postgres://user:pass@localhost:5432/monitor
+target:
+  base_url: https://llm.example.test
+dashboard:
+  site_name: " Platform Monitor "
+  site_url: " https://monitor.example.test "
+`)
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Dashboard.SiteName != "Platform Monitor" {
+		t.Fatalf("site name = %q, want Platform Monitor", cfg.Dashboard.SiteName)
+	}
+	if cfg.Dashboard.SiteURL != "https://monitor.example.test" {
+		t.Fatalf("site url = %q, want https://monitor.example.test", cfg.Dashboard.SiteURL)
+	}
+}
+
+// TestValidateRejectsInvalidDashboardSiteURL verifies dashboard links must be absolute web URLs.
+func TestValidateRejectsInvalidDashboardSiteURL(t *testing.T) {
+	cfg := Config{
+		Postgres:  PostgresConfig{DSN: "postgres://user:pass@localhost:5432/monitor"},
+		Target:    TargetConfig{BaseURL: "https://llm.example.test"},
+		Dashboard: DashboardConfig{SiteURL: "/dashboard"},
+	}
+	cfg.ApplyDefaults()
+	err := cfg.Validate()
+	if err == nil || !strings.Contains(err.Error(), "dashboard.site_url must be an absolute http or https URL") {
+		t.Fatalf("Validate() error = %v, want dashboard site_url requirement", err)
 	}
 }
 
