@@ -3,6 +3,8 @@ package store
 import (
 	"context"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 // RecordChatRun stores performance metrics from one chat completion probe.
@@ -43,12 +45,12 @@ func (s *Store) recentRuns(ctx context.Context, modelID string, since *time.Time
 		sinceArg = *since
 	}
 	rows, err := s.pool.Query(ctx, `
-		SELECT kind, model_id, prompt_id, started_at, ok, status_code, latency_ms, input_tokens, output_tokens, total_tokens, error
+		SELECT kind, model_id, prompt_id, started_at, ok, status_code, latency_ms, input_tokens, output_tokens, total_tokens, error, fixture_path, fixture_bytes, vector_dimensions
 		FROM (
-			SELECT 'chat' AS kind, model_id, prompt_id, started_at, ok, status_code, latency_ms, input_tokens, output_tokens, total_tokens, error
+			SELECT 'chat' AS kind, model_id, prompt_id, started_at, ok, status_code, latency_ms, input_tokens, output_tokens, total_tokens, error, NULL::text AS fixture_path, NULL::integer AS fixture_bytes, NULL::integer AS vector_dimensions
 			FROM chat_runs
 			UNION ALL
-			SELECT 'embedding' AS kind, model_id, '' AS prompt_id, started_at, ok, status_code, latency_ms, input_tokens, NULL::integer AS output_tokens, total_tokens, error
+			SELECT 'embedding' AS kind, model_id, '' AS prompt_id, started_at, ok, status_code, latency_ms, input_tokens, NULL::integer AS output_tokens, total_tokens, error, fixture_path, fixture_bytes, vector_dimensions
 			FROM embedding_runs
 		) runs
 		WHERE ($2 = '' OR model_id = $2)
@@ -63,10 +65,34 @@ func (s *Store) recentRuns(ctx context.Context, modelID string, since *time.Time
 	var runs []RecentRun
 	for rows.Next() {
 		var run RecentRun
-		if err := rows.Scan(&run.Kind, &run.ModelID, &run.PromptID, &run.StartedAt, &run.OK, &run.StatusCode, &run.LatencyMS, &run.InputTokens, &run.OutputTokens, &run.TotalTokens, &run.Error); err != nil {
+		var fixturePath pgtype.Text
+		var fixtureBytes pgtype.Int4
+		var vectorDimensions pgtype.Int4
+		if err := rows.Scan(&run.Kind, &run.ModelID, &run.PromptID, &run.StartedAt, &run.OK, &run.StatusCode, &run.LatencyMS, &run.InputTokens, &run.OutputTokens, &run.TotalTokens, &run.Error, &fixturePath, &fixtureBytes, &vectorDimensions); err != nil {
 			return nil, err
 		}
+		run.FixturePath = textPtr(fixturePath)
+		run.FixtureBytes = intPtr(fixtureBytes)
+		run.VectorDimensions = intPtr(vectorDimensions)
 		runs = append(runs, run)
 	}
 	return runs, rows.Err()
+}
+
+// textPtr converts nullable PostgreSQL text into an optional JSON field.
+func textPtr(value pgtype.Text) *string {
+	if !value.Valid {
+		return nil
+	}
+	text := value.String
+	return &text
+}
+
+// intPtr converts nullable PostgreSQL int4 into an optional JSON field.
+func intPtr(value pgtype.Int4) *int {
+	if !value.Valid {
+		return nil
+	}
+	number := int(value.Int32)
+	return &number
 }

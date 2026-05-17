@@ -395,6 +395,7 @@ func metricQueryWithModelScope(metric, groupBy string, modelScoped bool) (string
 		"itl_ms":                   "itl_ms",
 		"tpot_ms":                  "tpot_ms",
 		"output_tokens_per_second": "output_tokens_per_second",
+		"vector_dimensions":        "vector_dimensions::double precision",
 		"success_rate":             "CASE WHEN ok THEN 1.0 ELSE 0.0 END",
 		"errors":                   "CASE WHEN ok THEN 0.0 ELSE 1.0 END",
 		"input_tokens":             "COALESCE(input_tokens, 0)::double precision",
@@ -442,7 +443,7 @@ func metricQueryWithModelScope(metric, groupBy string, modelScoped bool) (string
 	}
 	filterExpr := "TRUE"
 	switch metric {
-	case "ttft_ms", "itl_ms", "tpot_ms", "output_tokens_per_second":
+	case "ttft_ms", "itl_ms", "tpot_ms", "output_tokens_per_second", "vector_dimensions":
 		filterExpr = valueExpr + " IS NOT NULL"
 	}
 	chatWhere := "c.started_at >= $1"
@@ -464,7 +465,8 @@ func metricQueryWithModelScope(metric, groupBy string, modelScoped bool) (string
 				c.tpot_ms,
 				c.input_tokens,
 				c.output_tokens,
-				c.output_tokens_per_second
+				c.output_tokens_per_second,
+				NULL::integer AS vector_dimensions
 			FROM chat_runs c
 			LEFT JOIN model_states m ON m.model_id = c.model_id
 			WHERE %s
@@ -480,7 +482,8 @@ func metricQueryWithModelScope(metric, groupBy string, modelScoped bool) (string
 				NULL::double precision AS tpot_ms,
 				e.input_tokens,
 				NULL::integer AS output_tokens,
-				NULL::double precision AS output_tokens_per_second
+				NULL::double precision AS output_tokens_per_second,
+				e.vector_dimensions
 			FROM embedding_runs e
 			LEFT JOIN model_states m ON m.model_id = e.model_id
 			WHERE %s

@@ -81,11 +81,11 @@ func TestStaticDashboardCharts(t *testing.T) {
 	})
 }
 
-// TestStaticModelDashboardCharts verifies the model detail chart set is code-owned.
+// TestStaticModelDashboardCharts verifies model detail chart sets are capability-aware.
 func TestStaticModelDashboardCharts(t *testing.T) {
-	got := make([]string, 0, len(modelDashboardCharts))
+	got := make([]string, 0, len(modelDashboardChartConfigs("chat")))
 	gotTypes := map[string]string{}
-	for _, chart := range modelDashboardCharts {
+	for _, chart := range modelDashboardChartConfigs("chat") {
 		got = append(got, chart.ID)
 		gotTypes[chart.ID] = chart.Type
 	}
@@ -103,6 +103,25 @@ func TestStaticModelDashboardCharts(t *testing.T) {
 		"model-itl":               "bar",
 		"model-tpot":              "bar",
 		"model-output-throughput": "bar",
+		"model-errors":            "stacked-bar",
+	})
+
+	got = make([]string, 0, len(modelDashboardChartConfigs("embedding")))
+	gotTypes = map[string]string{}
+	for _, chart := range modelDashboardChartConfigs("embedding") {
+		got = append(got, chart.ID)
+		gotTypes[chart.ID] = chart.Type
+	}
+	assertStrings(t, got, []string{
+		"model-request-latency",
+		"model-input-tokens",
+		"model-vector-dimensions",
+		"model-errors",
+	})
+	assertChartTypes(t, gotTypes, map[string]string{
+		"model-request-latency":   "bar",
+		"model-input-tokens":      "bar",
+		"model-vector-dimensions": "bar",
 		"model-errors":            "stacked-bar",
 	})
 }
@@ -338,13 +357,22 @@ func TestModelEventsResponseShape(t *testing.T) {
 
 // TestModelDashboardResponseShape verifies the JSON contract for model detail payloads.
 func TestModelDashboardResponseShape(t *testing.T) {
+	fixturePath := "/config/embedding-fixture.txt"
+	fixtureBytes := 128
+	vectorDimensions := 1536
 	payload := ModelDashboardResponse{
 		GeneratedAt: time.Date(2026, 5, 17, 10, 0, 0, 0, time.UTC),
-		Model:       store.ModelState{ModelID: "test-model", Capability: "chat", Status: "active"},
+		Model:       store.ModelState{ModelID: "test-model", Capability: "embedding", Status: "active"},
 		KPIs:        store.KPISummary{TotalRuns: 2, SuccessRate: 1},
 		SLO:         store.SLOThresholds{TTFTP99MS: 1000},
-		Charts:      []ChartResponse{{ID: "model-ttft", Title: "Time to first token", Type: "bar", Metric: "ttft_ms"}},
-		Runs:        []store.RecentRun{{Kind: "chat", ModelID: "test-model"}},
+		Charts:      []ChartResponse{{ID: "model-vector-dimensions", Title: "Vector dimensions", Type: "bar", Metric: "vector_dimensions"}},
+		Runs: []store.RecentRun{{
+			Kind:             "embedding",
+			ModelID:          "test-model",
+			FixturePath:      &fixturePath,
+			FixtureBytes:     &fixtureBytes,
+			VectorDimensions: &vectorDimensions,
+		}},
 	}
 
 	raw, err := json.Marshal(payload)
@@ -359,13 +387,20 @@ func TestModelDashboardResponseShape(t *testing.T) {
 			TotalRuns int64 `json:"total_runs"`
 		} `json:"kpis"`
 		Charts []any `json:"charts"`
-		Runs   []any `json:"runs"`
+		Runs   []struct {
+			FixturePath      string `json:"fixture_path"`
+			FixtureBytes     int    `json:"fixture_bytes"`
+			VectorDimensions int    `json:"vector_dimensions"`
+		} `json:"runs"`
 	}
 	if err := json.Unmarshal(raw, &got); err != nil {
 		t.Fatalf("Unmarshal() error = %v", err)
 	}
 	if got.Model.ModelID != "test-model" || got.KPIs.TotalRuns != 2 || len(got.Charts) != 1 || len(got.Runs) != 1 {
 		t.Fatalf("response shape = %#v, want model, kpis, charts, and runs", got)
+	}
+	if got.Runs[0].FixturePath != fixturePath || got.Runs[0].FixtureBytes != fixtureBytes || got.Runs[0].VectorDimensions != vectorDimensions {
+		t.Fatalf("embedding run fields = %#v, want fixture and vector metadata", got.Runs[0])
 	}
 }
 

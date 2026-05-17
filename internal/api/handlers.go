@@ -110,8 +110,9 @@ func (r *Router) modelDashboard(w http.ResponseWriter, req *http.Request) {
 		writeError(w, err)
 		return
 	}
-	charts := make([]ChartResponse, 0, len(modelDashboardCharts))
-	for _, chartCfg := range modelDashboardCharts {
+	chartConfigs := modelDashboardChartConfigs(model.Capability)
+	charts := make([]ChartResponse, 0, len(chartConfigs))
+	for _, chartCfg := range chartConfigs {
 		charts = append(charts, r.buildModelChart(ctx, chartCfg, query.ModelID, since, now, query.Window))
 	}
 	writeJSON(w, http.StatusOK, ModelDashboardResponse{

@@ -110,7 +110,12 @@ function preferredModelId() {
         <span>Last seen {{ formatTime(data.model.last_seen_at) }}</span>
       </div>
 
-      <KpiCards :kpis="data.kpis" :slo="data.slo" />
+      <KpiCards
+        :capability="data.model.capability"
+        :kpis="data.kpis"
+        :runs="data.runs"
+        :slo="data.slo"
+      />
 
       <section class="charts-grid model-dashboard-panel__charts">
         <ConfiguredChartCard

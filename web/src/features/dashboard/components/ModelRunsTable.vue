@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { RecentRun } from '@/types'
+import type { EmbeddingRecentRun, RecentRun } from '@/types'
 
 defineProps<{
   runs: RecentRun[]
@@ -10,7 +10,8 @@ const headers = [
   { title: 'Kind', key: 'kind', sortable: true },
   { title: 'Status', key: 'status', sortable: false },
   { title: 'Latency', key: 'latency_ms', sortable: true },
-  { title: 'Tokens', key: 'tokens', sortable: false },
+  { title: 'Workload', key: 'workload', sortable: false },
+  { title: 'Metrics', key: 'metrics', sortable: false },
   { title: 'Error', key: 'error', sortable: false }
 ]
 
@@ -22,14 +23,41 @@ function formatTime(value: string) {
   }).format(new Date(value))
 }
 
-/** Builds the compact token summary for chat and embedding probes. */
-function tokenSummary(run: RecentRun) {
+/** Formats fixture sizes for embedding workload rows. */
+function bytes(value?: number) {
+  if (value === undefined) return 'Size not recorded'
+  return new Intl.NumberFormat(undefined, {
+    maximumFractionDigits: 1,
+    notation: value >= 100_000 ? 'compact' : 'standard'
+  }).format(value) + ' B'
+}
+
+/** Narrows a recent run to embedding-specific metadata. */
+function isEmbeddingRun(run: RecentRun): run is EmbeddingRecentRun {
+  return run.kind === 'embedding'
+}
+
+/** Builds the workload title for chat prompts and embedding fixtures. */
+function workloadTitle(run: RecentRun) {
+  if (isEmbeddingRun(run)) return run.fixture_path ?? 'Fixture not recorded'
+  return run.prompt_id ? `Prompt ${run.prompt_id}` : 'Chat prompt'
+}
+
+/** Builds the workload detail without pretending unsupported metrics exist. */
+function workloadDetail(run: RecentRun) {
+  if (isEmbeddingRun(run)) return bytes(run.fixture_bytes)
+  return run.prompt_id ? 'Configured chat test' : 'Prompt ID not recorded'
+}
+
+/** Builds the measured metric summary for each probe kind. */
+function metricSummary(run: RecentRun) {
   const parts = [
-    run.input_tokens === undefined ? '' : `${run.input_tokens} in`,
-    run.output_tokens === undefined ? '' : `${run.output_tokens} out`,
-    run.total_tokens === undefined ? '' : `${run.total_tokens} total`
+    run.input_tokens === undefined ? '' : `${run.input_tokens} input`,
+    run.kind === 'chat' && run.output_tokens !== undefined ? `${run.output_tokens} output` : '',
+    run.total_tokens === undefined ? '' : `${run.total_tokens} total`,
+    isEmbeddingRun(run) && run.vector_dimensions !== undefined ? `${run.vector_dimensions} dimensions` : ''
   ].filter(Boolean)
-  return parts.length > 0 ? parts.join(' / ') : 'n/a'
+  return parts.length > 0 ? parts.join(' / ') : 'Metrics not recorded'
 }
 </script>
 
@@ -66,11 +94,17 @@ function tokenSummary(run: RecentRun) {
       <template #item.latency_ms="{ item }">
         {{ Math.round(item.latency_ms) }} ms
       </template>
-      <template #item.tokens="{ item }">
-        {{ tokenSummary(item) }}
+      <template #item.workload="{ item }">
+        <div class="run-detail-cell">
+          <strong>{{ workloadTitle(item) }}</strong>
+          <span>{{ workloadDetail(item) }}</span>
+        </div>
+      </template>
+      <template #item.metrics="{ item }">
+        <span class="run-metrics-cell">{{ metricSummary(item) }}</span>
       </template>
       <template #item.error="{ item }">
-        <span class="error-cell">{{ item.error || 'n/a' }}</span>
+        <span class="error-cell">{{ item.error || 'No error' }}</span>
       </template>
       <template #no-data>
         <span class="empty-inline">No run in this window</span>

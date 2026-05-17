@@ -144,20 +144,37 @@ export interface ModelEventFilterOptions {
   event_types: string[]
 }
 
-/** Recent scheduled probe result shown in the dashboard. */
-export interface RecentRun {
-  kind: 'chat' | 'embedding'
+/** Shared scheduled probe fields shown in dashboard run timelines. */
+interface BaseRecentRun {
   model_id: string
-  prompt_id?: string
   started_at: string
   ok: boolean
   status_code: number
   latency_ms: number
   input_tokens?: number
-  output_tokens?: number
   total_tokens?: number
   error?: string
 }
+
+/** Recent chat probe result shown in the dashboard. */
+export interface ChatRecentRun extends BaseRecentRun {
+  kind: 'chat'
+  prompt_id?: string
+  output_tokens?: number
+}
+
+/** Recent embedding probe result shown in the dashboard. */
+export interface EmbeddingRecentRun extends BaseRecentRun {
+  kind: 'embedding'
+  fixture_path?: string
+  fixture_bytes?: number
+  vector_dimensions?: number
+  output_tokens?: never
+  prompt_id?: never
+}
+
+/** Recent scheduled probe result shown in the dashboard. */
+export type RecentRun = ChatRecentRun | EmbeddingRecentRun
 
 /** Recent lifecycle alert email shown in the dashboard. */
 export interface RecentAlert {

@@ -102,17 +102,20 @@ type EmailAlertRecord struct {
 
 // RecentRun is a dashboard timeline row for recent chat and embedding probes.
 type RecentRun struct {
-	Kind         string    `json:"kind"`
-	ModelID      string    `json:"model_id"`
-	PromptID     string    `json:"prompt_id,omitempty"`
-	StartedAt    time.Time `json:"started_at"`
-	OK           bool      `json:"ok"`
-	StatusCode   int       `json:"status_code"`
-	LatencyMS    float64   `json:"latency_ms"`
-	InputTokens  *int      `json:"input_tokens,omitempty"`
-	OutputTokens *int      `json:"output_tokens,omitempty"`
-	TotalTokens  *int      `json:"total_tokens,omitempty"`
-	Error        string    `json:"error,omitempty"`
+	Kind             string    `json:"kind"`
+	ModelID          string    `json:"model_id"`
+	PromptID         string    `json:"prompt_id,omitempty"`
+	StartedAt        time.Time `json:"started_at"`
+	OK               bool      `json:"ok"`
+	StatusCode       int       `json:"status_code"`
+	LatencyMS        float64   `json:"latency_ms"`
+	InputTokens      *int      `json:"input_tokens,omitempty"`
+	OutputTokens     *int      `json:"output_tokens,omitempty"`
+	TotalTokens      *int      `json:"total_tokens,omitempty"`
+	FixturePath      *string   `json:"fixture_path,omitempty"`
+	FixtureBytes     *int      `json:"fixture_bytes,omitempty"`
+	VectorDimensions *int      `json:"vector_dimensions,omitempty"`
+	Error            string    `json:"error,omitempty"`
 }
 
 // RecentEvent is a dashboard timeline row for model-scoped diagnostic events.

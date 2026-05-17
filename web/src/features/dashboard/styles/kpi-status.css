@@ -99,8 +99,10 @@
 .service-card__line span,
 .service-card__detail,
 .kpi-card span {
+  display: block;
   color: var(--text-secondary);
   font-size: 0.875rem;
+  overflow-wrap: anywhere;
 }
 
 .service-card__detail {

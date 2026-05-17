@@ -43,7 +43,7 @@ var dashboardCharts = []dashboardChartConfig{
 	},
 }
 
-var modelDashboardCharts = []dashboardChartConfig{
+var chatModelDashboardCharts = []dashboardChartConfig{
 	{
 		ID:      "model-request-latency",
 		Title:   "Request latency",
@@ -86,6 +86,45 @@ var modelDashboardCharts = []dashboardChartConfig{
 		Metric:  "errors",
 		GroupBy: "capability",
 	},
+}
+
+var embeddingModelDashboardCharts = []dashboardChartConfig{
+	{
+		ID:      "model-request-latency",
+		Title:   "Request latency",
+		Type:    "bar",
+		Metric:  "request_latency_ms",
+		GroupBy: "capability",
+	},
+	{
+		ID:      "model-input-tokens",
+		Title:   "Input tokens",
+		Type:    "bar",
+		Metric:  "input_tokens",
+		GroupBy: "capability",
+	},
+	{
+		ID:      "model-vector-dimensions",
+		Title:   "Vector dimensions",
+		Type:    "bar",
+		Metric:  "vector_dimensions",
+		GroupBy: "capability",
+	},
+	{
+		ID:      "model-errors",
+		Title:   "Errors",
+		Type:    "stacked-bar",
+		Metric:  "errors",
+		GroupBy: "capability",
+	},
+}
+
+// modelDashboardChartConfigs returns model detail charts that match the model capability.
+func modelDashboardChartConfigs(capability string) []dashboardChartConfig {
+	if capability == "embedding" {
+		return embeddingModelDashboardCharts
+	}
+	return chatModelDashboardCharts
 }
 
 // buildChart converts one static dashboard chart into labels and datasets.

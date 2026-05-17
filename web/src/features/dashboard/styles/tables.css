@@ -23,6 +23,30 @@
   overflow-wrap: anywhere;
 }
 
+.run-detail-cell {
+  min-width: 260px;
+  max-width: 420px;
+}
+
+.run-detail-cell strong,
+.run-detail-cell span,
+.run-metrics-cell {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.run-detail-cell strong,
+.run-metrics-cell {
+  color: var(--text-primary);
+  font-size: 0.8125rem;
+}
+
+.run-detail-cell span {
+  margin-top: 3px;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+}
+
 .table-card .v-table,
 .table-card .v-data-table,
 .events-dialog__body .v-data-table {
