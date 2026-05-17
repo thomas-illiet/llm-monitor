@@ -1,0 +1,161 @@
+.table-card {
+  min-width: 0;
+  margin-top: 16px;
+  padding: 18px;
+  border: 1px solid var(--border) !important;
+  border-radius: 12px !important;
+  color: var(--text-primary) !important;
+  background: var(--bg-card) !important;
+  transition: border-color var(--transition), background var(--transition) !important;
+}
+
+.model-name {
+  max-width: 280px;
+  color: var(--text-primary);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 0.8125rem;
+  overflow-wrap: anywhere;
+}
+
+.error-cell {
+  max-width: 320px;
+  color: var(--color-error-text);
+  overflow-wrap: anywhere;
+}
+
+.table-card .v-table,
+.table-card .v-data-table,
+.events-dialog__body .v-data-table {
+  color: var(--text-primary) !important;
+  background: transparent !important;
+}
+
+.table-card .v-table__wrapper,
+.events-dialog__body .v-table__wrapper {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-card);
+  overflow: auto;
+}
+
+.table-card .v-table__wrapper table {
+  min-width: 760px;
+}
+
+.dashboard-table--runs .v-table__wrapper table {
+  min-width: 980px;
+}
+
+.dashboard-table--events .v-table__wrapper table {
+  min-width: 1080px;
+}
+
+.table-card .v-table__wrapper th,
+.events-dialog__body .v-table__wrapper th {
+  color: var(--text-secondary) !important;
+  background: var(--bg-table-header) !important;
+  white-space: nowrap;
+}
+
+.table-card .v-table__wrapper td,
+.events-dialog__body .v-table__wrapper td {
+  color: var(--text-primary);
+  border-bottom-color: var(--border) !important;
+}
+
+.table-card .v-table__wrapper tbody tr:hover td,
+.events-dialog__body .v-table__wrapper tbody tr:hover td {
+  background: var(--bg-row-hover);
+}
+
+.events-dialog__body {
+  padding: 16px;
+}
+
+.events-dialog__filters {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.events-dialog__filter {
+  flex: 1 1 190px;
+  max-width: 260px;
+}
+
+.event-detail-cell {
+  min-width: 320px;
+  max-width: 560px;
+}
+
+.event-detail-cell strong,
+.event-detail-cell span,
+.event-detail-cell small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.event-detail-cell strong {
+  color: var(--text-primary);
+  font-size: 0.8125rem;
+}
+
+.event-detail-cell span {
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+}
+
+.event-detail-cell small {
+  margin-top: 3px;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.dialog-loading {
+  display: flex;
+  min-height: 220px;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--text-secondary);
+}
+
+.table-card .v-data-table-footer,
+.events-dialog__body .v-data-table-footer {
+  display: flex !important;
+  min-height: 58px;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin-top: 10px;
+  padding: 10px 2px 0;
+  border-top: 1px solid var(--border);
+  color: var(--text-secondary) !important;
+}
+
+.table-card .v-data-table-footer *,
+.events-dialog__body .v-data-table-footer * {
+  color: var(--text-secondary);
+}
+
+.table-card .v-data-table-footer .v-btn {
+  color: var(--text-primary) !important;
+}
+
+.table-card .v-data-table-footer .v-btn--disabled {
+  opacity: 0.45;
+}
+
+.table-card .v-data-table-footer .v-field {
+  color: var(--text-primary);
+  background: var(--bg-card-elevated);
+}
+
+.table-card .v-data-table-footer .v-field__outline {
+  color: var(--border);
+}
+
+/* ── Alert list ────────────────────────────────────────────── */

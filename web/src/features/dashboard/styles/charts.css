@@ -1,0 +1,63 @@
+.charts-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.chart-card {
+  min-height: 340px;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--text-primary);
+  background: var(--bg-card) !important;
+  transition: border-color var(--transition), background var(--transition);
+}
+
+.v-theme--openaiDark .chart-card {
+  background: var(--bg-card) !important;
+  border-color: var(--border);
+}
+
+.chart-card__header,
+.table-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.table-card__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.table-search {
+  width: 220px;
+  max-width: 100%;
+}
+
+.chart-frame {
+  height: 260px;
+}
+
+.empty-chart,
+.empty-row,
+.empty-inline {
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.empty-chart {
+  display: grid;
+  height: 250px;
+  place-items: center;
+}
+
+/* ── Dashboard tables ──────────────────────────────────────── */

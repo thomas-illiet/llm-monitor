@@ -1,0 +1,7 @@
+@import '../features/dashboard/styles/base.css';
+@import '../features/dashboard/styles/status-header.css';
+@import '../features/dashboard/styles/kpi-status.css';
+@import '../features/dashboard/styles/charts.css';
+@import '../features/dashboard/styles/tables.css';
+@import '../features/dashboard/styles/alerts.css';
+@import '../features/dashboard/styles/responsive.css';

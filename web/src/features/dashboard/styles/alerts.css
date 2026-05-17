@@ -1,0 +1,22 @@
+.alert-list {
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.alert-line {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto;
+  gap: 10px;
+  padding: 8px 0;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+}
+
+.alert-line strong {
+  overflow-wrap: anywhere;
+  color: var(--text-primary);
+}
+
+.alert-line small {
+  color: var(--text-muted);
+}

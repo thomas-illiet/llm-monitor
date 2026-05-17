@@ -1,0 +1,135 @@
+<script setup lang="ts">
+import { computed, type Component } from 'vue'
+import { Activity, AlertTriangle, Gauge, Timer, TrendingUp, Zap } from '@lucide/vue'
+import type { KpiSummary, SloThresholds } from '@/types'
+
+const props = defineProps<{
+  kpis: KpiSummary
+  slo: SloThresholds
+}>()
+
+interface KpiCard {
+  label: string
+  value: string
+  detail: string
+  badge: string | null
+  accent: string
+  icon: Component
+  progress?: number
+}
+
+/** Formats millisecond values for compact KPI cards. */
+function ms(value: number) {
+  return `${Math.round(value)} ms`
+}
+
+/** Formats a ratio as a one-decimal percentage. */
+function percent(value: number) {
+  return `${Math.round(value * 1000) / 10}%`
+}
+
+/** Formats large counters using locale-aware compact notation. */
+function compact(value: number) {
+  return new Intl.NumberFormat(undefined, { notation: 'compact' }).format(value)
+}
+
+/** Formats generated-token throughput. */
+function rate(value: number) {
+  return `${Math.round(value * 10) / 10} tok/s`
+}
+
+/** Chooses the accent color for a threshold-backed KPI value. */
+function thresholdAccent(value: number, threshold: number): string {
+  if (value === 0) return '#6b7280'
+  if (value <= threshold) return '#0f8f6f'
+  if (value <= threshold * 1.5) return '#b7791f'
+  return '#b42318'
+}
+
+/** Chooses the status badge for a threshold-backed KPI value. */
+function thresholdBadge(value: number, threshold: number): string {
+  if (value === 0) return 'none'
+  if (value <= threshold) return 'fast'
+  if (value <= threshold * 1.5) return 'ok'
+  return 'slow'
+}
+
+const successPercent = computed(() => Math.round(props.kpis.success_rate * 100))
+
+const cards = computed<KpiCard[]>(() => [
+  {
+    label: 'TTFT p99',
+    value: ms(props.kpis.ttft_p99_ms),
+    detail: `SLO ${ms(props.slo.ttft_p99_ms)} · p50 ${ms(props.kpis.ttft_p50_ms)}`,
+    badge: thresholdBadge(props.kpis.ttft_p99_ms, props.slo.ttft_p99_ms),
+    accent: thresholdAccent(props.kpis.ttft_p99_ms, props.slo.ttft_p99_ms),
+    icon: Timer
+  },
+  {
+    label: 'ITL p99',
+    value: ms(props.kpis.itl_p99_ms),
+    detail: `SLO ${ms(props.slo.itl_p99_ms)} · p50 ${ms(props.kpis.itl_p50_ms)}`,
+    badge: thresholdBadge(props.kpis.itl_p99_ms, props.slo.itl_p99_ms),
+    accent: thresholdAccent(props.kpis.itl_p99_ms, props.slo.itl_p99_ms),
+    icon: Activity
+  },
+  {
+    label: 'Request p99',
+    value: ms(props.kpis.request_latency_p99_ms),
+    detail: `SLO ${ms(props.slo.request_latency_p99_ms)} · p95 ${ms(props.kpis.request_latency_p95_ms)}`,
+    badge: thresholdBadge(props.kpis.request_latency_p99_ms, props.slo.request_latency_p99_ms),
+    accent: thresholdAccent(props.kpis.request_latency_p99_ms, props.slo.request_latency_p99_ms),
+    icon: Zap
+  },
+  {
+    label: 'Output rate',
+    value: rate(props.kpis.output_tokens_per_second),
+    detail: `${compact(props.kpis.output_tokens)} output tokens`,
+    badge: null,
+    accent: '#2563eb',
+    icon: TrendingUp
+  },
+  {
+    label: 'Success rate',
+    value: percent(props.kpis.success_rate),
+    detail: `${props.kpis.total_runs} runs`,
+    badge: null,
+    accent: '#10a37f',
+    icon: Gauge,
+    progress: successPercent.value
+  },
+  {
+    label: 'SLO violations',
+    value: String(props.kpis.slo_violation_count),
+    detail: `${props.kpis.degraded_models} degraded models · ${props.kpis.error_count} errors`,
+    badge: props.kpis.slo_violation_count === 0 ? 'none' : 'some',
+    accent: props.kpis.slo_violation_count === 0 ? '#0f8f6f' : '#b42318',
+    icon: AlertTriangle
+  }
+])
+</script>
+
+<template>
+  <section class="kpi-grid">
+    <VCard
+      v-for="card in cards"
+      :key="card.label"
+      class="kpi-card"
+    >
+      <div class="kpi-card__header">
+        <div class="kpi-card__icon" :style="{ color: card.accent }">
+          <component :is="card.icon" :size="18" />
+        </div>
+        <p class="kpi-card__label">{{ card.label }}</p>
+      </div>
+      <strong :style="{ color: card.accent }">{{ card.value }}</strong>
+      <span>{{ card.detail }}</span>
+      <div v-if="card.badge" class="kpi-badge" :class="`kpi-badge--${card.badge}`">
+        {{ card.badge }}
+      </div>
+      <div v-if="card.progress !== undefined" class="kpi-progress">
+        <div class="kpi-progress__bar" :style="{ width: `${card.progress}%` }" />
+      </div>
+    </VCard>
+  </section>
+</template>
