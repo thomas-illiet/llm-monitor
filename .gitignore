@@ -21,6 +21,8 @@ node_modules/
 web/node_modules/
 web/dist/
 web/.vite/
+cmd/server/static/*
+!cmd/server/static/.gitkeep
 
 # Logs and temporary files
 *.log
