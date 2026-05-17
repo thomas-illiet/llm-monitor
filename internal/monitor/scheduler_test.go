@@ -1,0 +1,241 @@
+package monitor
+
+import (
+	"context"
+	"io"
+	"log/slog"
+	"net/http"
+	"strings"
+	"testing"
+	"time"
+
+	"llmservicemonitor/internal/config"
+	"llmservicemonitor/internal/llm"
+)
+
+type capabilityProbeClient struct {
+	embeddingResult llm.RunResult
+	chatResult      llm.RunResult
+	embeddingCalls  int
+	chatCalls       int
+}
+
+// ListModels returns no catalog because capability tests bypass inventory refresh.
+func (c *capabilityProbeClient) ListModels(context.Context) ([]string, error) {
+	return nil, nil
+}
+
+// HealthCheck returns an empty result because health checks are outside these tests.
+func (c *capabilityProbeClient) HealthCheck(context.Context) llm.HTTPCheckResult {
+	return llm.HTTPCheckResult{}
+}
+
+// RunChat records a chat probe call and returns the configured result.
+func (c *capabilityProbeClient) RunChat(context.Context, llm.ChatRequest) llm.RunResult {
+	c.chatCalls++
+	return c.chatResult
+}
+
+// RunChatStream records a streaming chat probe call and returns the configured result.
+func (c *capabilityProbeClient) RunChatStream(context.Context, llm.ChatRequest) llm.RunResult {
+	c.chatCalls++
+	return c.chatResult
+}
+
+// RunEmbedding records an embedding probe call and returns the configured result.
+func (c *capabilityProbeClient) RunEmbedding(context.Context, string, string) llm.RunResult {
+	c.embeddingCalls++
+	return c.embeddingResult
+}
+
+// TestDetectModelCapabilityEmbeddingSuccessSkipsChat verifies embedding success stops probing.
+func TestDetectModelCapabilityEmbeddingSuccessSkipsChat(t *testing.T) {
+	dimensions := 3
+	client := &capabilityProbeClient{
+		embeddingResult: llm.RunResult{OK: true, VectorDimensions: &dimensions},
+		chatResult:      llm.RunResult{OK: true},
+	}
+	scheduler := testScheduler(client)
+
+	got := scheduler.detectModelCapability(context.Background(), "text-embedding-test", "probe text")
+
+	if got != capabilityEmbedding {
+		t.Fatalf("got %q, want %q", got, capabilityEmbedding)
+	}
+	if client.embeddingCalls != 1 {
+		t.Fatalf("embedding calls = %d, want 1", client.embeddingCalls)
+	}
+	if client.chatCalls != 0 {
+		t.Fatalf("chat calls = %d, want 0", client.chatCalls)
+	}
+}
+
+// TestDetectModelCapabilityFallsBackToChat verifies chat probing after embedding rejection.
+func TestDetectModelCapabilityFallsBackToChat(t *testing.T) {
+	client := &capabilityProbeClient{
+		embeddingResult: llm.RunResult{OK: false, Error: "not an embedding model"},
+		chatResult:      llm.RunResult{OK: true},
+	}
+	scheduler := testScheduler(client)
+
+	got := scheduler.detectModelCapability(context.Background(), "gpt-test", "probe text")
+
+	if got != capabilityChat {
+		t.Fatalf("got %q, want %q", got, capabilityChat)
+	}
+	if client.embeddingCalls != 1 {
+		t.Fatalf("embedding calls = %d, want 1", client.embeddingCalls)
+	}
+	if client.chatCalls != 1 {
+		t.Fatalf("chat calls = %d, want 1", client.chatCalls)
+	}
+}
+
+// TestDetectModelCapabilitySkipsWhenBothProbesFail verifies permanent probe failures are skipped.
+func TestDetectModelCapabilitySkipsWhenBothProbesFail(t *testing.T) {
+	client := &capabilityProbeClient{
+		embeddingResult: llm.RunResult{OK: false, Error: "not an embedding model"},
+		chatResult:      llm.RunResult{OK: false, Error: "not a chat model"},
+	}
+	scheduler := testScheduler(client)
+
+	got := scheduler.detectModelCapability(context.Background(), "audio-test", "probe text")
+
+	if got != capabilitySkip {
+		t.Fatalf("got %q, want %q", got, capabilitySkip)
+	}
+	if client.embeddingCalls != 1 {
+		t.Fatalf("embedding calls = %d, want 1", client.embeddingCalls)
+	}
+	if client.chatCalls != 1 {
+		t.Fatalf("chat calls = %d, want 1", client.chatCalls)
+	}
+}
+
+// TestDetectModelCapabilityDetailsIncludesSkipReason verifies skipped models include diagnostics.
+func TestDetectModelCapabilityDetailsIncludesSkipReason(t *testing.T) {
+	client := &capabilityProbeClient{
+		embeddingResult: llm.RunResult{OK: false, StatusCode: 404, Error: "not embeddings"},
+		chatResult:      llm.RunResult{OK: false, StatusCode: 400, Error: "not chat"},
+	}
+	scheduler := testScheduler(client)
+
+	got := scheduler.detectModelCapabilityDetails(context.Background(), "audio-test", "probe text")
+
+	if got.Capability != capabilitySkip {
+		t.Fatalf("capability = %q, want %q", got.Capability, capabilitySkip)
+	}
+	if got.SkipReason == "" {
+		t.Fatal("expected a verbose skip reason")
+	}
+	if got.ProbeDetails["embedding"] == nil || got.ProbeDetails["chat"] == nil {
+		t.Fatalf("expected embedding and chat details, got %#v", got.ProbeDetails)
+	}
+}
+
+// TestDetectModelCapabilityUsesUnknownForTransientProbeFailure verifies temporary failures stay unknown.
+func TestDetectModelCapabilityUsesUnknownForTransientProbeFailure(t *testing.T) {
+	client := &capabilityProbeClient{
+		embeddingResult: llm.RunResult{OK: false, StatusCode: http.StatusNotFound, Error: "Cannot POST /v1/embeddings"},
+		chatResult:      llm.RunResult{OK: false, StatusCode: http.StatusTooManyRequests, Error: "All models exhausted. Add more API keys or wait for rate limits to reset."},
+	}
+	scheduler := testScheduler(client)
+
+	got := scheduler.detectModelCapabilityDetails(context.Background(), "rate-limited-model", "probe text")
+
+	if got.Capability != capabilityUnknown {
+		t.Fatalf("capability = %q, want %q", got.Capability, capabilityUnknown)
+	}
+	if got.SkipReason == "" {
+		t.Fatal("expected a verbose transient probe reason")
+	}
+	if got.ProbeDetails["selected_capability"] != capabilityUnknown {
+		t.Fatalf("selected capability = %#v, want %q", got.ProbeDetails["selected_capability"], capabilityUnknown)
+	}
+	if got.ProbeDetails["probe_status"] != "transient_error" {
+		t.Fatalf("probe status = %#v, want transient_error", got.ProbeDetails["probe_status"])
+	}
+}
+
+// TestPreservedRunnableCapabilityKeepsKnownCapabilityForTransientFailure verifies fallback capability reuse.
+func TestPreservedRunnableCapabilityKeepsKnownCapabilityForTransientFailure(t *testing.T) {
+	detection := capabilityDetection{Capability: capabilityUnknown, SkipReason: "chat probe temporarily unavailable"}
+
+	got := preservedRunnableCapability(detection, capabilityChat)
+
+	if got != capabilityChat {
+		t.Fatalf("got %q, want %q", got, capabilityChat)
+	}
+}
+
+// TestPreservedRunnableCapabilityDoesNotMaskPermanentSkip verifies hard skips clear preserved capability.
+func TestPreservedRunnableCapabilityDoesNotMaskPermanentSkip(t *testing.T) {
+	detection := capabilityDetection{Capability: capabilitySkip, SkipReason: "embedding and chat capability probes failed"}
+
+	got := preservedRunnableCapability(detection, capabilityChat)
+
+	if got != "" {
+		t.Fatalf("got preserved capability %q, want empty", got)
+	}
+}
+
+// TestRunDetailsIncludesStreamingMetrics verifies event details expose streaming timings.
+func TestRunDetailsIncludesStreamingMetrics(t *testing.T) {
+	ttft := 25_000_000
+	itl := 10_000_000
+	tpot := 9_000_000
+	request := 120_000_000
+	outputRate := 42.5
+	inputTokens := 12
+	outputTokens := 5
+	result := llm.RunResult{
+		OK:                    true,
+		StatusCode:            200,
+		Latency:               120_000_000,
+		TTFT:                  durationPtrForTest(ttft),
+		ITL:                   durationPtrForTest(itl),
+		TPOT:                  durationPtrForTest(tpot),
+		RequestLatency:        durationPtrForTest(request),
+		InputTokens:           &inputTokens,
+		OutputTokens:          &outputTokens,
+		OutputTokensPerSecond: &outputRate,
+	}
+
+	details := runDetails(result)
+
+	if details["ttft_ms"] != float64(25) || details["itl_ms"] != float64(10) || details["tpot_ms"] != float64(9) {
+		t.Fatalf("missing streaming details: %#v", details)
+	}
+	if details["output_tokens_per_second"] != outputRate {
+		t.Fatalf("output rate = %#v", details["output_tokens_per_second"])
+	}
+}
+
+// TestFormatAlertDuration verifies human-readable alert duration formatting.
+func TestFormatAlertDuration(t *testing.T) {
+	got := formatAlertDuration((2 * time.Hour) + (3 * time.Minute) + (4 * time.Second))
+	if got != "2h 3m 4s" {
+		t.Fatalf("duration = %q, want 2h 3m 4s", got)
+	}
+}
+
+// TestProbeFailureSummaryTruncatesLongErrors verifies long probe errors are abbreviated.
+func TestProbeFailureSummaryTruncatesLongErrors(t *testing.T) {
+	got := probeFailureSummary(llm.RunResult{StatusCode: http.StatusTooManyRequests, Error: strings.Repeat("x", 300)})
+	if !strings.HasPrefix(got, "HTTP 429 (") || !strings.HasSuffix(got, "...)") {
+		t.Fatalf("summary = %q, want truncated HTTP summary", got)
+	}
+}
+
+// durationPtrForTest returns a duration pointer from nanoseconds.
+func durationPtrForTest(nanos int) *time.Duration {
+	value := time.Duration(nanos)
+	return &value
+}
+
+// testScheduler builds a scheduler with quiet dependencies for unit tests.
+func testScheduler(client LLMClient) *Scheduler {
+	return NewScheduler(config.Config{
+		Models: config.ModelsConfig{MaxConcurrency: 2},
+	}, nil, client, nil, nil, slog.New(slog.NewTextHandler(io.Discard, nil)))
+}
