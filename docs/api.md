@@ -1,0 +1,52 @@
+# API
+
+The Go service exposes JSON APIs for health and dashboard data, plus a static SPA fallback.
+
+## `GET /healthz`
+
+Returns process health.
+
+```json
+{ "status": "ok" }
+```
+
+## `GET /api/status`
+
+Returns compact service status, including model inventory counts and latest auth/HTTP check state.
+
+```json
+{
+  "ok": true,
+  "generated_at": "2026-05-17T10:00:00Z",
+  "active_models": 4,
+  "missing_models": 0,
+  "skipped_models": 1,
+  "auth_ok": true,
+  "http_ok": true
+}
+```
+
+## `GET /api/dashboard`
+
+Returns the full dashboard payload. Optional query parameter:
+
+- `range`: Go duration string such as `24h`, `168h`, `720h`, or `8760h`.
+
+The response includes generated time, status, KPIs, SLOs, static dashboard charts, model status history, current models, recent events, recent runs, recent alerts, and latest auth/HTTP checks.
+
+## `GET /api/model-events`
+
+Returns a paginated model event timeline. Query parameters:
+
+- `model_id`: required
+- `limit`: optional, default `25`, max `100`
+- `offset`: optional, default `0`
+- `status`: repeatable
+- `source`: repeatable
+- `event_type`: repeatable
+
+```text
+/api/model-events?model_id=gpt-test&status=error&source=scheduled_run
+```
+
+Invalid or missing `model_id` returns `400`; server-side failures return `500`.
