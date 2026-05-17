@@ -84,7 +84,6 @@ function openModelEvents(modelId: string) {
           <ConfiguredCharts
             :charts="publicCharts"
             :is-dark="isDark"
-            :status="data.status"
             :model-status-history="data.model_status_history"
           />
 

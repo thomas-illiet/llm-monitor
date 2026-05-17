@@ -5,7 +5,7 @@ export type ChartGridEntry =
   | { kind: 'chart', key: string, chart: ConfiguredChart }
   | { kind: 'model-status', key: string }
 
-interface DashboardChartTheme {
+export interface DashboardChartTheme {
   axis: string
   grid: string
   legend: string
@@ -90,7 +90,7 @@ export function isHttpLatencyChart(chart: ConfiguredChart) {
   return metric === 'http_latency_ms' || id.includes('http-latency')
 }
 
-/** Interleaves the model status card after the first HTTP latency chart. */
+/** Interleaves the model status chart after the first HTTP latency chart. */
 export function chartGridEntries(charts: ConfiguredChart[]): ChartGridEntry[] {
   const entries: ChartGridEntry[] = []
   let insertedModelStatus = false
