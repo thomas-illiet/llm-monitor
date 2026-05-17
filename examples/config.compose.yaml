@@ -1,0 +1,44 @@
+server:
+  address: ":8080"
+
+postgres:
+  dsn: "postgres://llm_monitor:llm_monitor@postgres:5432/llm_monitor?sslmode=disable"
+
+target:
+  name: "local-placeholder"
+  base_url: "http://host.docker.internal:3001"
+  http_check_path: "/v1/models"
+  timeout: "5s"
+
+auth:
+  enabled: false
+
+smtp:
+  enabled: false
+
+schedules:
+  http_check: "30s"
+  auth_check: "60s"
+  model_snapshot: "5m"
+  model_runs: "60m"
+
+models:
+  absence_alert_after: "24h"
+  max_concurrency: 4
+
+tests:
+  chat_prompts:
+    - id: "short-answer"
+      prompt: "Answer in one short sentence: what is observability?"
+      max_tokens: 64
+      temperature: 0
+  embedding_fixture:
+    path: "/config/embedding-fixture.txt"
+    max_bytes: 4096
+
+dashboard:
+  default_window: "24h"
+  slo:
+    ttft_p99_ms: 200
+    itl_p99_ms: 50
+    request_latency_p99_ms: 3000

@@ -1,0 +1,67 @@
+server:
+  address: ":8080"
+
+postgres:
+  dsn: "postgres://llm_monitor:llm_monitor@postgres:5432/llm_monitor?sslmode=disable"
+
+target:
+  name: "production-llm"
+  base_url: "https://llm.example.com"
+  http_check_path: "/v1/models"
+  timeout: "30s"
+  ca_file: "/run/certs/llm-api-ca.crt"
+
+auth:
+  enabled: true
+  token_url: "https://auth.example.com/oauth2/token"
+  client_id: "llm-monitor"
+  client_secret_file: "/run/secrets/oauth-client-secret"
+  scopes: ["llm.read", "llm.invoke"]
+  audience: "llm-service"
+  timeout: "10s"
+  refresh_skew: "30s"
+  mtls:
+    cert_file: "/run/certs/client.crt"
+    key_file: "/run/certs/client.key"
+    ca_file: "/run/certs/ca.crt"
+
+smtp:
+  enabled: false
+  host: "smtp.example.com"
+  port: 587
+  username: "llm-monitor@example.com"
+  password_file: "/run/secrets/smtp-password"
+  from: "llm-monitor@example.com"
+  to: ["platform@example.com"]
+  starttls: true
+
+schedules:
+  http_check: "30s"
+  auth_check: "60s"
+  model_snapshot: "5m"
+  model_runs: "15m"
+
+models:
+  absence_alert_after: "24h"
+  max_concurrency: 4
+
+tests:
+  chat_prompts:
+    - id: "short-answer"
+      prompt: "Answer in one short sentence: what is observability?"
+      max_tokens: 64
+      temperature: 0
+    - id: "json-smoke"
+      prompt: "Return a JSON object with keys status and timestamp."
+      max_tokens: 96
+      temperature: 0
+  embedding_fixture:
+    path: "/config/embedding-fixture.txt"
+    max_bytes: 4096
+
+dashboard:
+  default_window: "24h"
+  slo:
+    ttft_p99_ms: 200
+    itl_p99_ms: 50
+    request_latency_p99_ms: 3000

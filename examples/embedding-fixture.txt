@@ -1,0 +1,2 @@
+This short document is used by LLM Service Monitor to run scheduled embedding checks and track vectorization latency.
+
