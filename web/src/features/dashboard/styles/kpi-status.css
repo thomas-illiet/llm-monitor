@@ -130,23 +130,21 @@
   font-weight: 650;
 }
 
-.kpi-range-toggle {
-  flex: 0 0 auto;
-  border: 1px solid var(--border);
+.kpi-range-select {
+  flex: 0 0 240px;
+  max-width: min(100%, 260px);
+}
+
+.kpi-range-select .v-field {
+  color: var(--text-primary);
   background: var(--bg-card);
 }
 
-.kpi-range-toggle__button {
-  min-width: 108px;
-  color: var(--text-secondary) !important;
+.kpi-range-select .v-field__outline {
+  color: var(--border);
 }
 
-.kpi-range-toggle__button--active {
-  color: #ffffff !important;
-  background: #10a37f !important;
-}
-
-.v-theme--openaiDark .kpi-range-toggle {
+.v-theme--openaiDark .kpi-range-select .v-field {
   background: var(--bg-card-elevated);
 }
 

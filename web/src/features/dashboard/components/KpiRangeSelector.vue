@@ -21,24 +21,18 @@ const activePreset = computed(() => {
       <strong>{{ activePreset?.label }}</strong>
     </div>
 
-    <VBtnToggle
+    <VSelect
       v-model="selectedRange"
-      class="kpi-range-toggle"
+      aria-label="Select KPI window"
+      class="kpi-range-select"
       density="compact"
-      mandatory
-      selected-class="kpi-range-toggle__button--active"
-    >
-      <VBtn
-        v-for="preset in presets"
-        :key="preset.value"
-        class="kpi-range-toggle__button"
-        :disabled="loading"
-        :value="preset.value"
-        size="small"
-        variant="text"
-      >
-        {{ preset.label }}
-      </VBtn>
-    </VBtnToggle>
+      hide-details
+      item-title="label"
+      item-value="value"
+      :disabled="loading"
+      :items="presets"
+      single-line
+      variant="outlined"
+    />
   </section>
 </template>

@@ -4,8 +4,10 @@ import type { KpiRangePreset, KpiRangeValue } from '@/types'
 const STORAGE_KEY = 'llm-monitor-kpi-range'
 const DEFAULT_KPI_RANGE: KpiRangeValue = '24h'
 
-/** KPI range options shown in the dashboard segmented control. */
+/** KPI range options shown in the dashboard dropdown. */
 export const KPI_RANGE_PRESETS = [
+  { label: 'Last 1 hour', value: '1h' },
+  { label: 'Last 12 hours', value: '12h' },
   { label: 'Last day', value: '24h' },
   { label: 'Last 7 days', value: '168h' },
   { label: 'Last month', value: '720h' },
