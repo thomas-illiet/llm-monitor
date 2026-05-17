@@ -17,6 +17,10 @@
   overflow-wrap: anywhere;
 }
 
+.model-action-button {
+  min-width: 86px;
+}
+
 .error-cell {
   max-width: 320px;
   color: var(--color-error-text);

@@ -35,7 +35,7 @@ const headers = [
   },
   { title: 'First seen', key: 'first_seen_at', sortable: true },
   { title: 'Last seen', key: 'last_seen_at', sortable: true },
-  { title: '', key: 'actions', sortable: false, align: 'end' as const },
+  { title: 'Action', key: 'actions', sortable: false, align: 'end' as const },
 ]
 
 const lastRunByModel = computed(() => {
@@ -110,12 +110,15 @@ const tableRows = computed<ModelInventoryRow[]>(() => {
           <template #activator="{ props: menuProps }">
             <VBtn
               v-bind="menuProps"
-              icon="mdi-dots-vertical"
-              size="x-small"
-              variant="text"
+              append-icon="mdi-chevron-down"
+              class="model-action-button"
+              size="small"
+              variant="tonal"
               density="compact"
               :aria-label="`Actions for ${item.model_id}`"
-            />
+            >
+              Action
+            </VBtn>
           </template>
           <VList density="compact" min-width="160">
             <VListItem prepend-icon="mdi-view-dashboard-outline" @click="emit('openDashboard', item.model_id)">
