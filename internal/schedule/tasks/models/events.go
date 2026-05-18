@@ -1,4 +1,4 @@
-package monitor
+package models
 
 import (
 	"context"
@@ -10,8 +10,7 @@ import (
 	"llmservicemonitor/internal/store"
 )
 
-// recordCapabilityProbeEvent records the result of one capability classification probe.
-func (s *Scheduler) recordCapabilityProbeEvent(ctx context.Context, modelID string, detection capabilityDetection) {
+func (s *service) recordCapabilityProbeEvent(ctx context.Context, modelID string, detection capabilityDetection) {
 	status := "ok"
 	severity := "info"
 	title := "Capability probe succeeded"
@@ -44,8 +43,7 @@ func (s *Scheduler) recordCapabilityProbeEvent(ctx context.Context, modelID stri
 	})
 }
 
-// recordScheduledRunEvent records the event timeline entry for one scheduled probe.
-func (s *Scheduler) recordScheduledRunEvent(ctx context.Context, modelID, capability, promptID string, result llm.RunResult, details map[string]any) {
+func (s *service) recordScheduledRunEvent(ctx context.Context, modelID, capability, promptID string, result llm.RunResult, details map[string]any) {
 	if details == nil {
 		details = map[string]any{}
 	}
@@ -75,8 +73,7 @@ func (s *Scheduler) recordScheduledRunEvent(ctx context.Context, modelID, capabi
 	s.recordModelEvent(ctx, event)
 }
 
-// recordModelEvent writes a model event when storage is available.
-func (s *Scheduler) recordModelEvent(ctx context.Context, record store.ModelEventRecord) {
+func (s *service) recordModelEvent(ctx context.Context, record store.ModelEventRecord) {
 	if s.store == nil {
 		return
 	}
@@ -85,7 +82,6 @@ func (s *Scheduler) recordModelEvent(ctx context.Context, record store.ModelEven
 	}
 }
 
-// runDetails converts an LLM probe result into event-detail fields.
 func runDetails(result llm.RunResult) map[string]any {
 	details := map[string]any{
 		"ok":          result.OK,
@@ -125,7 +121,6 @@ func runDetails(result llm.RunResult) map[string]any {
 	return details
 }
 
-// msPtr converts optional durations into optional millisecond values.
 func msPtr(duration *time.Duration) *float64 {
 	if duration == nil {
 		return nil
@@ -134,7 +129,6 @@ func msPtr(duration *time.Duration) *float64 {
 	return &value
 }
 
-// ms converts a duration into milliseconds with sub-millisecond precision.
 func ms(duration time.Duration) float64 {
 	return float64(duration.Microseconds()) / 1000
 }

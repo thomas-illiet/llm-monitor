@@ -1,4 +1,4 @@
-package monitor
+package models
 
 import (
 	"context"
@@ -10,8 +10,7 @@ import (
 	"llmservicemonitor/internal/store"
 )
 
-// sendMissingModelAlerts emits deduplicated alerts for long-missing models.
-func (s *Scheduler) sendMissingModelAlerts(ctx context.Context, now time.Time) {
+func (s *service) sendMissingModelAlerts(ctx context.Context, now time.Time) {
 	missing, err := s.store.MissingModelsForAlert(ctx, s.cfg.Models.AbsenceAlertAfter.Duration, now)
 	if err != nil {
 		s.logger.Error("load missing models for alert", "error", err)
@@ -30,8 +29,7 @@ func (s *Scheduler) sendMissingModelAlerts(ctx context.Context, now time.Time) {
 	}
 }
 
-// modelAlertFields builds the common alert metadata fields.
-func (s *Scheduler) modelAlertFields(modelID string, fields ...notify.AlertField) []notify.AlertField {
+func (s *service) modelAlertFields(modelID string, fields ...notify.AlertField) []notify.AlertField {
 	base := []notify.AlertField{{Label: "Model", Value: modelID}}
 	if s.cfg.Target.Name != "" {
 		base = append(base, notify.AlertField{Label: "Target", Value: s.cfg.Target.Name})
@@ -39,7 +37,6 @@ func (s *Scheduler) modelAlertFields(modelID string, fields ...notify.AlertField
 	return append(base, fields...)
 }
 
-// formatAlertDuration renders human-readable alert durations.
 func formatAlertDuration(duration time.Duration) string {
 	if duration < 0 {
 		duration = -duration
@@ -68,8 +65,7 @@ func formatAlertDuration(duration time.Duration) string {
 	return strings.Join(parts, " ")
 }
 
-// sendModelAlert sends and records one deduplicated model lifecycle alert.
-func (s *Scheduler) sendModelAlert(ctx context.Context, key, modelID, alertType, subject, body string, fields []notify.AlertField) {
+func (s *service) sendModelAlert(ctx context.Context, key, modelID, alertType, subject, body string, fields []notify.AlertField) {
 	exists, err := s.store.EmailAlertExists(ctx, key)
 	if err != nil {
 		s.logger.Error("check email dedupe", "error", err, "key", key)

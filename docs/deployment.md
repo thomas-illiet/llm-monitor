@@ -4,7 +4,7 @@ The service is intended to run as one container plus PostgreSQL. The Dockerfile 
 
 ## Runtime Shape
 
-- App container: Go HTTP server, embedded Vue dashboard, scheduler, API, metrics, optional MCP endpoint.
+- App container: Go HTTP server, embedded Vue dashboard, local taskrunner, API, metrics, optional MCP endpoint.
 - PostgreSQL: persisted checks, runs, model inventory, events, alerts, and dashboard history.
 - Optional SMTP target: model lifecycle alert delivery.
 

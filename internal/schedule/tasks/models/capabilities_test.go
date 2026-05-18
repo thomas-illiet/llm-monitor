@@ -1,4 +1,4 @@
-package monitor
+package models
 
 import (
 	"context"
@@ -11,6 +11,7 @@ import (
 
 	"llmservicemonitor/internal/config"
 	"llmservicemonitor/internal/llm"
+	"llmservicemonitor/internal/schedule/tasks/shared"
 )
 
 type capabilityProbeClient struct {
@@ -20,44 +21,38 @@ type capabilityProbeClient struct {
 	chatCalls       int
 }
 
-// ListModels returns no catalog because capability tests bypass inventory refresh.
 func (c *capabilityProbeClient) ListModels(context.Context) ([]string, error) {
 	return nil, nil
 }
 
-// HealthCheck returns an empty result because health checks are outside these tests.
 func (c *capabilityProbeClient) HealthCheck(context.Context) llm.HTTPCheckResult {
 	return llm.HTTPCheckResult{}
 }
 
-// RunChat records a chat probe call and returns the configured result.
 func (c *capabilityProbeClient) RunChat(context.Context, llm.ChatRequest) llm.RunResult {
 	c.chatCalls++
 	return c.chatResult
 }
 
-// RunChatStream records a streaming chat probe call and returns the configured result.
 func (c *capabilityProbeClient) RunChatStream(context.Context, llm.ChatRequest) llm.RunResult {
 	c.chatCalls++
 	return c.chatResult
 }
 
-// RunEmbedding records an embedding probe call and returns the configured result.
 func (c *capabilityProbeClient) RunEmbedding(context.Context, string, string) llm.RunResult {
 	c.embeddingCalls++
 	return c.embeddingResult
 }
 
-// TestDetectModelCapabilityFallsBackToEmbedding verifies embedding is selected when chat is unsupported.
 func TestDetectModelCapabilityFallsBackToEmbedding(t *testing.T) {
 	dimensions := 3
 	client := &capabilityProbeClient{
 		embeddingResult: llm.RunResult{OK: true, VectorDimensions: &dimensions},
 		chatResult:      llm.RunResult{OK: false, StatusCode: http.StatusBadRequest, Error: "not a chat model"},
 	}
-	scheduler := testScheduler(client)
+	service := testTaskService(client)
 
-	got := scheduler.detectModelCapability(context.Background(), "embedding-test", "probe text")
+	got := service.detectModelCapability(context.Background(), "embedding-test", "probe text")
 
 	if got != capabilityEmbedding {
 		t.Fatalf("got %q, want %q", got, capabilityEmbedding)
@@ -70,16 +65,15 @@ func TestDetectModelCapabilityFallsBackToEmbedding(t *testing.T) {
 	}
 }
 
-// TestDetectModelCapabilityPrefersChatForGeneralModels keeps Ollama chat models from being misclassified as embeddings.
 func TestDetectModelCapabilityPrefersChatForGeneralModels(t *testing.T) {
 	dimensions := 3
 	client := &capabilityProbeClient{
 		embeddingResult: llm.RunResult{OK: true, VectorDimensions: &dimensions},
 		chatResult:      llm.RunResult{OK: true},
 	}
-	scheduler := testScheduler(client)
+	service := testTaskService(client)
 
-	got := scheduler.detectModelCapability(context.Background(), "smollm2:135m", "probe text")
+	got := service.detectModelCapability(context.Background(), "smollm2:135m", "probe text")
 
 	if got != capabilityChat {
 		t.Fatalf("got %q, want %q", got, capabilityChat)
@@ -92,15 +86,14 @@ func TestDetectModelCapabilityPrefersChatForGeneralModels(t *testing.T) {
 	}
 }
 
-// TestDetectModelCapabilitySkipsWhenBothProbesFail verifies permanent probe failures are skipped.
 func TestDetectModelCapabilitySkipsWhenBothProbesFail(t *testing.T) {
 	client := &capabilityProbeClient{
 		embeddingResult: llm.RunResult{OK: false, Error: "not an embedding model"},
 		chatResult:      llm.RunResult{OK: false, Error: "not a chat model"},
 	}
-	scheduler := testScheduler(client)
+	service := testTaskService(client)
 
-	got := scheduler.detectModelCapability(context.Background(), "audio-test", "probe text")
+	got := service.detectModelCapability(context.Background(), "audio-test", "probe text")
 
 	if got != capabilitySkip {
 		t.Fatalf("got %q, want %q", got, capabilitySkip)
@@ -113,15 +106,14 @@ func TestDetectModelCapabilitySkipsWhenBothProbesFail(t *testing.T) {
 	}
 }
 
-// TestDetectModelCapabilityDetailsIncludesSkipReason verifies skipped models include diagnostics.
 func TestDetectModelCapabilityDetailsIncludesSkipReason(t *testing.T) {
 	client := &capabilityProbeClient{
 		embeddingResult: llm.RunResult{OK: false, StatusCode: 404, Error: "not embeddings"},
 		chatResult:      llm.RunResult{OK: false, StatusCode: 400, Error: "not chat"},
 	}
-	scheduler := testScheduler(client)
+	service := testTaskService(client)
 
-	got := scheduler.detectModelCapabilityDetails(context.Background(), "audio-test", "probe text")
+	got := service.detectModelCapabilityDetails(context.Background(), "audio-test", "probe text")
 
 	if got.Capability != capabilitySkip {
 		t.Fatalf("capability = %q, want %q", got.Capability, capabilitySkip)
@@ -134,15 +126,14 @@ func TestDetectModelCapabilityDetailsIncludesSkipReason(t *testing.T) {
 	}
 }
 
-// TestDetectModelCapabilityUsesUnknownForTransientProbeFailure verifies temporary failures stay unknown.
 func TestDetectModelCapabilityUsesUnknownForTransientProbeFailure(t *testing.T) {
 	client := &capabilityProbeClient{
 		embeddingResult: llm.RunResult{OK: false, StatusCode: http.StatusNotFound, Error: "Cannot POST /v1/embeddings"},
 		chatResult:      llm.RunResult{OK: false, StatusCode: http.StatusTooManyRequests, Error: "All models exhausted. Add more API keys or wait for rate limits to reset."},
 	}
-	scheduler := testScheduler(client)
+	service := testTaskService(client)
 
-	got := scheduler.detectModelCapabilityDetails(context.Background(), "rate-limited-model", "probe text")
+	got := service.detectModelCapabilityDetails(context.Background(), "rate-limited-model", "probe text")
 
 	if got.Capability != capabilityUnknown {
 		t.Fatalf("capability = %q, want %q", got.Capability, capabilityUnknown)
@@ -158,7 +149,6 @@ func TestDetectModelCapabilityUsesUnknownForTransientProbeFailure(t *testing.T) 
 	}
 }
 
-// TestPreservedRunnableCapabilityKeepsKnownCapabilityForTransientFailure verifies fallback capability reuse.
 func TestPreservedRunnableCapabilityKeepsKnownCapabilityForTransientFailure(t *testing.T) {
 	detection := capabilityDetection{Capability: capabilityUnknown, SkipReason: "chat probe temporarily unavailable"}
 
@@ -169,7 +159,6 @@ func TestPreservedRunnableCapabilityKeepsKnownCapabilityForTransientFailure(t *t
 	}
 }
 
-// TestPreservedRunnableCapabilityDoesNotMaskPermanentSkip verifies hard skips clear preserved capability.
 func TestPreservedRunnableCapabilityDoesNotMaskPermanentSkip(t *testing.T) {
 	detection := capabilityDetection{Capability: capabilitySkip, SkipReason: "embedding and chat capability probes failed"}
 
@@ -180,7 +169,6 @@ func TestPreservedRunnableCapabilityDoesNotMaskPermanentSkip(t *testing.T) {
 	}
 }
 
-// TestRunDetailsIncludesStreamingMetrics verifies event details expose streaming timings.
 func TestRunDetailsIncludesStreamingMetrics(t *testing.T) {
 	ttft := 25_000_000
 	itl := 10_000_000
@@ -212,7 +200,6 @@ func TestRunDetailsIncludesStreamingMetrics(t *testing.T) {
 	}
 }
 
-// TestFormatAlertDuration verifies human-readable alert duration formatting.
 func TestFormatAlertDuration(t *testing.T) {
 	got := formatAlertDuration((2 * time.Hour) + (3 * time.Minute) + (4 * time.Second))
 	if got != "2h 3m 4s" {
@@ -220,7 +207,6 @@ func TestFormatAlertDuration(t *testing.T) {
 	}
 }
 
-// TestProbeFailureSummaryTruncatesLongErrors verifies long probe errors are abbreviated.
 func TestProbeFailureSummaryTruncatesLongErrors(t *testing.T) {
 	got := probeFailureSummary(llm.RunResult{StatusCode: http.StatusTooManyRequests, Error: strings.Repeat("x", 300)})
 	if !strings.HasPrefix(got, "HTTP 429 (") || !strings.HasSuffix(got, "...)") {
@@ -228,15 +214,17 @@ func TestProbeFailureSummaryTruncatesLongErrors(t *testing.T) {
 	}
 }
 
-// durationPtrForTest returns a duration pointer from nanoseconds.
 func durationPtrForTest(nanos int) *time.Duration {
 	value := time.Duration(nanos)
 	return &value
 }
 
-// testScheduler builds a scheduler with quiet dependencies for unit tests.
-func testScheduler(client LLMClient) *Scheduler {
-	return NewScheduler(config.Config{
-		Models: config.ModelsConfig{MaxConcurrency: 2},
-	}, nil, client, nil, nil, slog.New(slog.NewTextHandler(io.Discard, nil)))
+func testTaskService(client shared.LLMClient) *service {
+	return newService(shared.Dependencies{
+		Config: config.Config{
+			Models: config.ModelsConfig{MaxConcurrency: 2},
+		},
+		Client: client,
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+	})
 }

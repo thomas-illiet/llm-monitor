@@ -2,7 +2,7 @@
 
 ![LLM Service Monitor banner](docs/assets/banner.svg)
 
-Single-image monitor for OpenAI-compatible LLM services. The Go backend schedules probes, persists PostgreSQL history, sends model lifecycle alerts by SMTP, and serves a Vue/Vuetify dashboard from embedded static assets.
+Single-image monitor for OpenAI-compatible LLM services. The Go backend runs scheduled probes through a local task runner, persists PostgreSQL history, sends model lifecycle alerts by SMTP, and serves a Vue/Vuetify dashboard from embedded static assets.
 
 ## Screenshot
 

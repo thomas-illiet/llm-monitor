@@ -2,14 +2,16 @@
 
 ## Purpose
 
-`RunHTTPCheck` verifies that the configured OpenAI-compatible target is reachable
-over HTTP. It is the lightest availability signal for the monitored LLM service.
+`monitor.http_check` verifies that the configured OpenAI-compatible target is
+reachable over HTTP. It is the lightest availability signal for the monitored LLM
+service.
 
 ## Schedule
 
 - Config key: `schedules.http_check`
 - Default interval: `30s`
 - Startup behavior: runs once immediately, then repeats on the configured interval.
+- Payload: empty JSON payload.
 
 ## Inputs
 
@@ -19,9 +21,10 @@ over HTTP. It is the lightest availability signal for the monitored LLM service.
 
 ## Execution
 
-The task calls `LLMClient.HealthCheck`, which sends a `GET` request to the
-configured health path. Responses with status codes from `200` through `399` are
-treated as healthy.
+The handler from `internal/schedule/tasks/checks/http_check.go` calls
+`LLMClient.HealthCheck`, which sends a `GET` request to the configured health
+path. Responses with status codes from `200` through `399` are treated as
+healthy.
 
 The response body is discarded after a small bounded read; this task only records
 reachability and latency.
@@ -41,11 +44,12 @@ The latest HTTP check feeds `/api/status`, `/metrics`, and dashboard status view
 ## Failure Behavior
 
 Network errors, request creation errors, TLS errors, or non-healthy HTTP status
-codes are recorded as failed checks. If persistence fails, the scheduler logs the
-storage error and the task returns it; the recurring loop continues on the next tick.
+codes are recorded as failed checks. If persistence fails, the task returns the
+storage error; the local scheduler logs it and continues on the next tick.
 
 ## Related Code
 
-- [`internal/monitor/checks.go`](../../internal/monitor/checks.go)
+- [`internal/schedule/tasks/checks/http_check.go`](../../internal/schedule/tasks/checks/http_check.go)
+- [`internal/schedule/runner`](../../internal/schedule/runner)
 - [`internal/llm/models.go`](../../internal/llm/models.go)
 - [`internal/store/checks.go`](../../internal/store/checks.go)

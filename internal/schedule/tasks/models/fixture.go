@@ -1,9 +1,8 @@
-package monitor
+package models
 
 import "os"
 
-// loadEmbeddingFixture reads and truncates the fixture used for embedding probes.
-func (s *Scheduler) loadEmbeddingFixture() string {
+func (s *service) loadEmbeddingFixture() string {
 	path := s.cfg.Tests.EmbeddingFixture.Path
 	if path == "" {
 		return "This is a small fixture used to monitor embedding model availability and latency."

@@ -16,8 +16,9 @@ import (
 	"llmservicemonitor/internal/auth"
 	"llmservicemonitor/internal/config"
 	"llmservicemonitor/internal/llm"
-	"llmservicemonitor/internal/monitor"
 	"llmservicemonitor/internal/notify"
+	"llmservicemonitor/internal/schedule/runner"
+	"llmservicemonitor/internal/schedule/tasks"
 	"llmservicemonitor/internal/store"
 )
 
@@ -72,7 +73,22 @@ func main() {
 		os.Exit(1)
 	}
 
-	scheduler := monitor.NewScheduler(cfg, db, llmClient, tokenProvider, notifier, logger)
+	modelPlanStore := tasks.NewMemoryModelPlanStore()
+	taskDeps := tasks.Dependencies{
+		Config:         cfg,
+		Store:          db,
+		Client:         llmClient,
+		Auth:           tokenProvider,
+		Notifier:       notifier,
+		Logger:         logger,
+		ModelPlanStore: modelPlanStore,
+	}
+	taskRegistry, err := tasks.NewRegistry(taskDeps)
+	if err != nil {
+		logger.Error("build task registry", "error", err)
+		os.Exit(1)
+	}
+	scheduler := runner.NewLocalScheduler(taskRegistry, logger, tasks.LocalScheduleGroups(taskDeps)...)
 	scheduler.Start(ctx)
 
 	staticRoot, err := fs.Sub(staticFiles, "static")

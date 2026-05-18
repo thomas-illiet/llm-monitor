@@ -1,8 +1,8 @@
 # Operations
 
 Use this page for production behavior. Use [Scheduled Tasks](tasks/README.md) for
-per-loop implementation details and [Configuration](configuration.md) for the YAML
-fields that tune those loops.
+registered task implementation details and [Configuration](configuration.md) for
+the YAML fields that tune those schedules.
 
 ## Health Checks
 

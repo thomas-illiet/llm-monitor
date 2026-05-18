@@ -1,4 +1,4 @@
-package monitor
+package models
 
 import (
 	"context"
@@ -20,17 +20,15 @@ func preservedRunnableCapability(detection capabilityDetection, knownCapability 
 	return ""
 }
 
-// detectModelCapability classifies a model by probing chat before embedding.
-func (s *Scheduler) detectModelCapability(ctx context.Context, modelID, embeddingInput string) string {
+func (s *service) detectModelCapability(ctx context.Context, modelID, embeddingInput string) string {
 	return s.detectModelCapabilityDetails(ctx, modelID, embeddingInput).Capability
 }
 
-// detectModelCapabilityDetails classifies a model and records probe diagnostics.
-func (s *Scheduler) detectModelCapabilityDetails(ctx context.Context, modelID, embeddingInput string) capabilityDetection {
+func (s *service) detectModelCapabilityDetails(ctx context.Context, modelID, embeddingInput string) capabilityDetection {
 	return s.detectChatFirstCapability(ctx, modelID, embeddingInput)
 }
 
-func (s *Scheduler) detectChatFirstCapability(ctx context.Context, modelID, embeddingInput string) capabilityDetection {
+func (s *service) detectChatFirstCapability(ctx context.Context, modelID, embeddingInput string) capabilityDetection {
 	chat := s.client.RunChat(ctx, llm.ChatRequest{
 		Model:       modelID,
 		PromptID:    "capability-probe",
@@ -66,7 +64,6 @@ func (s *Scheduler) detectChatFirstCapability(ctx context.Context, modelID, embe
 	return capabilityDetection{Capability: capabilitySkip, SkipReason: skipReason, ProbeDetails: details}
 }
 
-// isTransientProbeFailure reports whether a failed probe can reasonably succeed later.
 func isTransientProbeFailure(result llm.RunResult) bool {
 	if result.OK {
 		return false
@@ -77,7 +74,6 @@ func isTransientProbeFailure(result llm.RunResult) bool {
 	return hasTransientProbeHint(result.Error)
 }
 
-// hasTransientProbeHint detects transient transport or capacity failures in text errors.
 func hasTransientProbeHint(errorMessage string) bool {
 	errorText := strings.ToLower(errorMessage)
 	transientHints := []string{
@@ -100,7 +96,6 @@ func hasTransientProbeHint(errorMessage string) bool {
 	return false
 }
 
-// transientCapabilityProbeReason prefers the most actionable transient probe reason.
 func transientCapabilityProbeReason(embedding, chat llm.RunResult) string {
 	if isTransientProbeFailure(chat) {
 		return "chat capability probe temporarily unavailable: " + probeFailureSummary(chat)
@@ -111,7 +106,6 @@ func transientCapabilityProbeReason(embedding, chat llm.RunResult) string {
 	return "capability probes temporarily unavailable"
 }
 
-// probeFailureSummary formats one failed probe for event details and alerts.
 func probeFailureSummary(result llm.RunResult) string {
 	status := "no HTTP status"
 	if result.StatusCode > 0 {

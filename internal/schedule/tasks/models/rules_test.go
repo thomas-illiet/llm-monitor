@@ -1,4 +1,4 @@
-package monitor
+package models
 
 import (
 	"testing"
@@ -7,7 +7,6 @@ import (
 	"llmservicemonitor/internal/store"
 )
 
-// TestBuildModelPlanSkipsExcludedSkipAndUnknownCapability checks runnable filtering.
 func TestBuildModelPlanSkipsExcludedSkipAndUnknownCapability(t *testing.T) {
 	plan := buildModelPlan([]store.ObservedModel{
 		{ID: "gpt-4.1-mini", Capability: "chat"},
@@ -24,7 +23,6 @@ func TestBuildModelPlanSkipsExcludedSkipAndUnknownCapability(t *testing.T) {
 	}
 }
 
-// TestReturnAlertThreshold covers the 24h-style return alert threshold rule.
 func TestReturnAlertThreshold(t *testing.T) {
 	if shouldAlertReturned(23*time.Hour, 24*time.Hour) {
 		t.Fatal("model returning before threshold should not alert")
@@ -34,7 +32,6 @@ func TestReturnAlertThreshold(t *testing.T) {
 	}
 }
 
-// TestModelAlertKeyIsStable verifies alert deduplication key formatting.
 func TestModelAlertKeyIsStable(t *testing.T) {
 	at := time.Unix(42, 0).UTC()
 	got := modelAlertKey("missing", "gpt-4.1", at)

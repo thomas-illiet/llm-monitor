@@ -2,8 +2,8 @@
 
 ## Purpose
 
-`RunModelTests` executes recurring performance and availability probes against the
-latest runnable model plan produced by the model snapshot task.
+`monitor.model_runs` executes recurring performance and availability probes
+against the latest runnable model plan produced by the model snapshot task.
 
 ## Schedule
 
@@ -11,10 +11,11 @@ latest runnable model plan produced by the model snapshot task.
 - Default interval: `15m`
 - Startup behavior: runs immediately after the initial model snapshot has loaded
   the model plan, then repeats on the configured interval.
+- Payload: empty JSON payload.
 
 ## Inputs
 
-- Current in-memory model plan from `RefreshModels`.
+- Current shared `ModelPlanStore` populated by `monitor.model_snapshot`.
 - `models.max_concurrency`, defaulting to `4`, to bound parallel model probes.
 - `tests.chat_prompts`: prompt IDs, prompt text, max token limits, and temperatures
   for chat models.
@@ -23,7 +24,8 @@ latest runnable model plan produced by the model snapshot task.
 
 ## Execution
 
-If the current model plan is empty, the task exits successfully without work.
+The handler from `internal/schedule/tasks/models/model_runs.go` reads the shared
+model plan. If the plan is empty, the task exits successfully without work.
 Otherwise, it runs model probes concurrently up to `models.max_concurrency`.
 
 For models classified as `chat`, the task runs every configured chat prompt with a
@@ -81,14 +83,15 @@ event and does not call the embedding endpoint.
 
 Probe errors are stored with the run result and reflected in the corresponding
 model event. Storage errors are joined and returned after all scheduled model
-probes finish, allowing the scheduler to log the failure while preserving as many
-results as possible.
+probes finish, allowing the local scheduler to log the failure while preserving
+as many results as possible.
 
 ## Related Code
 
-- [`internal/monitor/runs.go`](../../internal/monitor/runs.go)
-- [`internal/monitor/fixture.go`](../../internal/monitor/fixture.go)
-- [`internal/monitor/events.go`](../../internal/monitor/events.go)
+- [`internal/schedule/tasks/models/model_runs.go`](../../internal/schedule/tasks/models/model_runs.go)
+- [`internal/schedule/tasks/models/fixture.go`](../../internal/schedule/tasks/models/fixture.go)
+- [`internal/schedule/tasks/models/events.go`](../../internal/schedule/tasks/models/events.go)
+- [`internal/schedule/runner`](../../internal/schedule/runner)
 - [`internal/llm/chat.go`](../../internal/llm/chat.go)
 - [`internal/llm/embedding.go`](../../internal/llm/embedding.go)
 - [`internal/store/runs.go`](../../internal/store/runs.go)

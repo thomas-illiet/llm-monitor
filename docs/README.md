@@ -22,7 +22,7 @@ Use this index to jump to the right level of detail.
 | Setup | [Configuration](configuration.md) | YAML settings, secrets, schedules, retention, and dashboard options. |
 | Runtime | [Deployment](deployment.md) | Docker Compose, production container runtime, and image notes. |
 | Operations | [Operations](operations.md) | Health checks, Prometheus scraping, alerts, troubleshooting, and maintenance. |
-| Scheduler | [Scheduled Tasks](tasks/README.md) | One file per recurring backend task and its persistence side effects. |
+| Scheduling | [Scheduled Tasks](tasks/README.md) | Stable task names, category folders, local runner behavior, and persistence side effects. |
 | Integration | [API](api.md) | JSON endpoints, Prometheus metrics, and optional MCP tools. |
 | Development | [Development](development.md) | Local commands, code organization, and pre-ship verification. |
 

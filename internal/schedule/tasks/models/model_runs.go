@@ -1,4 +1,4 @@
-package monitor
+package models
 
 import (
 	"context"
@@ -7,12 +7,22 @@ import (
 	"sync"
 
 	"llmservicemonitor/internal/llm"
+	"llmservicemonitor/internal/schedule/runner"
+	"llmservicemonitor/internal/schedule/tasks/shared"
 	"llmservicemonitor/internal/store"
 )
 
-// RunModelTests executes the current chat/embedding plan with bounded parallelism.
-func (s *Scheduler) RunModelTests(ctx context.Context) error {
-	plan, _ := s.modelPlan.Load().([]modelPlanItem)
+// NewModelRunsTask creates the scheduled model probe task.
+func NewModelRunsTask(deps shared.Dependencies) runner.Task {
+	service := newService(deps)
+	return runner.Task{
+		Name:    shared.ModelRunsTaskName,
+		Handler: service.runModelTests,
+	}
+}
+
+func (s *service) runModelTests(ctx context.Context, _ runner.TaskContext) error {
+	plan := s.modelPlan.Load()
 	if len(plan) == 0 {
 		return nil
 	}
@@ -52,8 +62,7 @@ func (s *Scheduler) RunModelTests(ctx context.Context) error {
 	return joined
 }
 
-// runChatTests executes every configured chat prompt against one model.
-func (s *Scheduler) runChatTests(ctx context.Context, modelID string) error {
+func (s *service) runChatTests(ctx context.Context, modelID string) error {
 	ran := false
 	var joined error
 	for _, prompt := range s.cfg.Tests.ChatPrompts {
@@ -111,8 +120,7 @@ func (s *Scheduler) runChatTests(ctx context.Context, modelID string) error {
 	return joined
 }
 
-// runEmbeddingTest executes the configured fixture against one embedding model.
-func (s *Scheduler) runEmbeddingTest(ctx context.Context, modelID, input string) error {
+func (s *service) runEmbeddingTest(ctx context.Context, modelID, input string) error {
 	if strings.TrimSpace(input) == "" {
 		s.recordModelEvent(ctx, store.ModelEventRecord{
 			ModelID:    modelID,

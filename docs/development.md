@@ -33,6 +33,7 @@ checks should compare those folders when you manually refresh `cmd/server/static
 ## Code Organization
 
 - Keep Go packages organized by responsibility; avoid rebuilding large catch-all files.
+- Keep scheduled work under `internal/schedule`: generic runner code in `runner`, task wiring in `tasks`, category handlers in `tasks/checks`, `tasks/models`, and `tasks/retention`, and shared task contracts in `tasks/shared`.
 - Keep Vue feature code under `web/src/features/dashboard`.
 - Keep reusable stateful frontend logic in composables and pure formatting/mapping logic in `utils`.
 - Add Go doc comments for production types/functions and JSDoc comments for exported frontend composables, types, and named helpers.
@@ -52,4 +53,4 @@ docker compose config
 
 - [Architecture](architecture.md) explains package responsibilities before changing backend boundaries.
 - [API](api.md) documents response contracts used by the dashboard.
-- [Scheduled Tasks](tasks/README.md) covers the scheduler behavior exercised by monitor tests.
+- [Scheduled Tasks](tasks/README.md) covers local taskrunner behavior and monitor task tests.

@@ -2,8 +2,8 @@
 
 ## Purpose
 
-`RunHistoryRetention` prunes old persisted history while preserving the current
-model state needed by the dashboard and alerting logic.
+`monitor.history_retention` prunes old persisted history while preserving the
+current model state needed by the dashboard and alerting logic.
 
 ## Schedule
 
@@ -13,6 +13,7 @@ model state needed by the dashboard and alerting logic.
 - Loop interval: fixed `24h`.
 - Startup behavior: when retention is enabled, runs once immediately, then repeats
   every 24 hours.
+- Payload: empty JSON payload.
 
 ## Inputs
 
@@ -22,7 +23,8 @@ model state needed by the dashboard and alerting logic.
 
 ## Execution
 
-The task computes a cutoff as:
+The handler from `internal/schedule/tasks/retention/history_retention.go`
+computes a cutoff as:
 
 ```text
 now_utc - retention.history
@@ -50,11 +52,12 @@ older than the cutoff.
 ## Failure Behavior
 
 If retention is disabled or storage is unavailable, the task exits without work.
-Database errors abort the transaction, return an error, and are logged by the
-scheduler loop.
+Database errors abort the transaction and are returned to the local scheduler,
+which logs them and continues on the next tick.
 
 ## Related Code
 
-- [`internal/monitor/retention.go`](../../internal/monitor/retention.go)
+- [`internal/schedule/tasks/retention/history_retention.go`](../../internal/schedule/tasks/retention/history_retention.go)
+- [`internal/schedule/runner`](../../internal/schedule/runner)
 - [`internal/store/retention.go`](../../internal/store/retention.go)
 - [`internal/config/config.go`](../../internal/config/config.go)

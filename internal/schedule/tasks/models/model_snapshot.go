@@ -1,4 +1,4 @@
-package monitor
+package models
 
 import (
 	"context"
@@ -8,11 +8,21 @@ import (
 	"time"
 
 	"llmservicemonitor/internal/notify"
+	"llmservicemonitor/internal/schedule/runner"
+	"llmservicemonitor/internal/schedule/tasks/shared"
 	"llmservicemonitor/internal/store"
 )
 
-// refreshModels snapshots target inventory, records lifecycle events, and triggers alerts.
-func (s *Scheduler) RefreshModels(ctx context.Context) error {
+// NewModelSnapshotTask creates the model inventory snapshot task.
+func NewModelSnapshotTask(deps shared.Dependencies) runner.Task {
+	service := newService(deps)
+	return runner.Task{
+		Name:    shared.ModelSnapshotTaskName,
+		Handler: service.refreshModels,
+	}
+}
+
+func (s *service) refreshModels(ctx context.Context, _ runner.TaskContext) error {
 	modelIDs, err := s.client.ListModels(ctx)
 	if err != nil {
 		s.logger.Error("list models", "error", err)
@@ -50,8 +60,7 @@ func (s *Scheduler) RefreshModels(ctx context.Context) error {
 	return nil
 }
 
-// lastKnownRunnableCapabilities loads stable fallback capabilities from storage.
-func (s *Scheduler) lastKnownRunnableCapabilities(ctx context.Context) map[string]string {
+func (s *service) lastKnownRunnableCapabilities(ctx context.Context) map[string]string {
 	if s.store == nil {
 		return nil
 	}
@@ -63,8 +72,7 @@ func (s *Scheduler) lastKnownRunnableCapabilities(ctx context.Context) map[strin
 	return capabilities
 }
 
-// detectModels probes endpoint compatibility for the latest model list.
-func (s *Scheduler) detectModels(ctx context.Context, modelIDs []string, knownCapabilities map[string]string) []store.ObservedModel {
+func (s *service) detectModels(ctx context.Context, modelIDs []string, knownCapabilities map[string]string) []store.ObservedModel {
 	observed := make([]store.ObservedModel, len(modelIDs))
 	if len(modelIDs) == 0 {
 		return observed
@@ -90,7 +98,7 @@ func (s *Scheduler) detectModels(ctx context.Context, modelIDs []string, knownCa
 					Status:     "skipped",
 					Capability: capabilitySkip,
 					Title:      "Capability probe skipped",
-					Message:    "Capability detection was skipped because the scheduler context was canceled.",
+					Message:    "Capability detection was skipped because the task context was canceled.",
 					Details:    map[string]any{"skip_reason": "context canceled before capability probes"},
 				})
 				return
@@ -116,25 +124,22 @@ func (s *Scheduler) detectModels(ctx context.Context, modelIDs []string, knownCa
 	return observed
 }
 
-// embeddingProbeInput returns fixture text with a short fallback for detection.
-func (s *Scheduler) embeddingProbeInput() string {
+func (s *service) embeddingProbeInput() string {
 	if input := strings.TrimSpace(s.loadEmbeddingFixture()); input != "" {
 		return input
 	}
 	return defaultEmbeddingProbeInput
 }
 
-// modelConcurrency returns a usable probe limit even for tests without defaults.
-func (s *Scheduler) modelConcurrency() int {
+func (s *service) modelConcurrency() int {
 	if s.cfg.Models.MaxConcurrency > 0 {
 		return s.cfg.Models.MaxConcurrency
 	}
 	return 1
 }
 
-// reloadModelPlan atomically swaps the set of models used by scheduled probes.
-func (s *Scheduler) reloadModelPlan(observed []store.ObservedModel) {
+func (s *service) reloadModelPlan(observed []store.ObservedModel) {
 	next := buildModelPlan(observed)
 	s.modelPlan.Store(next)
-	s.logger.Info("scheduler model plan reloaded", "models", len(next))
+	s.logger.Info("task model plan reloaded", "models", len(next))
 }

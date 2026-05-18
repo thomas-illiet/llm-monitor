@@ -35,7 +35,7 @@ The optional MCP Streamable HTTP endpoint is disabled by default. Enable it with
 
 ## Probe Scheduling
 
-The `schedules` block controls independent loops:
+The `schedules` block controls independent local task schedules:
 
 - `http_check`: target reachability.
 - `auth_check`: token endpoint health.
@@ -43,7 +43,8 @@ The `schedules` block controls independent loops:
 - `model_runs`: scheduled chat and embedding probes.
 
 Durations use Go strings such as `30s`, `5m`, or `24h`.
-See [Scheduled Tasks](tasks/README.md) for the behavior of each loop.
+See [Scheduled Tasks](tasks/README.md) for each registered task, stable task
+name, handler category, and trigger behavior.
 
 ## Retention
 

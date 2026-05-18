@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`RefreshModels` snapshots the current model inventory, classifies model
+`monitor.model_snapshot` snapshots the current model inventory, classifies model
 capabilities, updates lifecycle state, reloads the runnable model plan, and emits
 model lifecycle alerts.
 
@@ -12,6 +12,7 @@ model lifecycle alerts.
 - Default interval: `5m`
 - Startup behavior: runs once before the first scheduled model run, then repeats
   only after the first configured interval has elapsed.
+- Payload: empty JSON payload.
 
 ## Inputs
 
@@ -24,8 +25,9 @@ model lifecycle alerts.
 
 ## Execution
 
-The task first calls `/v1/models` and extracts model IDs. Each model is classified
-by probing chat first, then embeddings:
+The handler from `internal/schedule/tasks/models/model_snapshot.go` first calls
+`/v1/models` and extracts model IDs. Each model is classified by probing chat
+first, then embeddings:
 
 - Chat probe: `POST /v1/chat/completions` with prompt `Reply with ok.`
 - Embedding probe: `POST /v1/embeddings` with the configured embedding fixture or a fallback probe string.
@@ -37,8 +39,10 @@ responses, the capability is marked `unknown`; the last known runnable capabilit
 is preserved when available. Otherwise the model is marked `skip`.
 
 The resulting observation is persisted, current model state is updated, lifecycle
-events are derived, and the in-memory model plan is replaced with runnable
-`chat` and `embedding` models.
+events are derived, and the shared `ModelPlanStore` is replaced with runnable
+`chat` and `embedding` models. The current implementation uses an in-memory
+store; the interface keeps this boundary replaceable for a future distributed
+runner.
 
 ## Stored Output
 
@@ -76,13 +80,14 @@ model events.
 If `/v1/models` fails, the task returns an error and does not update the inventory.
 Individual capability probe failures are captured in model event details where
 possible. If persistence fails while processing the observation, the task returns
-an error and the scheduler logs it.
+an error; the local scheduler logs it and continues on the next tick.
 
 ## Related Code
 
-- [`internal/monitor/inventory.go`](../../internal/monitor/inventory.go)
-- [`internal/monitor/capabilities.go`](../../internal/monitor/capabilities.go)
-- [`internal/monitor/rules.go`](../../internal/monitor/rules.go)
-- [`internal/monitor/events.go`](../../internal/monitor/events.go)
-- [`internal/monitor/alerts.go`](../../internal/monitor/alerts.go)
+- [`internal/schedule/tasks/models/model_snapshot.go`](../../internal/schedule/tasks/models/model_snapshot.go)
+- [`internal/schedule/tasks/models/capabilities.go`](../../internal/schedule/tasks/models/capabilities.go)
+- [`internal/schedule/tasks/models/rules.go`](../../internal/schedule/tasks/models/rules.go)
+- [`internal/schedule/tasks/models/events.go`](../../internal/schedule/tasks/models/events.go)
+- [`internal/schedule/tasks/models/alerts.go`](../../internal/schedule/tasks/models/alerts.go)
+- [`internal/schedule/runner`](../../internal/schedule/runner)
 - [`internal/store/models.go`](../../internal/store/models.go)
