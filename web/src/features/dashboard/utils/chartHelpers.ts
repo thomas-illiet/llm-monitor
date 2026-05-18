@@ -4,6 +4,8 @@ import type { ConfiguredChart } from '@/types'
 export type ChartGridEntry =
   | { kind: 'chart', key: string, chart: ConfiguredChart }
   | { kind: 'model-status', key: string }
+  | { kind: 'model-capability', key: string }
+  | { kind: 'model-events', key: string }
 
 export interface DashboardChartTheme {
   axis: string
@@ -100,22 +102,31 @@ export function isHttpLatencyChart(chart: ConfiguredChart) {
   return metric === 'http_latency_ms' || id.includes('http-latency')
 }
 
-/** Interleaves the model status chart after the first HTTP latency chart. */
+/** Interleaves inventory charts after the first HTTP latency chart. */
 export function chartGridEntries(charts: ConfiguredChart[]): ChartGridEntry[] {
   const entries: ChartGridEntry[] = []
-  let insertedModelStatus = false
+  let insertedInventoryCards = false
 
   for (const chart of charts) {
     entries.push({ kind: 'chart', key: `chart-${chart.id}`, chart })
-    if (!insertedModelStatus && isHttpLatencyChart(chart)) {
-      entries.push({ kind: 'model-status', key: 'model-status-card' })
-      insertedModelStatus = true
+    if (!insertedInventoryCards && isHttpLatencyChart(chart)) {
+      entries.push(...inventoryChartEntries())
+      insertedInventoryCards = true
     }
   }
 
-  if (!insertedModelStatus) {
-    entries.push({ kind: 'model-status', key: 'model-status-card' })
+  if (!insertedInventoryCards) {
+    entries.push(...inventoryChartEntries())
   }
 
   return entries
+}
+
+/** Returns current-inventory chart cards in their dashboard display order. */
+function inventoryChartEntries(): ChartGridEntry[] {
+  return [
+    { kind: 'model-status', key: 'model-status-card' },
+    { kind: 'model-capability', key: 'model-capability-card' },
+    { kind: 'model-events', key: 'model-events-card' }
+  ]
 }

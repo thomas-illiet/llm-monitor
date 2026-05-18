@@ -115,8 +115,11 @@ function openModelDashboard(modelId: string) {
           <KpiCards :kpis="data.kpis" :slo="data.slo" />
           <ConfiguredCharts
             :charts="publicCharts"
+            :events="data.events"
             :is-dark="isDark"
             :model-status-history="data.model_status_history"
+            :models="data.models"
+            @open-events="openModelEvents"
           />
 
           <ModelInventoryTable
