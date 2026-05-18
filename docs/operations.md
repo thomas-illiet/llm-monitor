@@ -4,8 +4,19 @@
 
 - `GET /healthz` reports process health.
 - `GET /api/status` reports target/auth/model health from persisted observations.
+- `GET /metrics` exposes Prometheus metrics from the latest persisted checks, model inventory, and model probes.
 
 Use `/healthz` for container liveness and `/api/status` for service-level monitoring.
+Use `/metrics` for Prometheus scraping; it is intentionally unauthenticated and should be reachable only from an internal monitoring network.
+
+Example scrape config:
+
+```yaml
+scrape_configs:
+  - job_name: llm-service-monitor
+    static_configs:
+      - targets: ["llm-monitor:8080"]
+```
 
 ## Alert Behavior
 

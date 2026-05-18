@@ -26,6 +26,19 @@ Returns compact service status, including model inventory counts and latest auth
 }
 ```
 
+## `GET /metrics`
+
+Returns Prometheus text metrics for the latest persisted monitor observations. Scraping this endpoint does not call the LLM provider.
+
+Key metric families include:
+
+- `llm_monitor_http_*` and `llm_monitor_auth_*` for the latest service checks
+- `llm_monitor_models_total{status=...}` and `llm_monitor_models_skipped_total` for inventory counts
+- `llm_monitor_model_available{model=...,capability=...}` and timestamp gauges for per-model availability
+- `llm_monitor_model_probe_*{model=...,capability=...,kind=...}` for the latest chat or embedding probe telemetry
+
+The endpoint is open by design for internal Prometheus or Kubernetes scrape targets. It also includes the standard Go runtime and process collectors.
+
 ## `GET /api/dashboard`
 
 Returns the full dashboard payload. Optional query parameter:

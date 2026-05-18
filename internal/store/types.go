@@ -118,6 +118,24 @@ type RecentRun struct {
 	Error            string    `json:"error,omitempty"`
 }
 
+// LatestRun stores the newest probe telemetry for one model and run kind.
+type LatestRun struct {
+	Kind                  string
+	ModelID               string
+	StartedAt             time.Time
+	OK                    bool
+	StatusCode            int
+	LatencyMS             float64
+	TTFTMS                *float64
+	ITLMS                 *float64
+	TPOTMS                *float64
+	InputTokens           *int
+	OutputTokens          *int
+	TotalTokens           *int
+	OutputTokensPerSecond *float64
+	VectorDimensions      *int
+}
+
 // RecentEvent is a dashboard timeline row for model-scoped diagnostic events.
 type RecentEvent struct {
 	ID         int64          `json:"id"`
