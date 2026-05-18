@@ -42,11 +42,13 @@ CREATE TABLE IF NOT EXISTS model_events (
   observed_at TIMESTAMPTZ NOT NULL,
   title TEXT NOT NULL,
   message TEXT NOT NULL,
+  changed BOOLEAN NOT NULL DEFAULT FALSE,
   details JSONB NOT NULL DEFAULT '{}'::jsonb
 );
 
 CREATE INDEX IF NOT EXISTS model_events_observed_at_idx ON model_events(observed_at DESC);
 CREATE INDEX IF NOT EXISTS model_events_model_observed_idx ON model_events(model_id, observed_at DESC);
+CREATE INDEX IF NOT EXISTS model_events_changed_observed_idx ON model_events(observed_at DESC) WHERE changed;
 
 CREATE TABLE IF NOT EXISTS http_checks (
   id BIGSERIAL PRIMARY KEY,

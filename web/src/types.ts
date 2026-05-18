@@ -137,6 +137,7 @@ export interface ModelEvent {
   observed_at: string
   title: string
   message: string
+  changed: boolean
   details?: Record<string, unknown>
 }
 

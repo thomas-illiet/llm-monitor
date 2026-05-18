@@ -10,6 +10,26 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+const (
+	modelEventSelectColumns = `id, model_id, event_type, source, severity, status, capability, observed_at, title, message, changed, details`
+	insertModelEventSQL     = `
+		INSERT INTO model_events(model_id, event_type, source, severity, status, capability, observed_at, title, message, changed, details)
+		VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+		RETURNING id, model_id, event_type, capability, observed_at, changed
+	`
+	recordModelEventSQL = `
+		INSERT INTO model_events(model_id, event_type, source, severity, status, capability, observed_at, title, message, changed, details)
+		VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+	`
+	recentModelEventsSQL = `
+		SELECT ` + modelEventSelectColumns + `
+		FROM model_events
+		WHERE changed
+		ORDER BY observed_at DESC
+		LIMIT $1
+	`
+)
+
 // insertModelEvent appends one lifecycle event and returns alert-facing row data.
 func insertModelEvent(ctx context.Context, tx pgx.Tx, record ModelEventRecord) (ModelEvent, error) {
 	normalizeModelEvent(&record)
@@ -18,11 +38,7 @@ func insertModelEvent(ctx context.Context, tx pgx.Tx, record ModelEventRecord) (
 		return ModelEvent{}, err
 	}
 	var event ModelEvent
-	err = tx.QueryRow(ctx, `
-		INSERT INTO model_events(model_id, event_type, source, severity, status, capability, observed_at, title, message, details)
-		VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-		RETURNING id, model_id, event_type, capability, observed_at
-	`, record.ModelID, record.EventType, record.Source, record.Severity, record.Status, record.Capability, record.ObservedAt, record.Title, record.Message, raw).Scan(&event.ID, &event.ModelID, &event.EventType, &event.Capability, &event.ObservedAt)
+	err = tx.QueryRow(ctx, insertModelEventSQL, record.ModelID, record.EventType, record.Source, record.Severity, record.Status, record.Capability, record.ObservedAt, record.Title, record.Message, record.Changed, raw).Scan(&event.ID, &event.ModelID, &event.EventType, &event.Capability, &event.ObservedAt, &event.Changed)
 	return event, err
 }
 
@@ -33,10 +49,7 @@ func (s *Store) RecordModelEvent(ctx context.Context, record ModelEventRecord) e
 	if err != nil {
 		return err
 	}
-	_, err = s.pool.Exec(ctx, `
-		INSERT INTO model_events(model_id, event_type, source, severity, status, capability, observed_at, title, message, details)
-		VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-	`, record.ModelID, record.EventType, record.Source, record.Severity, record.Status, record.Capability, record.ObservedAt, record.Title, record.Message, raw)
+	_, err = s.pool.Exec(ctx, recordModelEventSQL, record.ModelID, record.EventType, record.Source, record.Severity, record.Status, record.Capability, record.ObservedAt, record.Title, record.Message, record.Changed, raw)
 	return err
 }
 
@@ -92,12 +105,7 @@ func eventStatus(capability, skipReason string) string {
 
 // RecentModelEvents returns the newest model events for the dashboard.
 func (s *Store) RecentModelEvents(ctx context.Context, limit int) ([]RecentEvent, error) {
-	rows, err := s.pool.Query(ctx, `
-		SELECT id, model_id, event_type, source, severity, status, capability, observed_at, title, message, details
-		FROM model_events
-		ORDER BY observed_at DESC
-		LIMIT $1
-	`, limit)
+	rows, err := s.pool.Query(ctx, recentModelEventsSQL, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -117,7 +125,7 @@ func (s *Store) ListModelEvents(ctx context.Context, query ModelEventQuery) (Mod
 	offsetParam := len(args) + 2
 	args = append(args, query.Limit, query.Offset)
 	rows, err := s.pool.Query(ctx, `
-		SELECT id, model_id, event_type, source, severity, status, capability, observed_at, title, message, details
+		SELECT `+modelEventSelectColumns+`
 		FROM model_events
 		`+where+`
 		ORDER BY observed_at DESC
@@ -208,7 +216,7 @@ func scanRecentEvents(rows pgx.Rows) ([]RecentEvent, error) {
 	for rows.Next() {
 		var event RecentEvent
 		var raw []byte
-		if err := rows.Scan(&event.ID, &event.ModelID, &event.EventType, &event.Source, &event.Severity, &event.Status, &event.Capability, &event.ObservedAt, &event.Title, &event.Message, &raw); err != nil {
+		if err := rows.Scan(&event.ID, &event.ModelID, &event.EventType, &event.Source, &event.Severity, &event.Status, &event.Capability, &event.ObservedAt, &event.Title, &event.Message, &event.Changed, &raw); err != nil {
 			return nil, err
 		}
 		if len(raw) > 0 {

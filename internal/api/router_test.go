@@ -415,7 +415,7 @@ func TestDashboardResponseShapeIncludesRuntimeConfig(t *testing.T) {
 func TestModelEventsResponseShape(t *testing.T) {
 	payload := ModelEventsResponse{
 		ModelID: "test-model",
-		Events:  []store.RecentEvent{},
+		Events:  []store.RecentEvent{{ID: 1, ModelID: "test-model", EventType: "removed", Changed: true}},
 		Total:   42,
 		Limit:   25,
 		Offset:  50,
@@ -432,10 +432,12 @@ func TestModelEventsResponseShape(t *testing.T) {
 	}
 	var got struct {
 		ModelID string `json:"model_id"`
-		Events  []any  `json:"events"`
-		Total   int64  `json:"total"`
-		Limit   int    `json:"limit"`
-		Offset  int    `json:"offset"`
+		Events  []struct {
+			Changed bool `json:"changed"`
+		} `json:"events"`
+		Total   int64 `json:"total"`
+		Limit   int   `json:"limit"`
+		Offset  int   `json:"offset"`
 		Filters struct {
 			Statuses   []string `json:"statuses"`
 			Sources    []string `json:"sources"`
@@ -447,6 +449,9 @@ func TestModelEventsResponseShape(t *testing.T) {
 	}
 	if got.ModelID != payload.ModelID || got.Total != payload.Total || got.Limit != payload.Limit || got.Offset != payload.Offset {
 		t.Fatalf("response metadata = %#v, want %#v", got, payload)
+	}
+	if len(got.Events) != 1 || !got.Events[0].Changed {
+		t.Fatalf("event changed = %#v, want one changed event", got.Events)
 	}
 	assertStrings(t, got.Filters.Statuses, []string{"ok"})
 	assertStrings(t, got.Filters.Sources, []string{"scheduler"})

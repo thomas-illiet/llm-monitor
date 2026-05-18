@@ -27,6 +27,7 @@ type ModelEvent struct {
 	EventType       string
 	Capability      string
 	ObservedAt      time.Time
+	Changed         bool
 	MissingSince    *time.Time
 	MissingDuration time.Duration
 	FirstSeen       bool
@@ -148,6 +149,7 @@ type RecentEvent struct {
 	ObservedAt time.Time      `json:"observed_at"`
 	Title      string         `json:"title"`
 	Message    string         `json:"message"`
+	Changed    bool           `json:"changed"`
 	Details    map[string]any `json:"details,omitempty"`
 }
 
@@ -186,6 +188,7 @@ type ModelEventRecord struct {
 	ObservedAt time.Time
 	Title      string
 	Message    string
+	Changed    bool
 	Details    map[string]any
 }
 

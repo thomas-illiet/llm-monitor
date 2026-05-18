@@ -66,6 +66,7 @@ func (s *Store) ProcessModelObservation(ctx context.Context, observed []Observed
 				ObservedAt: now,
 				Title:      "Model discovered",
 				Message:    fmt.Sprintf("Model %s was discovered with capability %s.", model.ID, model.Capability),
+				Changed:    true,
 				Details: map[string]any{
 					"first_seen":    true,
 					"skip_reason":   model.SkipReason,
@@ -96,6 +97,7 @@ func (s *Store) ProcessModelObservation(ctx context.Context, observed []Observed
 				ObservedAt: now,
 				Title:      "Model returned",
 				Message:    fmt.Sprintf("Model %s returned after being absent for %s.", model.ID, missingDuration.Round(time.Second)),
+				Changed:    true,
 				Details: map[string]any{
 					"missing_since": state.MissingSince.Format(time.RFC3339),
 					"absent_ms":     missingDuration.Milliseconds(),
@@ -127,6 +129,7 @@ func (s *Store) ProcessModelObservation(ctx context.Context, observed []Observed
 					ObservedAt: now,
 					Title:      "Model capability changed",
 					Message:    fmt.Sprintf("Model %s changed from %s to %s.", model.ID, state.Capability, model.Capability),
+					Changed:    true,
 					Details: map[string]any{
 						"previous_capability":  state.Capability,
 						"current_capability":   model.Capability,
@@ -164,6 +167,7 @@ func (s *Store) ProcessModelObservation(ctx context.Context, observed []Observed
 			ObservedAt: now,
 			Title:      "Model removed",
 			Message:    fmt.Sprintf("Model %s disappeared from /v1/models.", modelID),
+			Changed:    true,
 			Details: map[string]any{
 				"missing_since": now.Format(time.RFC3339),
 			},
