@@ -26,7 +26,7 @@ export interface ModelDashboardData {
 }
 
 /** Supported preset KPI time-window values shown by the dashboard UI. */
-export type KpiRangeValue = '1h' | '12h' | '24h' | '168h' | '720h' | '8760h'
+export type KpiRangeValue = '12h' | '24h' | '168h' | '720h' | '8760h'
 
 /** One selectable KPI range preset. */
 export interface KpiRangePreset {

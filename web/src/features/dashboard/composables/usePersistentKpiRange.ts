@@ -6,7 +6,6 @@ const DEFAULT_KPI_RANGE: KpiRangeValue = '24h'
 
 /** KPI range options shown in the dashboard dropdown. */
 export const KPI_RANGE_PRESETS = [
-  { label: 'Last 1 hour', value: '1h' },
   { label: 'Last 12 hours', value: '12h' },
   { label: 'Last day', value: '24h' },
   { label: 'Last 7 days', value: '168h' },
@@ -19,7 +18,6 @@ const KPI_RANGE_VALUES = new Set<KpiRangeValue>(
 )
 
 const KPI_RANGE_SECONDS: Record<KpiRangeValue, number> = {
-  '1h': 60 * 60,
   '12h': 12 * 60 * 60,
   '24h': 24 * 60 * 60,
   '168h': 7 * 24 * 60 * 60,
