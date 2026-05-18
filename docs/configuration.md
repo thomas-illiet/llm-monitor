@@ -2,6 +2,14 @@
 
 Configuration is loaded from `LLM_MONITOR_CONFIG`, defaulting to `config.yaml`. Use [config.example.yaml](../config.example.yaml) as the production template and [examples/config.compose.yaml](../examples/config.compose.yaml) for local Docker Compose.
 
+## Config Files
+
+| File | Purpose |
+| --- | --- |
+| [config.example.yaml](../config.example.yaml) | Production-oriented template with all major blocks. |
+| [examples/config.compose.yaml](../examples/config.compose.yaml) | Local Docker Compose config mounted by `docker-compose.yml`. |
+| [examples/embedding-fixture.txt](../examples/embedding-fixture.txt) | Local embedding probe fixture. |
+
 ## Required Values
 
 - `postgres.dsn`: PostgreSQL connection string.
@@ -35,6 +43,7 @@ The `schedules` block controls independent loops:
 - `model_runs`: scheduled chat and embedding probes.
 
 Durations use Go strings such as `30s`, `5m`, or `24h`.
+See [Scheduled Tasks](tasks/README.md) for the behavior of each loop.
 
 ## Retention
 
@@ -58,3 +67,9 @@ The built-in charts are:
 - HTTP check latency, rendered as a bar chart.
 - Model status history, rendered as a stacked bar chart.
 - Model detail latency, throughput, and error charts, rendered as bar or stacked bar charts depending on the metric.
+
+## Related Docs
+
+- [Deployment](deployment.md) explains how config files and mounted secrets are passed to the container.
+- [Scheduled Tasks](tasks/README.md) documents the runtime behavior controlled by `schedules`, `tests`, `models`, and `retention`.
+- [Operations](operations.md) covers the operational impact of health checks, alerts, and retention.

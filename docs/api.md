@@ -2,6 +2,18 @@
 
 The Go service exposes JSON APIs for health and dashboard data, plus a static SPA fallback.
 
+## Endpoint Summary
+
+| Endpoint | Purpose |
+| --- | --- |
+| `GET /healthz` | Process liveness. |
+| `GET /api/status` | Compact service health for target, auth, and model inventory state. |
+| `GET /metrics` | Prometheus metrics from persisted observations. |
+| `GET /api/dashboard` | Full dashboard payload. |
+| `GET /api/model-dashboard` | Model-specific KPIs, charts, and recent runs. |
+| `GET /api/model-events` | Paginated model event timeline. |
+| `mcp.path`, default `/mcp` | Optional read-only MCP Streamable HTTP endpoint. |
+
 ## `GET /healthz`
 
 Returns process health.
@@ -87,3 +99,8 @@ The v1 MCP server exposes only read-only tools:
 - `llm_monitor.kpis`
 - `llm_monitor.models`
 - `llm_monitor.model_performance`
+
+## Related Docs
+
+- [Operations](operations.md) covers how `/healthz`, `/api/status`, and `/metrics` should be used in production.
+- [Configuration](configuration.md) covers `mcp.enabled`, `mcp.path`, and MCP bearer token settings.

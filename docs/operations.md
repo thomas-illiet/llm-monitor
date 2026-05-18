@@ -1,5 +1,9 @@
 # Operations
 
+Use this page for production behavior. Use [Scheduled Tasks](tasks/README.md) for
+per-loop implementation details and [Configuration](configuration.md) for the YAML
+fields that tune those loops.
+
 ## Health Checks
 
 - `GET /healthz` reports process health.
@@ -39,3 +43,9 @@ Alert send attempts are recorded even when SMTP delivery fails, and failures als
 ## Routine Maintenance
 
 Monitor PostgreSQL growth for run, check, snapshot, alert, and event tables. `retention.history` defaults to `90d` and prunes historical rows automatically once per day; set it explicitly to `0s` to keep all history.
+
+## Related Docs
+
+- [API](api.md) documents the health, status, metrics, and dashboard endpoints.
+- [History retention task](tasks/history-retention.md) documents exactly which tables are pruned.
+- [Model snapshot task](tasks/model-snapshot.md) documents lifecycle events and alert deduplication.

@@ -26,7 +26,9 @@ npm run build
 
 The Vite dev server proxies `/api` and `/healthz` to `http://localhost:8080`.
 
-After changing frontend code, run the production build and resync `cmd/server/static` from `web/dist` so the embedded dashboard matches the current source.
+After changing frontend code, run the production build. The Dockerfile copies
+`web/dist` into `cmd/server/static` during the image build, so local embedded-static
+checks should compare those folders when you manually refresh `cmd/server/static`.
 
 ## Code Organization
 
@@ -41,7 +43,13 @@ Run before shipping changes:
 
 ```bash
 go test ./...
-cd web && npx vue-tsc --noEmit && npm run build
+cd web && npm run build
 diff -qr web/dist ../cmd/server/static
 docker compose config
 ```
+
+## Related Docs
+
+- [Architecture](architecture.md) explains package responsibilities before changing backend boundaries.
+- [API](api.md) documents response contracts used by the dashboard.
+- [Scheduled Tasks](tasks/README.md) covers the scheduler behavior exercised by monitor tests.

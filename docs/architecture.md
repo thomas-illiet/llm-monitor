@@ -34,3 +34,9 @@ flowchart LR
 4. Check, run, token, latency, and event data are persisted.
 5. The API aggregates the latest state for the dashboard.
 6. Missing, returned, and first-seen model events can emit deduplicated SMTP alerts.
+
+## Related Docs
+
+- [Scheduled Tasks](tasks/README.md) expands each scheduler loop and its storage side effects.
+- [API](api.md) documents the endpoints backed by the persisted monitor state.
+- [Operations](operations.md) covers runtime health, alert behavior, and troubleshooting.

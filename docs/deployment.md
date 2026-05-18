@@ -2,6 +2,12 @@
 
 The service is intended to run as one container plus PostgreSQL. The Dockerfile builds the Vue dashboard, embeds it into the Go binary, and runs as a non-root user.
 
+## Runtime Shape
+
+- App container: Go HTTP server, embedded Vue dashboard, scheduler, API, metrics, optional MCP endpoint.
+- PostgreSQL: persisted checks, runs, model inventory, events, alerts, and dashboard history.
+- Optional SMTP target: model lifecycle alert delivery.
+
 ## Docker Compose
 
 ```bash
@@ -50,3 +56,9 @@ Images are published from the `main` branch and `v*` tags. Use `latest` for the 
 - The root filesystem can be read-only.
 - No Linux capabilities are required by the application.
 - Database migrations are embedded and applied at startup with `CREATE TABLE IF NOT EXISTS` and `CREATE INDEX IF NOT EXISTS`.
+
+## Related Docs
+
+- [Configuration](configuration.md) explains required settings and secret file fields.
+- [Operations](operations.md) covers health endpoints, Prometheus scraping, alerts, and maintenance.
+- [Development](development.md) covers local build and verification commands.
