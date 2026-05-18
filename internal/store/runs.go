@@ -44,7 +44,7 @@ func (s *Store) LatestRunsByModel(ctx context.Context) ([]LatestRun, error) {
 		WITH runs AS (
 			SELECT
 				id AS run_id,
-				'chat' AS kind,
+				'chat' AS capability,
 				model_id,
 				started_at,
 				ok,
@@ -62,7 +62,7 @@ func (s *Store) LatestRunsByModel(ctx context.Context) ([]LatestRun, error) {
 			UNION ALL
 			SELECT
 				id AS run_id,
-				'embedding' AS kind,
+				'embedding' AS capability,
 				model_id,
 				started_at,
 				ok,
@@ -78,8 +78,8 @@ func (s *Store) LatestRunsByModel(ctx context.Context) ([]LatestRun, error) {
 				vector_dimensions
 			FROM embedding_runs
 		)
-		SELECT DISTINCT ON (kind, model_id)
-			kind,
+		SELECT DISTINCT ON (capability, model_id)
+			capability,
 			model_id,
 			started_at,
 			ok,
@@ -94,7 +94,7 @@ func (s *Store) LatestRunsByModel(ctx context.Context) ([]LatestRun, error) {
 			output_tokens_per_second,
 			vector_dimensions
 		FROM runs
-		ORDER BY kind ASC, model_id ASC, started_at DESC, run_id DESC
+		ORDER BY capability ASC, model_id ASC, started_at DESC, run_id DESC
 	`)
 	if err != nil {
 		return nil, err
@@ -112,7 +112,7 @@ func (s *Store) LatestRunsByModel(ctx context.Context) ([]LatestRun, error) {
 		var outputTokensPerSecond pgtype.Float8
 		var vectorDimensions pgtype.Int4
 		if err := rows.Scan(
-			&run.Kind,
+			&run.Capability,
 			&run.ModelID,
 			&run.StartedAt,
 			&run.OK,
@@ -149,12 +149,12 @@ func (s *Store) recentRuns(ctx context.Context, modelID string, since *time.Time
 		sinceArg = *since
 	}
 	rows, err := s.pool.Query(ctx, `
-		SELECT kind, model_id, prompt_id, started_at, ok, status_code, latency_ms, input_tokens, output_tokens, total_tokens, error, fixture_path, fixture_bytes, vector_dimensions
+		SELECT capability, model_id, prompt_id, started_at, ok, status_code, latency_ms, input_tokens, output_tokens, total_tokens, error, fixture_path, fixture_bytes, vector_dimensions
 		FROM (
-			SELECT 'chat' AS kind, model_id, prompt_id, started_at, ok, status_code, latency_ms, input_tokens, output_tokens, total_tokens, error, NULL::text AS fixture_path, NULL::integer AS fixture_bytes, NULL::integer AS vector_dimensions
+			SELECT 'chat' AS capability, model_id, prompt_id, started_at, ok, status_code, latency_ms, input_tokens, output_tokens, total_tokens, error, NULL::text AS fixture_path, NULL::integer AS fixture_bytes, NULL::integer AS vector_dimensions
 			FROM chat_runs
 			UNION ALL
-			SELECT 'embedding' AS kind, model_id, '' AS prompt_id, started_at, ok, status_code, latency_ms, input_tokens, NULL::integer AS output_tokens, total_tokens, error, fixture_path, fixture_bytes, vector_dimensions
+			SELECT 'embedding' AS capability, model_id, '' AS prompt_id, started_at, ok, status_code, latency_ms, input_tokens, NULL::integer AS output_tokens, total_tokens, error, fixture_path, fixture_bytes, vector_dimensions
 			FROM embedding_runs
 		) runs
 		WHERE ($2 = '' OR model_id = $2)
@@ -172,7 +172,7 @@ func (s *Store) recentRuns(ctx context.Context, modelID string, since *time.Time
 		var fixturePath pgtype.Text
 		var fixtureBytes pgtype.Int4
 		var vectorDimensions pgtype.Int4
-		if err := rows.Scan(&run.Kind, &run.ModelID, &run.PromptID, &run.StartedAt, &run.OK, &run.StatusCode, &run.LatencyMS, &run.InputTokens, &run.OutputTokens, &run.TotalTokens, &run.Error, &fixturePath, &fixtureBytes, &vectorDimensions); err != nil {
+		if err := rows.Scan(&run.Capability, &run.ModelID, &run.PromptID, &run.StartedAt, &run.OK, &run.StatusCode, &run.LatencyMS, &run.InputTokens, &run.OutputTokens, &run.TotalTokens, &run.Error, &fixturePath, &fixtureBytes, &vectorDimensions); err != nil {
 			return nil, err
 		}
 		run.FixturePath = textPtr(fixturePath)

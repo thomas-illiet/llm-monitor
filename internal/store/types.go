@@ -102,7 +102,7 @@ type EmailAlertRecord struct {
 
 // RecentRun is a dashboard timeline row for recent chat and embedding probes.
 type RecentRun struct {
-	Kind             string    `json:"kind"`
+	Capability       string    `json:"capability"`
 	ModelID          string    `json:"model_id"`
 	PromptID         string    `json:"prompt_id,omitempty"`
 	StartedAt        time.Time `json:"started_at"`
@@ -118,9 +118,9 @@ type RecentRun struct {
 	Error            string    `json:"error,omitempty"`
 }
 
-// LatestRun stores the newest probe telemetry for one model and run kind.
+// LatestRun stores the newest probe telemetry for one model and capability.
 type LatestRun struct {
-	Kind                  string
+	Capability            string
 	ModelID               string
 	StartedAt             time.Time
 	OK                    bool

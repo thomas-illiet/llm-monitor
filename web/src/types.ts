@@ -171,14 +171,14 @@ interface BaseRecentRun {
 
 /** Recent chat probe result shown in the dashboard. */
 export interface ChatRecentRun extends BaseRecentRun {
-  kind: 'chat'
+  capability: 'chat'
   prompt_id?: string
   output_tokens?: number
 }
 
 /** Recent embedding probe result shown in the dashboard. */
 export interface EmbeddingRecentRun extends BaseRecentRun {
-  kind: 'embedding'
+  capability: 'embedding'
   fixture_path?: string
   fixture_bytes?: number
   vector_dimensions?: number

@@ -436,7 +436,7 @@ func TestModelDashboardResponseShape(t *testing.T) {
 		SLO:         store.SLOThresholds{TTFTP99MS: 1000},
 		Charts:      []ChartResponse{{ID: "model-vector-dimensions", Title: "Vector dimensions", Type: "bar", Metric: "vector_dimensions"}},
 		Runs: []store.RecentRun{{
-			Kind:             "embedding",
+			Capability:       "embedding",
 			ModelID:          "test-model",
 			FixturePath:      &fixturePath,
 			FixtureBytes:     &fixtureBytes,
@@ -457,6 +457,7 @@ func TestModelDashboardResponseShape(t *testing.T) {
 		} `json:"kpis"`
 		Charts []any `json:"charts"`
 		Runs   []struct {
+			Capability       string `json:"capability"`
 			FixturePath      string `json:"fixture_path"`
 			FixtureBytes     int    `json:"fixture_bytes"`
 			VectorDimensions int    `json:"vector_dimensions"`
@@ -468,7 +469,7 @@ func TestModelDashboardResponseShape(t *testing.T) {
 	if got.Model.ModelID != "test-model" || got.KPIs.TotalRuns != 2 || len(got.Charts) != 1 || len(got.Runs) != 1 {
 		t.Fatalf("response shape = %#v, want model, kpis, charts, and runs", got)
 	}
-	if got.Runs[0].FixturePath != fixturePath || got.Runs[0].FixtureBytes != fixtureBytes || got.Runs[0].VectorDimensions != vectorDimensions {
+	if got.Runs[0].Capability != "embedding" || got.Runs[0].FixturePath != fixturePath || got.Runs[0].FixtureBytes != fixtureBytes || got.Runs[0].VectorDimensions != vectorDimensions {
 		t.Fatalf("embedding run fields = %#v, want fixture and vector metadata", got.Runs[0])
 	}
 }

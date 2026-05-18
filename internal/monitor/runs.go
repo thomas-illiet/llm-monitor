@@ -89,7 +89,7 @@ func (s *Scheduler) runChatTests(ctx context.Context, modelID string) error {
 			s.logger.Error("record chat run", "error", err, "model", modelID)
 			joined = errors.Join(joined, err)
 		}
-		s.recordScheduledRunEvent(ctx, modelID, capabilityChat, "chat", prompt.ID, result, map[string]any{
+		s.recordScheduledRunEvent(ctx, modelID, capabilityChat, prompt.ID, result, map[string]any{
 			"prompt_id":   prompt.ID,
 			"max_tokens":  prompt.MaxTokens,
 			"temperature": prompt.Temperature,
@@ -148,7 +148,7 @@ func (s *Scheduler) runEmbeddingTest(ctx context.Context, modelID, input string)
 		s.logger.Error("record embedding run", "error", err, "model", modelID)
 		return err
 	}
-	s.recordScheduledRunEvent(ctx, modelID, capabilityEmbedding, "embedding", "", result, map[string]any{
+	s.recordScheduledRunEvent(ctx, modelID, capabilityEmbedding, "", result, map[string]any{
 		"fixture_path":  s.cfg.Tests.EmbeddingFixture.Path,
 		"fixture_bytes": len([]byte(input)),
 	})

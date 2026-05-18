@@ -7,7 +7,7 @@ defineProps<{
 
 const headers = [
   { title: 'Started', key: 'started_at', sortable: true },
-  { title: 'Kind', key: 'kind', sortable: true },
+  { title: 'Capability', key: 'capability', sortable: true },
   { title: 'Status', key: 'status', sortable: false },
   { title: 'Latency', key: 'latency_ms', sortable: true },
   { title: 'Workload', key: 'workload', sortable: false },
@@ -34,7 +34,7 @@ function bytes(value?: number) {
 
 /** Narrows a recent run to embedding-specific metadata. */
 function isEmbeddingRun(run: RecentRun): run is EmbeddingRecentRun {
-  return run.kind === 'embedding'
+  return run.capability === 'embedding'
 }
 
 /** Builds the workload title for chat prompts and embedding fixtures. */
@@ -49,11 +49,11 @@ function workloadDetail(run: RecentRun) {
   return run.prompt_id ? 'Configured chat test' : 'Prompt ID not recorded'
 }
 
-/** Builds the measured metric summary for each probe kind. */
+/** Builds the measured metric summary for each probe capability. */
 function metricSummary(run: RecentRun) {
   const parts = [
     run.input_tokens === undefined ? '' : `${run.input_tokens} input`,
-    run.kind === 'chat' && run.output_tokens !== undefined ? `${run.output_tokens} output` : '',
+    run.capability === 'chat' && run.output_tokens !== undefined ? `${run.output_tokens} output` : '',
     run.total_tokens === undefined ? '' : `${run.total_tokens} total`,
     isEmbeddingRun(run) && run.vector_dimensions !== undefined ? `${run.vector_dimensions} dimensions` : ''
   ].filter(Boolean)
@@ -83,8 +83,8 @@ function metricSummary(run: RecentRun) {
       <template #item.started_at="{ item }">
         {{ formatTime(item.started_at) }}
       </template>
-      <template #item.kind="{ item }">
-        <VChip size="x-small" variant="tonal">{{ item.kind }}</VChip>
+      <template #item.capability="{ item }">
+        <VChip size="x-small" variant="tonal">{{ item.capability }}</VChip>
       </template>
       <template #item.status="{ item }">
         <VChip size="x-small" :color="item.ok ? 'success' : 'error'" variant="tonal">

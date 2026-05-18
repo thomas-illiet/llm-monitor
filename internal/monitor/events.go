@@ -45,7 +45,7 @@ func (s *Scheduler) recordCapabilityProbeEvent(ctx context.Context, modelID stri
 }
 
 // recordScheduledRunEvent records the event timeline entry for one scheduled probe.
-func (s *Scheduler) recordScheduledRunEvent(ctx context.Context, modelID, capability, kind, promptID string, result llm.RunResult, details map[string]any) {
+func (s *Scheduler) recordScheduledRunEvent(ctx context.Context, modelID, capability, promptID string, result llm.RunResult, details map[string]any) {
 	if details == nil {
 		details = map[string]any{}
 	}
@@ -62,15 +62,15 @@ func (s *Scheduler) recordScheduledRunEvent(ctx context.Context, modelID, capabi
 		Severity:   "info",
 		Status:     "ok",
 		Capability: capability,
-		Title:      fmt.Sprintf("%s probe succeeded", strings.Title(kind)),
-		Message:    fmt.Sprintf("%s probe for model %s completed in %.0f ms.", strings.Title(kind), modelID, ms(result.Latency)),
+		Title:      fmt.Sprintf("%s probe succeeded", strings.Title(capability)),
+		Message:    fmt.Sprintf("%s probe for model %s completed in %.0f ms.", strings.Title(capability), modelID, ms(result.Latency)),
 		Details:    details,
 	}
 	if !result.OK {
 		event.Severity = "error"
 		event.Status = "error"
-		event.Title = fmt.Sprintf("%s probe failed", strings.Title(kind))
-		event.Message = fmt.Sprintf("%s probe for model %s failed: %s", strings.Title(kind), modelID, result.Error)
+		event.Title = fmt.Sprintf("%s probe failed", strings.Title(capability))
+		event.Message = fmt.Sprintf("%s probe for model %s failed: %s", strings.Title(capability), modelID, result.Error)
 	}
 	s.recordModelEvent(ctx, event)
 }

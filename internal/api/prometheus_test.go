@@ -33,7 +33,7 @@ func TestMetricsEndpointExposesPrometheusText(t *testing.T) {
 		authCheck: &store.CheckRecord{At: now.Add(-time.Minute), OK: false, StatusCode: http.StatusServiceUnavailable, LatencyMS: 250},
 		latestRuns: []store.LatestRun{
 			{
-				Kind:                  "chat",
+				Capability:            "chat",
 				ModelID:               "chat-a",
 				StartedAt:             now,
 				OK:                    true,
@@ -48,7 +48,7 @@ func TestMetricsEndpointExposesPrometheusText(t *testing.T) {
 				OutputTokensPerSecond: &outputTPS,
 			},
 			{
-				Kind:             "embedding",
+				Capability:       "embedding",
 				ModelID:          "embed-a",
 				StartedAt:        now.Add(-time.Hour),
 				OK:               false,
@@ -82,13 +82,15 @@ func TestMetricsEndpointExposesPrometheusText(t *testing.T) {
 	assertContains(t, body, `model="chat-a"`)
 	assertContains(t, body, "llm_monitor_model_available")
 	assertContains(t, body, "llm_monitor_model_probe_success")
-	assertContains(t, body, `kind="chat"`)
+	assertContains(t, body, `capability="chat"`)
+	assertContains(t, body, `capability="embedding"`)
 	assertContains(t, body, "llm_monitor_model_probe_ttft_seconds")
 	assertContains(t, body, "llm_monitor_model_probe_vector_dimensions")
 	assertContains(t, body, "go_goroutines")
 	assertContains(t, body, "process_start_time_seconds")
 	assertNotContains(t, body, "provider=")
 	assertNotContains(t, body, "error=")
+	assertNotContains(t, body, "kind=")
 }
 
 func TestMetricsEndpointReportsDownWhenChecksAreMissing(t *testing.T) {

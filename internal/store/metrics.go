@@ -86,25 +86,23 @@ func (s *Store) kpiSummary(ctx context.Context, since time.Time, slo SLOThreshol
 	var tpotP50, tpotP90, tpotP95, tpotP99 pgtype.Float8
 	var outputTokensPerSecond pgtype.Float8
 	err := s.pool.QueryRow(ctx, `
-		WITH runs AS (
-			SELECT
-				'chat' AS kind,
-				model_id,
-				ok,
-				COALESCE(request_latency_ms, latency_ms) AS request_latency_ms,
+			WITH runs AS (
+				SELECT
+					model_id,
+					ok,
+					COALESCE(request_latency_ms, latency_ms) AS request_latency_ms,
 				ttft_ms,
 				itl_ms,
 				tpot_ms,
 				input_tokens,
 				output_tokens,
 				output_tokens_per_second
-			FROM chat_runs WHERE started_at >= $1 AND ($5 = '' OR model_id = $5)
-			UNION ALL
-			SELECT
-				'embedding' AS kind,
-				model_id,
-				ok,
-				latency_ms AS request_latency_ms,
+				FROM chat_runs WHERE started_at >= $1 AND ($5 = '' OR model_id = $5)
+				UNION ALL
+				SELECT
+					model_id,
+					ok,
+					latency_ms AS request_latency_ms,
 				NULL::double precision AS ttft_ms,
 				NULL::double precision AS itl_ms,
 				NULL::double precision AS tpot_ms,

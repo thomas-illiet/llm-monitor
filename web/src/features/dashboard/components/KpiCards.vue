@@ -60,12 +60,12 @@ function thresholdAccent(value: number, threshold: number): string {
 }
 
 const latestEmbeddingRun = computed<EmbeddingRecentRun | null>(() => {
-  return props.runs?.find((run): run is EmbeddingRecentRun => run.kind === 'embedding') ?? null
+  return props.runs?.find((run): run is EmbeddingRecentRun => run.capability === 'embedding') ?? null
 })
 
 const latestEmbeddingRunWithDimensions = computed<EmbeddingRecentRun | null>(() => {
   return props.runs?.find((run): run is EmbeddingRecentRun => {
-    return run.kind === 'embedding' && run.vector_dimensions !== undefined
+    return run.capability === 'embedding' && run.vector_dimensions !== undefined
   }) ?? null
 })
 

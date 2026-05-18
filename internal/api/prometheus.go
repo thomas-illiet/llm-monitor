@@ -79,18 +79,18 @@ func newPrometheusCollector(db DashboardStore, logger *slog.Logger) *prometheusC
 		modelLastSeenTimestamp:     prometheus.NewDesc("llm_monitor_model_last_seen_timestamp_seconds", "Unix timestamp when the model was last observed.", []string{"model", "capability"}, nil),
 		modelMissingSinceTimestamp: prometheus.NewDesc("llm_monitor_model_missing_since_timestamp_seconds", "Unix timestamp when the model became missing.", []string{"model", "capability"}, nil),
 
-		probeSuccess:               prometheus.NewDesc("llm_monitor_model_probe_success", "Whether the latest model probe succeeded.", []string{"model", "capability", "kind"}, nil),
-		probeLatencySeconds:        prometheus.NewDesc("llm_monitor_model_probe_latency_seconds", "Request latency of the latest model probe in seconds.", []string{"model", "capability", "kind"}, nil),
-		probeStatusCode:            prometheus.NewDesc("llm_monitor_model_probe_status_code", "Status code returned by the latest model probe.", []string{"model", "capability", "kind"}, nil),
-		probeLastRunTimestamp:      prometheus.NewDesc("llm_monitor_model_probe_last_run_timestamp_seconds", "Unix timestamp of the latest model probe.", []string{"model", "capability", "kind"}, nil),
-		probeTTFTSeconds:           prometheus.NewDesc("llm_monitor_model_probe_ttft_seconds", "Time to first token for the latest chat probe in seconds.", []string{"model", "capability", "kind"}, nil),
-		probeITLSeconds:            prometheus.NewDesc("llm_monitor_model_probe_itl_seconds", "Inter-token latency for the latest chat probe in seconds.", []string{"model", "capability", "kind"}, nil),
-		probeTPOTSeconds:           prometheus.NewDesc("llm_monitor_model_probe_tpot_seconds", "Time per output token for the latest chat probe in seconds.", []string{"model", "capability", "kind"}, nil),
-		probeInputTokens:           prometheus.NewDesc("llm_monitor_model_probe_input_tokens", "Input tokens reported by the latest model probe.", []string{"model", "capability", "kind"}, nil),
-		probeOutputTokens:          prometheus.NewDesc("llm_monitor_model_probe_output_tokens", "Output tokens reported by the latest chat probe.", []string{"model", "capability", "kind"}, nil),
-		probeTotalTokens:           prometheus.NewDesc("llm_monitor_model_probe_total_tokens", "Total tokens reported by the latest model probe.", []string{"model", "capability", "kind"}, nil),
-		probeOutputTokensPerSecond: prometheus.NewDesc("llm_monitor_model_probe_output_tokens_per_second", "Output token throughput reported by the latest chat probe.", []string{"model", "capability", "kind"}, nil),
-		probeVectorDimensions:      prometheus.NewDesc("llm_monitor_model_probe_vector_dimensions", "Vector dimensions reported by the latest embedding probe.", []string{"model", "capability", "kind"}, nil),
+		probeSuccess:               prometheus.NewDesc("llm_monitor_model_probe_success", "Whether the latest model probe succeeded.", []string{"model", "capability"}, nil),
+		probeLatencySeconds:        prometheus.NewDesc("llm_monitor_model_probe_latency_seconds", "Request latency of the latest model probe in seconds.", []string{"model", "capability"}, nil),
+		probeStatusCode:            prometheus.NewDesc("llm_monitor_model_probe_status_code", "Status code returned by the latest model probe.", []string{"model", "capability"}, nil),
+		probeLastRunTimestamp:      prometheus.NewDesc("llm_monitor_model_probe_last_run_timestamp_seconds", "Unix timestamp of the latest model probe.", []string{"model", "capability"}, nil),
+		probeTTFTSeconds:           prometheus.NewDesc("llm_monitor_model_probe_ttft_seconds", "Time to first token for the latest chat probe in seconds.", []string{"model", "capability"}, nil),
+		probeITLSeconds:            prometheus.NewDesc("llm_monitor_model_probe_itl_seconds", "Inter-token latency for the latest chat probe in seconds.", []string{"model", "capability"}, nil),
+		probeTPOTSeconds:           prometheus.NewDesc("llm_monitor_model_probe_tpot_seconds", "Time per output token for the latest chat probe in seconds.", []string{"model", "capability"}, nil),
+		probeInputTokens:           prometheus.NewDesc("llm_monitor_model_probe_input_tokens", "Input tokens reported by the latest model probe.", []string{"model", "capability"}, nil),
+		probeOutputTokens:          prometheus.NewDesc("llm_monitor_model_probe_output_tokens", "Output tokens reported by the latest chat probe.", []string{"model", "capability"}, nil),
+		probeTotalTokens:           prometheus.NewDesc("llm_monitor_model_probe_total_tokens", "Total tokens reported by the latest model probe.", []string{"model", "capability"}, nil),
+		probeOutputTokensPerSecond: prometheus.NewDesc("llm_monitor_model_probe_output_tokens_per_second", "Output token throughput reported by the latest chat probe.", []string{"model", "capability"}, nil),
+		probeVectorDimensions:      prometheus.NewDesc("llm_monitor_model_probe_vector_dimensions", "Vector dimensions reported by the latest embedding probe.", []string{"model", "capability"}, nil),
 	}
 }
 
@@ -130,7 +130,7 @@ func (c *prometheusCollector) Collect(ch chan<- prometheus.Metric) {
 	c.collectCheck(ch, httpCheck, c.httpUp, c.httpLatencySeconds, c.httpStatusCode, c.httpLastCheckTimestamp)
 	c.collectCheck(ch, authCheck, c.authUp, c.authLatencySeconds, c.authStatusCode, c.authLastCheckTimestamp)
 	c.collectModels(ch, models)
-	c.collectRuns(ch, models, latestRuns)
+	c.collectRuns(ch, latestRuns)
 }
 
 func (c *prometheusCollector) descriptors() []*prometheus.Desc {
@@ -218,16 +218,11 @@ func (c *prometheusCollector) collectModels(ch chan<- prometheus.Metric, models 
 	}
 }
 
-func (c *prometheusCollector) collectRuns(ch chan<- prometheus.Metric, models []store.ModelState, runs []store.LatestRun) {
-	capabilities := map[string]string{}
-	for _, model := range models {
-		capabilities[model.ModelID] = model.Capability
-	}
+func (c *prometheusCollector) collectRuns(ch chan<- prometheus.Metric, runs []store.LatestRun) {
 	for _, run := range runs {
 		modelID := normalizedLabel(run.ModelID, "unknown")
-		kind := normalizedLabel(run.Kind, "unknown")
-		capability := normalizedLabel(capabilities[run.ModelID], kind)
-		labels := []string{modelID, capability, kind}
+		capability := normalizedLabel(run.Capability, "unknown")
+		labels := []string{modelID, capability}
 
 		emitGauge(ch, c.probeSuccess, boolGauge(run.OK), labels...)
 		emitGauge(ch, c.probeLatencySeconds, millisecondsToSeconds(run.LatencyMS), labels...)
