@@ -154,11 +154,10 @@ type SMTPConfig struct {
 
 // MCPConfig controls the optional Streamable HTTP MCP endpoint.
 type MCPConfig struct {
-	Enabled         bool     `yaml:"enabled"`
-	Path            string   `yaml:"path"`
-	BearerToken     string   `yaml:"bearer_token"`
-	BearerTokenFile string   `yaml:"bearer_token_file"`
-	AllowedOrigins  []string `yaml:"allowed_origins"`
+	Enabled         bool   `yaml:"enabled"`
+	Path            string `yaml:"path"`
+	BearerToken     string `yaml:"bearer_token"`
+	BearerTokenFile string `yaml:"bearer_token_file"`
 }
 
 // ScheduleConfig controls recurring monitor intervals.
@@ -332,12 +331,6 @@ func (c Config) Validate() error {
 		}
 		if c.MCP.BearerToken == "" && c.MCP.BearerTokenFile == "" {
 			problems = append(problems, "mcp.bearer_token or mcp.bearer_token_file is required when mcp.enabled=true")
-		}
-	}
-	for _, origin := range c.MCP.AllowedOrigins {
-		if strings.TrimSpace(origin) == "" {
-			problems = append(problems, "mcp.allowed_origins cannot contain empty values")
-			break
 		}
 	}
 	if c.Retention.History.Duration < 0 {

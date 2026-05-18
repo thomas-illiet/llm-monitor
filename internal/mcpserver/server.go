@@ -60,7 +60,6 @@ func NewHandler(cfg config.Config, db Store, logger *slog.Logger) (http.Handler,
 		Stateless:      false,
 	}))
 	handler = bearerAuth(token, handler)
-	handler = originGuard(cfg.MCP.AllowedOrigins, handler)
 	return handler, nil
 }
 
@@ -520,23 +519,6 @@ func bearerAuth(token string, next http.Handler) http.Handler {
 			w.Header().Set("WWW-Authenticate", `Bearer realm="llm-monitor-mcp"`)
 			http.Error(w, "invalid bearer token", http.StatusUnauthorized)
 			return
-		}
-		next.ServeHTTP(w, req)
-	})
-}
-
-func originGuard(allowed []string, next http.Handler) http.Handler {
-	allowedOrigins := make(map[string]struct{}, len(allowed))
-	for _, origin := range allowed {
-		allowedOrigins[strings.TrimSpace(origin)] = struct{}{}
-	}
-	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		origin := req.Header.Get("Origin")
-		if origin != "" {
-			if _, ok := allowedOrigins[origin]; !ok {
-				http.Error(w, "origin is not allowed", http.StatusForbidden)
-				return
-			}
 		}
 		next.ServeHTTP(w, req)
 	})

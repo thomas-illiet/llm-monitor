@@ -23,7 +23,7 @@ Prefer file fields in production so Docker/Kubernetes secrets can be mounted rea
 
 ## MCP Endpoint
 
-The optional MCP Streamable HTTP endpoint is disabled by default. Enable it with `mcp.enabled: true`, set `mcp.path` if `/mcp` is not suitable, and provide a dedicated bearer token. Requests with an `Origin` header are rejected unless the origin exactly matches one of `mcp.allowed_origins`.
+The optional MCP Streamable HTTP endpoint is disabled by default. Enable it with `mcp.enabled: true`, set `mcp.path` if `/mcp` is not suitable, and provide a dedicated bearer token.
 
 ## Probe Scheduling
 

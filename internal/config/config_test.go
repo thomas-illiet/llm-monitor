@@ -162,6 +162,33 @@ func TestValidateMCPRequiresBearerToken(t *testing.T) {
 	}
 }
 
+// TestLoadIgnoresDeprecatedMCPAllowedOrigins verifies stale configs keep loading after the option was removed.
+func TestLoadIgnoresDeprecatedMCPAllowedOrigins(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	data := []byte(`
+postgres:
+  dsn: postgres://user:pass@localhost:5432/monitor
+target:
+  base_url: https://llm.example.test
+mcp:
+  enabled: true
+  bearer_token: test-token
+  allowed_origins:
+    - ""
+`)
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if !cfg.MCP.Enabled || cfg.MCP.BearerToken != "test-token" {
+		t.Fatalf("unexpected mcp config: %#v", cfg.MCP)
+	}
+}
+
 // TestExampleConfigsLoad verifies shipped config examples stay valid.
 func TestExampleConfigsLoad(t *testing.T) {
 	for _, path := range []string{"../../config.example.yaml", "../../examples/config.compose.yaml"} {

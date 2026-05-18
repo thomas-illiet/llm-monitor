@@ -71,9 +71,8 @@ func TestNewHandlerReadsBearerTokenFile(t *testing.T) {
 	}
 }
 
-func TestHandlerRequiresBearerAndAllowedOrigin(t *testing.T) {
+func TestHandlerRequiresBearerAndAllowsOriginHeader(t *testing.T) {
 	cfg := testConfig()
-	cfg.MCP.AllowedOrigins = []string{"https://assistant.example.com"}
 	handler, err := NewHandler(cfg, testStore(), nil)
 	if err != nil {
 		t.Fatalf("NewHandler() error = %v", err)
@@ -95,8 +94,8 @@ func TestHandlerRequiresBearerAndAllowedOrigin(t *testing.T) {
 	req.Header.Set("Origin", "https://evil.example.com")
 	rec = httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
-	if rec.Code != http.StatusForbidden {
-		t.Fatalf("bad origin status = %d, want 403", rec.Code)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("origin request status = %d, want 200, body = %s", rec.Code, rec.Body.String())
 	}
 }
 
