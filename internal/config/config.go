@@ -15,10 +15,12 @@ import (
 // Duration wraps time.Duration with YAML string parsing.
 type Duration struct {
 	time.Duration
+	Set bool `yaml:"-"`
 }
 
 // UnmarshalYAML parses human-readable duration values such as "30s", "24h", or "90d".
 func (d *Duration) UnmarshalYAML(value *yaml.Node) error {
+	d.Set = true
 	if value.Kind == 0 || value.Value == "" {
 		return nil
 	}
@@ -239,6 +241,7 @@ func (c *Config) ApplyDefaults() {
 	if c.Target.Name == "" {
 		c.Target.Name = "default"
 	}
+	c.Target.BaseURL = strings.TrimSpace(c.Target.BaseURL)
 	if c.Target.HTTPCheckPath == "" {
 		c.Target.HTTPCheckPath = "/v1/models"
 	}
@@ -300,6 +303,9 @@ func (c *Config) ApplyDefaults() {
 	if c.Tests.EmbeddingFixture.MaxBytes == 0 {
 		c.Tests.EmbeddingFixture.MaxBytes = 4096
 	}
+	if !c.Retention.History.Set && c.Retention.History.Duration == 0 {
+		c.Retention.History.Duration = 90 * 24 * time.Hour
+	}
 }
 
 // Validate checks that required config fields and enum-like values are usable.
@@ -310,6 +316,8 @@ func (c Config) Validate() error {
 	}
 	if c.Target.BaseURL == "" {
 		problems = append(problems, "target.base_url is required")
+	} else if !isAbsoluteHTTPURL(c.Target.BaseURL) {
+		problems = append(problems, "target.base_url must be an absolute http or https URL")
 	}
 	if c.Auth.Enabled && c.Auth.TokenURL == "" {
 		problems = append(problems, "auth.token_url is required when auth.enabled=true")
@@ -346,6 +354,12 @@ func (c Config) Validate() error {
 		return errors.New(strings.Join(problems, "; "))
 	}
 	return nil
+}
+
+// isAbsoluteHTTPURL reports whether a config URL can be used for outbound web requests.
+func isAbsoluteHTTPURL(raw string) bool {
+	parsed, err := url.Parse(raw)
+	return err == nil && parsed.Scheme != "" && parsed.Host != "" && (parsed.Scheme == "http" || parsed.Scheme == "https")
 }
 
 // ReadSecret returns an inline secret or reads one from a mounted secret file.

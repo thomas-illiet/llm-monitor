@@ -312,6 +312,35 @@ func TestParseModelDashboardQueryFallbacks(t *testing.T) {
 	if got.Window != 24*time.Hour {
 		t.Fatalf("Window = %s, want fallback 24h", got.Window)
 	}
+
+	values.Set("range", "-1h")
+	got, errMessage = parseModelDashboardQuery(values, 24*time.Hour)
+	if errMessage != "" {
+		t.Fatalf("parseModelDashboardQuery returned error %q", errMessage)
+	}
+	if got.Window != 24*time.Hour {
+		t.Fatalf("Window = %s, want fallback 24h for negative range", got.Window)
+	}
+
+	values.Set("range", "0s")
+	got, errMessage = parseModelDashboardQuery(values, 24*time.Hour)
+	if errMessage != "" {
+		t.Fatalf("parseModelDashboardQuery returned error %q", errMessage)
+	}
+	if got.Window != 24*time.Hour {
+		t.Fatalf("Window = %s, want fallback 24h for zero range", got.Window)
+	}
+}
+
+// TestParseDashboardWindowRejectsNonPositiveRanges verifies global dashboard ranges cannot invert windows.
+func TestParseDashboardWindowRejectsNonPositiveRanges(t *testing.T) {
+	for _, raw := range []string{"-1h", "0s"} {
+		values := url.Values{}
+		values.Set("range", raw)
+		if got := parseDashboardWindow(values, 24*time.Hour); got != 24*time.Hour {
+			t.Fatalf("parseDashboardWindow(%q) = %s, want fallback 24h", raw, got)
+		}
+	}
 }
 
 // TestCapDashboardWindowAppliesRetention verifies dashboard ranges cannot exceed retention.

@@ -55,11 +55,28 @@ dashboard:
 	if cfg.Dashboard.SiteURL != "" {
 		t.Fatalf("unexpected site url %q", cfg.Dashboard.SiteURL)
 	}
-	if cfg.Retention.History.Duration != 0 {
+	if cfg.Retention.History.Duration != 90*24*time.Hour {
 		t.Fatalf("unexpected retention history %s", cfg.Retention.History.Duration)
 	}
 	if cfg.Dashboard.SLO.TTFTP99MS != 200 || cfg.Dashboard.SLO.ITLP99MS != 50 || cfg.Dashboard.SLO.RequestLatencyP99MS != 3000 {
 		t.Fatalf("unexpected dashboard slo defaults: %#v", cfg.Dashboard.SLO)
+	}
+}
+
+// TestValidateRejectsInvalidTargetBaseURL verifies target URLs must be absolute web URLs.
+func TestValidateRejectsInvalidTargetBaseURL(t *testing.T) {
+	for _, baseURL := range []string{"/relative", "ftp://llm.example.test", "://bad"} {
+		t.Run(baseURL, func(t *testing.T) {
+			cfg := Config{
+				Postgres: PostgresConfig{DSN: "postgres://user:pass@localhost:5432/monitor"},
+				Target:   TargetConfig{BaseURL: baseURL},
+			}
+			cfg.ApplyDefaults()
+			err := cfg.Validate()
+			if err == nil || !strings.Contains(err.Error(), "target.base_url must be an absolute http or https URL") {
+				t.Fatalf("Validate() error = %v, want target base_url requirement", err)
+			}
+		})
 	}
 }
 
@@ -126,6 +143,30 @@ retention:
 	}
 	if cfg.Retention.History.Duration != 90*24*time.Hour {
 		t.Fatalf("retention history = %s, want 2160h", cfg.Retention.History.Duration)
+	}
+}
+
+// TestLoadExplicitZeroRetentionDisablesPruning verifies 0s is distinct from an omitted retention window.
+func TestLoadExplicitZeroRetentionDisablesPruning(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	data := []byte(`
+postgres:
+  dsn: postgres://user:pass@localhost:5432/monitor
+target:
+  base_url: https://llm.example.test
+retention:
+  history: 0s
+`)
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Retention.History.Duration != 0 {
+		t.Fatalf("retention history = %s, want disabled 0s", cfg.Retention.History.Duration)
 	}
 }
 

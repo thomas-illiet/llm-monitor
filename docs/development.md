@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- Go 1.25
+- Go 1.25.10 or newer
 - Node.js compatible with the lockfile
 - PostgreSQL for full local runtime testing
 

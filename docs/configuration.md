@@ -40,7 +40,7 @@ Durations use Go strings such as `30s`, `5m`, or `24h`.
 
 The optional `retention` block controls automatic pruning of persisted history:
 
-- `history`: how long historical rows are kept. Leave it absent or set it to `0s` to disable pruning.
+- `history`: how long historical rows are kept. Defaults to `90d` when omitted; set it explicitly to `0s` to disable pruning.
 
 Durations also support day values such as `30d` or `90d`. When retention is enabled, dashboard KPI ranges longer than `retention.history` are capped server-side and hidden from the dashboard dropdown.
 

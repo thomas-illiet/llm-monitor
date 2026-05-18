@@ -18,7 +18,7 @@ type modelDashboardQuery struct {
 // parseDashboardWindow maps a range query parameter to a dashboard window.
 func parseDashboardWindow(values url.Values, fallback time.Duration) time.Duration {
 	if raw := values.Get("range"); raw != "" {
-		if parsed, err := time.ParseDuration(raw); err == nil {
+		if parsed, err := time.ParseDuration(raw); err == nil && parsed > 0 {
 			return parsed
 		}
 	}

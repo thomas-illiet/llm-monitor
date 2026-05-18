@@ -47,7 +47,7 @@ schedules:
   model_runs: "15m"
 
 retention:
-  history: "0s"
+  history: "90d"
 
 models:
   absence_alert_after: "24h"

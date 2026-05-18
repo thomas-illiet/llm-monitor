@@ -16,6 +16,7 @@ export function useDashboardData(options: UseDashboardDataOptions = {}) {
   const intervalMs = options.intervalMs ?? 30_000
   const minLoadMs = options.minLoadMs ?? 600
   let timer: number | undefined
+  let controller: AbortController | null = null
 
   /** Builds the dashboard API path for the active KPI range. */
   function dashboardPath() {
@@ -28,22 +29,36 @@ export function useDashboardData(options: UseDashboardDataOptions = {}) {
 
   /** Refreshes dashboard data while keeping the loading state visually stable. */
   async function refresh() {
+    controller?.abort()
+    controller = new AbortController()
+    const activeController = controller
     loading.value = true
     error.value = null
     const minWait = new Promise<void>(r => setTimeout(r, minLoadMs))
     try {
       const response = await fetch(dashboardPath(), {
-        headers: { Accept: 'application/json' }
+        headers: { Accept: 'application/json' },
+        signal: activeController.signal
       })
       if (!response.ok) {
         throw new Error(`Dashboard API returned ${response.status}`)
       }
-      data.value = await response.json() as DashboardData
+      const payload = await response.json() as DashboardData
+      if (!activeController.signal.aborted) {
+        data.value = payload
+      }
     } catch (err) {
-      error.value = err instanceof Error ? err.message : 'Unable to load dashboard'
+      if (!activeController.signal.aborted) {
+        error.value = err instanceof Error ? err.message : 'Unable to load dashboard'
+      }
     } finally {
       await minWait
-      loading.value = false
+      if (!activeController.signal.aborted) {
+        loading.value = false
+      }
+      if (controller === activeController) {
+        controller = null
+      }
     }
   }
 
@@ -57,6 +72,7 @@ export function useDashboardData(options: UseDashboardDataOptions = {}) {
   })
 
   onUnmounted(() => {
+    controller?.abort()
     if (timer !== undefined) window.clearInterval(timer)
   })
 

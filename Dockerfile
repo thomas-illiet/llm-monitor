@@ -5,7 +5,7 @@ RUN npm ci
 COPY web/ ./
 RUN npm run build
 
-FROM golang:1.25-alpine AS backend
+FROM golang:1.25.10-alpine AS backend
 WORKDIR /src
 RUN apk add --no-cache ca-certificates
 COPY go.mod go.sum* ./
@@ -24,4 +24,3 @@ COPY --from=backend /out/llm-monitor /app/llm-monitor
 ENV LLM_MONITOR_CONFIG=/config/config.yaml
 EXPOSE 8080
 ENTRYPOINT ["/app/llm-monitor"]
-
