@@ -18,12 +18,31 @@ Build the image:
 docker build -t llm-service-monitor:latest .
 ```
 
+Or pull the published multi-architecture image from GitHub Container Registry:
+
+```bash
+docker pull ghcr.io/thomas-illiet/llm-monitor:latest
+docker pull ghcr.io/thomas-illiet/llm-monitor:1.2.3
+```
+
 Run it with:
 
 - `LLM_MONITOR_CONFIG=/config/config.yaml`
 - a read-only mounted config file
 - read-only mounted API CA, mTLS cert/key, and secret files when enabled
 - a PostgreSQL DSN reachable from the container
+
+Example:
+
+```bash
+docker run --rm \
+  -p 8080:8080 \
+  -e LLM_MONITOR_CONFIG=/config/config.yaml \
+  -v "$PWD/config.yaml:/config/config.yaml:ro" \
+  ghcr.io/thomas-illiet/llm-monitor:latest
+```
+
+Images are published from the `main` branch and `v*` tags. Use `latest` for the current default-branch image, or version tags such as `1.2.3` for releases. If the package is private, authenticate first with `docker login ghcr.io`.
 
 ## Runtime Notes
 
