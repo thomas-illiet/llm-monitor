@@ -5,6 +5,10 @@
 
 Single-image monitor for OpenAI-compatible LLM services. The Go backend schedules probes, persists PostgreSQL history, sends model lifecycle alerts by SMTP, and serves a Vue/Vuetify dashboard from embedded static assets.
 
+## Screenshot
+
+![screenshot](assets/screenshot-01.png)
+
 ## Quick Start
 
 ```bash
