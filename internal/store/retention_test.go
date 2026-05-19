@@ -35,8 +35,8 @@ func TestHistoryPruneStatementsCoverHistoricalTables(t *testing.T) {
 	}
 }
 
-// TestHistoryPruneStatementsPreserveCurrentMissingAlerts verifies missing alert dedupe is protected.
-func TestHistoryPruneStatementsPreserveCurrentMissingAlerts(t *testing.T) {
+// TestHistoryPruneStatementsPreserveCurrentInactiveAlerts verifies inactive alert dedupe is protected.
+func TestHistoryPruneStatementsPreserveCurrentInactiveAlerts(t *testing.T) {
 	statements := historyPruneStatements(time.Unix(42, 0).UTC())
 	var emailSQL string
 	for _, statement := range statements {
@@ -46,9 +46,9 @@ func TestHistoryPruneStatementsPreserveCurrentMissingAlerts(t *testing.T) {
 		}
 	}
 	for _, expected := range []string{
-		"alerts.alert_type = 'missing'",
+		"alerts.alert_type IN ('inactive', 'missing')",
 		"states.model_id = alerts.model_id",
-		"states.status = 'missing'",
+		"states.status = 'inactive'",
 		"states.missing_since IS NOT NULL",
 	} {
 		if !strings.Contains(emailSQL, expected) {

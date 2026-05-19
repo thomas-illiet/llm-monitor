@@ -125,4 +125,7 @@ CREATE TABLE IF NOT EXISTS email_alerts (
 );
 
 CREATE INDEX IF NOT EXISTS email_alerts_sent_at_idx ON email_alerts(sent_at DESC);
+
+UPDATE model_states SET status='inactive' WHERE status='missing';
+UPDATE model_events SET status='inactive' WHERE status='missing';
 `

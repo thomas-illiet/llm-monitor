@@ -15,10 +15,10 @@ import (
 // TestModelAlertMessageBuildsMultipartHTML verifies model alerts render text and HTML parts.
 func TestModelAlertMessageBuildsMultipartHTML(t *testing.T) {
 	message := NewModelAlertMessage(ModelAlert{
-		Type:     "missing",
-		Subject:  "LLM model missing for more than 24h",
+		Type:     "inactive",
+		Subject:  "LLM model inactive for more than 24h",
 		ModelID:  "gpt-4.1",
-		Summary:  "Model gpt-4.1 has been absent since 2026-05-15T08:30:00Z, which is longer than 24h.",
+		Summary:  "Model gpt-4.1 has been inactive since 2026-05-15T08:30:00Z, which is longer than 24h.",
 		SiteName: "Platform Monitor",
 		SiteURL:  "https://monitor.example.test",
 		Fields: []AlertField{
@@ -105,16 +105,16 @@ func TestSendMailDevPreview(t *testing.T) {
 	}
 
 	message := NewModelAlertMessage(ModelAlert{
-		Type:     "missing",
-		Subject:  "LLM model missing for more than 24h",
+		Type:     "inactive",
+		Subject:  "LLM model inactive for more than 24h",
 		ModelID:  "gpt-oss:20b",
-		Summary:  "Model gpt-oss:20b has been absent since 2026-05-17T08:30:00Z, which is longer than 24h.",
+		Summary:  "Model gpt-oss:20b has been inactive since 2026-05-17T08:30:00Z, which is longer than 24h.",
 		SiteName: "Local LLM Monitor",
 		SiteURL:  "http://localhost:18080",
 		Fields: []AlertField{
 			{Label: "Model", Value: "gpt-oss:20b"},
 			{Label: "Target", Value: "local-ollama"},
-			{Label: "Missing since", Value: "2026-05-17T08:30:00Z"},
+			{Label: "Inactive since", Value: "2026-05-17T08:30:00Z"},
 			{Label: "Alert threshold", Value: "24h"},
 		},
 		SentAt: time.Now().UTC(),

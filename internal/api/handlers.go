@@ -184,13 +184,14 @@ func buildStatus(models []store.ModelState, authCheck, httpCheck *store.CheckRec
 		if model.Excluded || model.Capability == "skip" {
 			status.SkippedModels++
 		}
-		if model.Status == "missing" {
-			status.MissingModels++
+		if model.Status == store.ModelStatusInactive || model.Status == "missing" {
+			status.InactiveModels++
 		}
-		if model.Status == "active" {
+		if model.Status == store.ModelStatusActive {
 			status.ActiveModels++
 		}
 	}
-	status.OK = status.AuthOK && status.HTTPOK && status.MissingModels == 0
+	status.MissingModels = status.InactiveModels
+	status.OK = status.AuthOK && status.HTTPOK && status.InactiveModels == 0
 	return status
 }

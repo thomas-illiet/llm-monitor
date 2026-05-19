@@ -31,12 +31,15 @@ Returns compact service status, including model inventory counts and latest auth
   "ok": true,
   "generated_at": "2026-05-17T10:00:00Z",
   "active_models": 4,
+  "inactive_models": 0,
   "missing_models": 0,
   "skipped_models": 1,
   "auth_ok": true,
   "http_ok": true
 }
 ```
+
+`missing_models` is retained as a compatibility alias for `inactive_models`.
 
 ## `GET /metrics`
 

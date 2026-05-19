@@ -26,6 +26,15 @@ func NewHTTPCheckTask(deps shared.Dependencies) runner.Task {
 				logger.Error("record http check", "error", err)
 				return err
 			}
+			if !result.OK {
+				if _, err := deps.Store.MarkAllModelsInactive(ctx, result.CheckedAt, "http_check", "target HTTP check failed: "+result.FailureSummary()); err != nil {
+					logger.Error("mark models inactive after http check failure", "error", err)
+					return err
+				}
+				if deps.ModelPlanStore != nil {
+					deps.ModelPlanStore.Store(nil)
+				}
+			}
 			return nil
 		},
 	}

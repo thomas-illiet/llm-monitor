@@ -10,20 +10,20 @@ import (
 	"llmservicemonitor/internal/store"
 )
 
-func (s *service) sendMissingModelAlerts(ctx context.Context, now time.Time) {
-	missing, err := s.store.MissingModelsForAlert(ctx, s.cfg.Models.AbsenceAlertAfter.Duration, now)
+func (s *service) sendInactiveModelAlerts(ctx context.Context, now time.Time) {
+	inactive, err := s.store.InactiveModelsForAlert(ctx, s.cfg.Models.AbsenceAlertAfter.Duration, now)
 	if err != nil {
-		s.logger.Error("load missing models for alert", "error", err)
+		s.logger.Error("load inactive models for alert", "error", err)
 		return
 	}
-	for _, model := range missing {
+	for _, model := range inactive {
 		if model.MissingSince == nil {
 			continue
 		}
 		threshold := formatAlertDuration(s.cfg.Models.AbsenceAlertAfter.Duration)
-		body := fmt.Sprintf("Model %s has been absent since %s, which is longer than %s.", model.ModelID, model.MissingSince.Format(time.RFC3339), threshold)
-		s.sendModelAlert(ctx, modelAlertKey("missing", model.ModelID, *model.MissingSince), model.ModelID, "missing", "LLM model missing for more than 24h", body, s.modelAlertFields(model.ModelID,
-			notify.AlertField{Label: "Missing since", Value: model.MissingSince.Format(time.RFC3339)},
+		body := fmt.Sprintf("Model %s has been inactive since %s, which is longer than %s.", model.ModelID, model.MissingSince.Format(time.RFC3339), threshold)
+		s.sendModelAlert(ctx, modelAlertKey("inactive", model.ModelID, *model.MissingSince), model.ModelID, "inactive", "LLM model inactive for more than 24h", body, s.modelAlertFields(model.ModelID,
+			notify.AlertField{Label: "Inactive since", Value: model.MissingSince.Format(time.RFC3339)},
 			notify.AlertField{Label: "Alert threshold", Value: threshold},
 		))
 	}

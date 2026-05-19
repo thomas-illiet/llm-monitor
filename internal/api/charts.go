@@ -193,21 +193,21 @@ func (r *Router) buildModelStatusHistory(ctx context.Context, models []store.Mod
 
 // modelStatusSamplesFromStates converts current inventory state into chart samples.
 func modelStatusSamplesFromStates(models []store.ModelState, at time.Time) []store.MetricSample {
-	var active, missing, skipped float64
+	var active, inactive, skipped float64
 	for _, model := range models {
 		if model.Excluded || model.Capability == "skip" {
 			skipped++
 		}
-		if model.Status == "missing" {
-			missing++
+		if model.Status == store.ModelStatusInactive || model.Status == "missing" {
+			inactive++
 		}
-		if model.Status == "active" {
+		if model.Status == store.ModelStatusActive {
 			active++
 		}
 	}
 	return []store.MetricSample{
 		{At: at, ModelID: "model_inventory", Capability: "inventory", Group: "active", Value: active},
-		{At: at, ModelID: "model_inventory", Capability: "inventory", Group: "missing", Value: missing},
+		{At: at, ModelID: "model_inventory", Capability: "inventory", Group: "inactive", Value: inactive},
 		{At: at, ModelID: "model_inventory", Capability: "inventory", Group: "skipped", Value: skipped},
 	}
 }

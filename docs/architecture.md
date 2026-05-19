@@ -36,7 +36,7 @@ flowchart LR
 3. The snapshot task updates the shared `ModelPlanStore`, then `monitor.model_runs` probes runnable models on the configured interval.
 4. Check, run, token, latency, and event data are persisted.
 5. The API aggregates the latest state for the dashboard.
-6. Missing, returned, and first-seen model events can emit deduplicated SMTP alerts.
+6. Inactive, returned, and first-seen model events can emit deduplicated SMTP alerts.
 
 ## Task Execution
 

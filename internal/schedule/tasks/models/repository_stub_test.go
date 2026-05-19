@@ -21,11 +21,19 @@ func (r noopRepository) ProcessModelObservation(context.Context, []store.Observe
 	return nil, nil
 }
 
+func (r noopRepository) MarkModelInactive(context.Context, string, time.Time, string, string) (*store.ModelEvent, error) {
+	return nil, nil
+}
+
+func (r noopRepository) MarkAllModelsInactive(context.Context, time.Time, string, string) ([]store.ModelEvent, error) {
+	return nil, nil
+}
+
 func (r noopRepository) LastRunnableCapabilities(context.Context) (map[string]string, error) {
 	return nil, nil
 }
 
-func (r noopRepository) MissingModelsForAlert(context.Context, time.Duration, time.Time) ([]store.ModelState, error) {
+func (r noopRepository) InactiveModelsForAlert(context.Context, time.Duration, time.Time) ([]store.ModelState, error) {
 	return nil, nil
 }
 

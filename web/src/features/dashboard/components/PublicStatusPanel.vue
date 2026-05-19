@@ -16,7 +16,7 @@ function formatLatency(check?: CheckRecord) {
 
 const modelSummary = computed(() => {
   if (!props.status) return 'No model snapshot yet'
-  return `${props.status.active_models} active / ${props.status.missing_models} missing / ${props.status.skipped_models} skipped`
+  return `${props.status.active_models} active / ${props.status.inactive_models} inactive / ${props.status.skipped_models} skipped`
 })
 
 const cards = computed(() => [
@@ -31,8 +31,8 @@ const cards = computed(() => [
   {
     title: 'Model availability',
     icon: Boxes,
-    ok: props.status?.missing_models === 0,
-    status: props.status?.missing_models === 0 ? 'Complete' : 'Attention required',
+    ok: props.status?.inactive_models === 0,
+    status: props.status?.inactive_models === 0 ? 'Complete' : 'Attention required',
     latency: `${props.status?.active_models ?? 0} models`,
     detail: modelSummary.value
   }

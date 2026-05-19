@@ -31,7 +31,7 @@ const publicStatus = computed(() => {
   if (!status) return undefined
   return {
     ...status,
-    ok: status.http_ok && status.missing_models === 0
+    ok: status.http_ok && status.inactive_models === 0
   }
 })
 

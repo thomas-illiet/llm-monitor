@@ -51,6 +51,7 @@ export interface StatusSummary {
   ok: boolean
   generated_at: string
   active_models: number
+  inactive_models: number
   missing_models: number
   skipped_models: number
   auth_ok: boolean
@@ -117,7 +118,7 @@ export interface ModelState {
   model_id: string
   capability: 'chat' | 'embedding' | 'skip' | string
   excluded: boolean
-  status: 'active' | 'missing' | string
+  status: 'active' | 'inactive' | string
   first_seen_at: string
   last_seen_at: string
   missing_since?: string
@@ -132,7 +133,7 @@ export interface ModelEvent {
   event_type: 'added' | 'removed' | 'returned' | 'capability_probe' | 'scheduled_run' | 'skipped' | string
   source: string
   severity: 'info' | 'warning' | 'error' | string
-  status: 'ok' | 'error' | 'skipped' | 'missing' | string
+  status: 'ok' | 'error' | 'skipped' | 'inactive' | string
   capability: string
   observed_at: string
   title: string

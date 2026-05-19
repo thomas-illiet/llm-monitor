@@ -39,12 +39,12 @@ func historyPruneStatements(cutoff time.Time) []historyPruneStatement {
 				DELETE FROM email_alerts alerts
 				WHERE alerts.sent_at < $1
 					AND NOT (
-						alerts.alert_type = 'missing'
+						alerts.alert_type IN ('inactive', 'missing')
 						AND EXISTS (
 							SELECT 1
 							FROM model_states states
 							WHERE states.model_id = alerts.model_id
-								AND states.status = 'missing'
+								AND states.status = 'inactive'
 								AND states.missing_since IS NOT NULL
 						)
 					)

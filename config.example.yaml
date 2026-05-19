@@ -10,6 +10,11 @@ target:
   http_check_path: "/v1/models"
   timeout: "30s"
   ca_file: "/run/certs/llm-api-ca.crt"
+  retry:
+    enabled: true
+    max_retries: 2
+    wait_min: "500ms"
+    wait_max: "5s"
 
 auth:
   enabled: true

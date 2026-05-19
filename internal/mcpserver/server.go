@@ -101,7 +101,7 @@ func newServer(cfg config.Config, db Store) *mcp.Server {
 			"properties": map[string]any{
 				"status": map[string]any{
 					"type":        "string",
-					"description": "Optional model status filter, for example active or missing.",
+					"description": "Optional model status filter, for example active or inactive.",
 				},
 				"capability": map[string]any{
 					"type":        "string",
@@ -183,10 +183,11 @@ type statusOutput struct {
 }
 
 type statusModels struct {
-	Total   int `json:"total"`
-	Active  int `json:"active"`
-	Missing int `json:"missing"`
-	Skipped int `json:"skipped"`
+	Total    int `json:"total"`
+	Active   int `json:"active"`
+	Inactive int `json:"inactive"`
+	Missing  int `json:"missing"`
+	Skipped  int `json:"skipped"`
 }
 
 type statusChecks struct {
@@ -268,7 +269,7 @@ func (s *server) handleStatus(ctx context.Context, req *mcp.CallToolRequest) (*m
 	counts := countModels(models)
 	out := statusOutput{
 		GeneratedAt: time.Now().UTC(),
-		OK:          authCheck != nil && authCheck.OK && httpCheck != nil && httpCheck.OK && counts.Missing == 0,
+		OK:          authCheck != nil && authCheck.OK && httpCheck != nil && httpCheck.OK && counts.Inactive == 0,
 		Models:      counts,
 		Checks: statusChecks{
 			Auth: checkToOutput(authCheck),
@@ -333,7 +334,7 @@ func (s *server) handleModels(ctx context.Context, req *mcp.CallToolRequest) (*m
 	}
 	filtered := make([]store.ModelState, 0, len(models))
 	for _, model := range models {
-		if status != "" && model.Status != status {
+		if status != "" && !modelStatusMatches(model.Status, status) {
 			continue
 		}
 		if capability != "" && model.Capability != capability {
@@ -356,6 +357,13 @@ func (s *server) handleModels(ctx context.Context, req *mcp.CallToolRequest) (*m
 		Models: filtered,
 	}
 	return toolSuccess(out)
+}
+
+func modelStatusMatches(modelStatus, filter string) bool {
+	if modelStatus == filter {
+		return true
+	}
+	return filter == "missing" && modelStatus == store.ModelStatusInactive
 }
 
 func (s *server) handleModelPerformance(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -462,13 +470,14 @@ func countModels(models []store.ModelState) statusModels {
 		if model.Excluded || model.Capability == "skip" {
 			counts.Skipped++
 		}
-		if model.Status == "missing" {
-			counts.Missing++
+		if model.Status == store.ModelStatusInactive || model.Status == "missing" {
+			counts.Inactive++
 		}
-		if model.Status == "active" {
+		if model.Status == store.ModelStatusActive {
 			counts.Active++
 		}
 	}
+	counts.Missing = counts.Inactive
 	return counts
 }
 

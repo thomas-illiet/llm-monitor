@@ -26,7 +26,7 @@ func TestMetricsEndpointExposesPrometheusText(t *testing.T) {
 	fake := &metricsFakeStore{
 		models: []store.ModelState{
 			{ModelID: "chat-a", Capability: "chat", Status: "active", LastSeenAt: now},
-			{ModelID: "embed-a", Capability: "embedding", Status: "missing", LastSeenAt: now.Add(-3 * time.Hour), MissingSince: &missingSince},
+			{ModelID: "embed-a", Capability: "embedding", Status: "inactive", LastSeenAt: now.Add(-3 * time.Hour), MissingSince: &missingSince},
 			{ModelID: "skip-a", Capability: "skip", Status: "active", Excluded: true, LastSeenAt: now},
 		},
 		httpCheck: &store.CheckRecord{At: now, OK: true, StatusCode: http.StatusOK, LatencyMS: 150},
@@ -77,6 +77,7 @@ func TestMetricsEndpointExposesPrometheusText(t *testing.T) {
 	assertContains(t, body, "llm_monitor_http_up 1")
 	assertContains(t, body, "llm_monitor_auth_up 0")
 	assertContains(t, body, `llm_monitor_models_total{status="active"} 2`)
+	assertContains(t, body, `llm_monitor_models_total{status="inactive"} 1`)
 	assertContains(t, body, "llm_monitor_models_skipped_total 1")
 	assertContains(t, body, "llm_monitor_model_info")
 	assertContains(t, body, `model="chat-a"`)

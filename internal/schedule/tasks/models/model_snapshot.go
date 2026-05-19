@@ -2,6 +2,7 @@ package models
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -26,6 +27,12 @@ func (s *service) refreshModels(ctx context.Context, _ runner.TaskContext) error
 	modelIDs, err := s.client.ListModels(ctx)
 	if err != nil {
 		s.logger.Error("list models", "error", err)
+		now := time.Now().UTC()
+		markErr := s.markAllModelsInactive(ctx, now, "inventory", "model inventory request failed: "+err.Error())
+		if markErr != nil {
+			return errors.Join(err, markErr)
+		}
+		s.sendInactiveModelAlerts(ctx, now)
 		return err
 	}
 	knownCapabilities := s.lastKnownRunnableCapabilities(ctx)
@@ -56,7 +63,7 @@ func (s *service) refreshModels(ctx context.Context, _ runner.TaskContext) error
 			}
 		}
 	}
-	s.sendMissingModelAlerts(ctx, now)
+	s.sendInactiveModelAlerts(ctx, now)
 	return nil
 }
 

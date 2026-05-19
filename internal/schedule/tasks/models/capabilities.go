@@ -74,6 +74,42 @@ func isTransientProbeFailure(result llm.RunResult) bool {
 	return hasTransientProbeHint(result.Error)
 }
 
+func isModelUnavailableResult(result llm.RunResult) bool {
+	if result.OK {
+		return false
+	}
+	if result.StatusCode == http.StatusNotFound || result.StatusCode == http.StatusGone {
+		return true
+	}
+	if result.StatusCode != http.StatusBadRequest && result.StatusCode != http.StatusUnprocessableEntity {
+		return false
+	}
+	return hasModelUnavailableHint(result.Error)
+}
+
+func hasModelUnavailableHint(errorMessage string) bool {
+	errorText := strings.ToLower(errorMessage)
+	if strings.Contains(errorText, "temporarily unavailable") {
+		return false
+	}
+	hints := []string{
+		"model_not_found",
+		"model not found",
+		"model does not exist",
+		"model no longer exists",
+		"model is not available",
+		"model unavailable",
+		"no such model",
+		"unknown model",
+	}
+	for _, hint := range hints {
+		if strings.Contains(errorText, hint) {
+			return true
+		}
+	}
+	return false
+}
+
 func hasTransientProbeHint(errorMessage string) bool {
 	errorText := strings.ToLower(errorMessage)
 	transientHints := []string{

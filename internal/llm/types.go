@@ -2,9 +2,11 @@ package llm
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 )
 
@@ -56,4 +58,23 @@ type HTTPCheckResult struct {
 	StatusCode int
 	Latency    time.Duration
 	Error      string
+}
+
+// FailureSummary returns a compact reason suitable for lifecycle events.
+func (r HTTPCheckResult) FailureSummary() string {
+	if r.OK {
+		return "ok"
+	}
+	status := "no HTTP status"
+	if r.StatusCode > 0 {
+		status = fmt.Sprintf("HTTP %d", r.StatusCode)
+	}
+	err := strings.TrimSpace(r.Error)
+	if err == "" {
+		return status
+	}
+	if len(err) > 240 {
+		err = err[:240] + "..."
+	}
+	return fmt.Sprintf("%s (%s)", status, err)
 }

@@ -53,13 +53,13 @@ func TestScanRecentEventsReadsChangedFlag(t *testing.T) {
 		rows: []fakeEventRow{{
 			id:         42,
 			modelID:    "model-a",
-			eventType:  "removed",
+			eventType:  "inactive",
 			source:     "inventory",
 			severity:   "warning",
-			status:     "missing",
+			status:     "inactive",
 			capability: "chat",
 			observedAt: observedAt,
-			title:      "Model removed",
+			title:      "Model inactive",
 			message:    "Model model-a disappeared from /v1/models.",
 			changed:    true,
 			details:    []byte(`{"missing_since":"2026-05-18T12:00:00Z"}`),
@@ -77,7 +77,7 @@ func TestScanRecentEventsReadsChangedFlag(t *testing.T) {
 	if !event.Changed {
 		t.Fatal("event.Changed = false, want true")
 	}
-	if event.ID != 42 || event.ModelID != "model-a" || event.EventType != "removed" || !event.ObservedAt.Equal(observedAt) {
+	if event.ID != 42 || event.ModelID != "model-a" || event.EventType != "inactive" || !event.ObservedAt.Equal(observedAt) {
 		t.Fatalf("event = %#v, want scanned lifecycle event", event)
 	}
 	if got := event.Details["missing_since"]; got != "2026-05-18T12:00:00Z" {

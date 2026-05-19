@@ -47,7 +47,7 @@ function formatTime(value: string) {
 /** Maps event severity/status to Vuetify table chip colors. */
 function eventColor(event: ModelEvent) {
   if (event.severity === 'error' || event.status === 'error') return 'error'
-  if (event.severity === 'warning' || event.status === 'skipped' || event.status === 'missing') return 'warning'
+  if (event.severity === 'warning' || event.status === 'skipped' || event.status === 'inactive') return 'warning'
   return 'success'
 }
 

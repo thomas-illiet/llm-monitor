@@ -214,6 +214,22 @@ func TestProbeFailureSummaryTruncatesLongErrors(t *testing.T) {
 	}
 }
 
+func TestModelUnavailableResultDetectsRemovedModel(t *testing.T) {
+	tests := []llm.RunResult{
+		{OK: false, StatusCode: http.StatusNotFound, Error: "llm returned 404: model not found"},
+		{OK: false, StatusCode: http.StatusBadRequest, Error: "model_not_found: no such model"},
+		{OK: false, StatusCode: http.StatusUnprocessableEntity, Error: "model does not exist"},
+	}
+	for _, tt := range tests {
+		if !isModelUnavailableResult(tt) {
+			t.Fatalf("result %#v should be model unavailable", tt)
+		}
+	}
+	if isModelUnavailableResult(llm.RunResult{OK: false, StatusCode: http.StatusServiceUnavailable, Error: "temporarily unavailable"}) {
+		t.Fatal("temporary outage should not be classified as removed model")
+	}
+}
+
 func durationPtrForTest(nanos int) *time.Duration {
 	value := time.Duration(nanos)
 	return &value

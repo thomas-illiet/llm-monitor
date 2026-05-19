@@ -38,8 +38,10 @@ type Repository interface {
 	RecordHTTPCheck(ctx context.Context, record store.CheckRecord) error
 	RecordAuthCheck(ctx context.Context, record store.CheckRecord) error
 	ProcessModelObservation(ctx context.Context, observed []store.ObservedModel, now time.Time) ([]store.ModelEvent, error)
+	MarkModelInactive(ctx context.Context, modelID string, now time.Time, source, reason string) (*store.ModelEvent, error)
+	MarkAllModelsInactive(ctx context.Context, now time.Time, source, reason string) ([]store.ModelEvent, error)
 	LastRunnableCapabilities(ctx context.Context) (map[string]string, error)
-	MissingModelsForAlert(ctx context.Context, threshold time.Duration, now time.Time) ([]store.ModelState, error)
+	InactiveModelsForAlert(ctx context.Context, threshold time.Duration, now time.Time) ([]store.ModelState, error)
 	EmailAlertExists(ctx context.Context, key string) (bool, error)
 	RecordEmailAlert(ctx context.Context, record store.EmailAlertRecord) error
 	RecordChatRun(ctx context.Context, record store.ChatRunRecord) error

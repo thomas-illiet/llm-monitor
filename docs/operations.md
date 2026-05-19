@@ -27,7 +27,7 @@ scrape_configs:
 Model lifecycle alerts are deduplicated by alert key:
 
 - first seen: a model appears for the first time
-- missing: a model has been absent longer than `models.absence_alert_after`
+- inactive: a model has been absent or unavailable longer than `models.absence_alert_after`
 - returned: a model returns after a long absence
 
 Alert send attempts are recorded even when SMTP delivery fails, and failures also create model events.
@@ -37,6 +37,7 @@ Alert send attempts are recorded even when SMTP delivery fails, and failures als
 - No dashboard data: confirm PostgreSQL connectivity and that `model_snapshot` has run at least once.
 - Auth degraded: check OAuth URL, client secret, mTLS files, CA trust, and token endpoint status.
 - HTTP degraded: check `target.base_url`, `target.http_check_path`, CA trust, and network routing.
+- Models inactive: inspect HTTP checks and model events; the target may be unreachable or the model may no longer be available.
 - Models skipped: inspect model event details; skipped models usually failed both embedding and chat capability probes.
 - Empty embedding runs: confirm `tests.embedding_fixture.path` is mounted and readable.
 

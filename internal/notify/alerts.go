@@ -131,9 +131,9 @@ func modelAlertText(subject, summary string, fields []AlertField, siteURL string
 // modelAlertToneFor selects the email tone for a lifecycle alert type.
 func modelAlertToneFor(alertType string) modelAlertTone {
 	switch alertType {
-	case "missing":
+	case "inactive", "missing":
 		return modelAlertTone{
-			Label:      "Missing",
+			Label:      "Inactive",
 			Eyebrow:    "Attention required",
 			Accent:     "#b42318",
 			AccentSoft: "#fff7ed",

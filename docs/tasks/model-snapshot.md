@@ -18,7 +18,7 @@ model lifecycle alerts.
 
 - `target.base_url` and authentication settings for `GET /v1/models`.
 - `models.max_concurrency`, defaulting to `4`, to bound parallel capability probes.
-- `models.absence_alert_after`, defaulting to `24h`, for missing and returned alerts.
+- `models.absence_alert_after`, defaulting to `24h`, for inactive and returned alerts.
 - `tests.embedding_fixture.path` and `tests.embedding_fixture.max_bytes` for
   embedding capability probes.
 - `smtp.*` settings when email alerts are enabled.
@@ -58,7 +58,7 @@ Lifecycle events include:
 
 - `added`
 - `returned`
-- `removed`
+- `inactive`
 - `capability_changed`
 - `capability_probe`
 - `alert_sent`
@@ -69,7 +69,7 @@ Lifecycle events include:
 Model lifecycle email alerts are deduplicated by alert key:
 
 - `first_seen`: sent when a model appears for the first time.
-- `missing`: sent when a model has been absent longer than `models.absence_alert_after`.
+- `inactive`: sent when a model has been absent or unavailable longer than `models.absence_alert_after`.
 - `returned`: sent when a model returns after a long absence.
 
 Alert attempts are recorded even when SMTP delivery fails, and failures also create
@@ -77,7 +77,7 @@ model events.
 
 ## Failure Behavior
 
-If `/v1/models` fails, the task returns an error and does not update the inventory.
+If `/v1/models` fails after configured retries, currently runnable models are marked inactive, the runnable model plan is cleared, and the task returns the upstream error.
 Individual capability probe failures are captured in model event details where
 possible. If persistence fails while processing the observation, the task returns
 an error; the local scheduler logs it and continues on the next tick.

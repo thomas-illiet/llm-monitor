@@ -46,6 +46,13 @@ Durations use Go strings such as `30s`, `5m`, or `24h`.
 See [Scheduled Tasks](tasks/README.md) for each registered task, stable task
 name, handler category, and trigger behavior.
 
+## Target Retry
+
+The optional `target.retry` block controls retries for outbound LLM API calls.
+Retries are enabled by default with `max_retries: 2`, `wait_min: 500ms`, and
+`wait_max: 5s`. Set `target.retry.enabled: false` or
+`target.retry.max_retries: 0` to disable retries.
+
 ## Retention
 
 The optional `retention` block controls automatic pruning of persisted history:

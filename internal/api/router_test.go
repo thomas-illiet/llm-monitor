@@ -10,14 +10,14 @@ import (
 	"llmservicemonitor/internal/store"
 )
 
-// TestModelStatusSamplesFromStates verifies status samples include active, missing, and skipped counts.
+// TestModelStatusSamplesFromStates verifies status samples include active, inactive, and skipped counts.
 func TestModelStatusSamplesFromStates(t *testing.T) {
 	at := time.Date(2026, 5, 16, 12, 0, 0, 0, time.UTC)
 	samples := modelStatusSamplesFromStates([]store.ModelState{
 		{ModelID: "chat", Capability: "chat", Status: "active"},
-		{ModelID: "embedding", Capability: "embedding", Status: "missing"},
+		{ModelID: "embedding", Capability: "embedding", Status: "inactive"},
 		{ModelID: "skipped-active", Capability: "skip", Status: "active"},
-		{ModelID: "skipped-missing", Capability: "chat", Excluded: true, Status: "missing"},
+		{ModelID: "skipped-inactive", Capability: "chat", Excluded: true, Status: "inactive"},
 	}, at)
 
 	got := map[string]float64{}
@@ -29,9 +29,9 @@ func TestModelStatusSamplesFromStates(t *testing.T) {
 	}
 
 	want := map[string]float64{
-		"active":  2,
-		"missing": 2,
-		"skipped": 2,
+		"active":   2,
+		"inactive": 2,
+		"skipped":  2,
 	}
 	for group, value := range want {
 		if got[group] != value {

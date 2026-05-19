@@ -35,13 +35,14 @@ type ModelDashboardResponse struct {
 
 // StatusResponse is the compact health summary returned by status endpoints.
 type StatusResponse struct {
-	OK            bool      `json:"ok"`
-	GeneratedAt   time.Time `json:"generated_at"`
-	ActiveModels  int       `json:"active_models"`
-	MissingModels int       `json:"missing_models"`
-	SkippedModels int       `json:"skipped_models"`
-	AuthOK        bool      `json:"auth_ok"`
-	HTTPOK        bool      `json:"http_ok"`
+	OK             bool      `json:"ok"`
+	GeneratedAt    time.Time `json:"generated_at"`
+	ActiveModels   int       `json:"active_models"`
+	InactiveModels int       `json:"inactive_models"`
+	MissingModels  int       `json:"missing_models"`
+	SkippedModels  int       `json:"skipped_models"`
+	AuthOK         bool      `json:"auth_ok"`
+	HTTPOK         bool      `json:"http_ok"`
 }
 
 // RuntimeConfig exposes non-secret runtime settings needed by the SPA.

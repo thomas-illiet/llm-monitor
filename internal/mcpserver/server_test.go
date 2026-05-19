@@ -155,9 +155,9 @@ func TestStatusToolReturnsStructuredContentAndTextJSON(t *testing.T) {
 		t.Fatal(err)
 	}
 	if structured.OK {
-		t.Fatal("status OK = true, want false while one model is missing")
+		t.Fatal("status OK = true, want false while one model is inactive")
 	}
-	if structured.Models.Total != 3 || structured.Models.Active != 2 || structured.Models.Missing != 1 || structured.Models.Skipped != 1 {
+	if structured.Models.Total != 3 || structured.Models.Active != 2 || structured.Models.Inactive != 1 || structured.Models.Missing != 1 || structured.Models.Skipped != 1 {
 		t.Fatalf("model counts = %#v", structured.Models)
 	}
 	if structured.Checks.HTTP.StatusCode != 200 {
@@ -335,7 +335,7 @@ func testStore() *fakeStore {
 		models: []store.ModelState{
 			{ModelID: "gpt-4o", Capability: "chat", Status: "active", FirstSeenAt: now.Add(-24 * time.Hour), LastSeenAt: now, LastProbeAt: &now},
 			{ModelID: "skipped", Capability: "skip", Status: "active", FirstSeenAt: now.Add(-24 * time.Hour), LastSeenAt: now},
-			{ModelID: "missing", Capability: "chat", Status: "missing", FirstSeenAt: now.Add(-24 * time.Hour), LastSeenAt: now.Add(-time.Hour), MissingSince: ptrTime(now.Add(-time.Hour))},
+			{ModelID: "inactive", Capability: "chat", Status: "inactive", FirstSeenAt: now.Add(-24 * time.Hour), LastSeenAt: now.Add(-time.Hour), MissingSince: ptrTime(now.Add(-time.Hour))},
 		},
 		authCheck: &store.CheckRecord{At: now, OK: true, StatusCode: 0, LatencyMS: 0},
 		httpCheck: &store.CheckRecord{At: now, OK: true, StatusCode: 200, LatencyMS: 15.704},

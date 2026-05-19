@@ -56,11 +56,15 @@ func (c *Client) HealthCheck(ctx context.Context) HTTPCheckResult {
 		return HTTPCheckResult{CheckedAt: start.UTC(), Latency: time.Since(start), Error: err.Error()}
 	}
 	defer resp.Body.Close()
-	io.Copy(io.Discard, io.LimitReader(resp.Body, 64*1024))
-	return HTTPCheckResult{
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 64*1024))
+	result := HTTPCheckResult{
 		CheckedAt:  start.UTC(),
 		OK:         resp.StatusCode >= 200 && resp.StatusCode < 400,
 		StatusCode: resp.StatusCode,
 		Latency:    time.Since(start),
 	}
+	if !result.OK {
+		result.Error = fmt.Sprintf("llm returned %d: %s", resp.StatusCode, trimBody(body))
+	}
+	return result
 }

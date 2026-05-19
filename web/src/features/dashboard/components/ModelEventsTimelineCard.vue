@@ -25,7 +25,7 @@ function formatTime(value: string) {
 /** Maps event severity/status to Vuetify color tokens. */
 function eventColor(event: ModelEvent) {
   if (event.severity === 'error' || event.status === 'error') return 'error'
-  if (event.severity === 'warning' || event.status === 'skipped' || event.status === 'missing') {
+  if (event.severity === 'warning' || event.status === 'skipped' || event.status === 'inactive') {
     return 'warning'
   }
   return 'success'

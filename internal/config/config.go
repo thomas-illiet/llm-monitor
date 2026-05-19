@@ -109,13 +109,22 @@ type PostgresConfig struct {
 
 // TargetConfig controls outbound calls to the OpenAI-compatible LLM API.
 type TargetConfig struct {
-	Name          string   `yaml:"name"`
-	BaseURL       string   `yaml:"base_url"`
-	HTTPCheckPath string   `yaml:"http_check_path"`
-	Timeout       Duration `yaml:"timeout"`
-	CAFile        string   `yaml:"ca_file"`
-	APIKey        string   `yaml:"api_key"`
-	APIKeyFile    string   `yaml:"api_key_file"`
+	Name          string      `yaml:"name"`
+	BaseURL       string      `yaml:"base_url"`
+	HTTPCheckPath string      `yaml:"http_check_path"`
+	Timeout       Duration    `yaml:"timeout"`
+	CAFile        string      `yaml:"ca_file"`
+	APIKey        string      `yaml:"api_key"`
+	APIKeyFile    string      `yaml:"api_key_file"`
+	Retry         RetryConfig `yaml:"retry"`
+}
+
+// RetryConfig controls retry behavior for outbound LLM API HTTP calls.
+type RetryConfig struct {
+	Enabled    *bool    `yaml:"enabled"`
+	MaxRetries *int     `yaml:"max_retries"`
+	WaitMin    Duration `yaml:"wait_min"`
+	WaitMax    Duration `yaml:"wait_max"`
 }
 
 // AuthConfig controls optional OAuth2 client credentials authentication.
@@ -248,6 +257,12 @@ func (c *Config) ApplyDefaults() {
 	if c.Target.Timeout.Duration == 0 {
 		c.Target.Timeout.Duration = 30 * time.Second
 	}
+	if !c.Target.Retry.WaitMin.Set && c.Target.Retry.WaitMin.Duration == 0 {
+		c.Target.Retry.WaitMin.Duration = 500 * time.Millisecond
+	}
+	if !c.Target.Retry.WaitMax.Set && c.Target.Retry.WaitMax.Duration == 0 {
+		c.Target.Retry.WaitMax.Duration = 5 * time.Second
+	}
 	if c.Auth.Timeout.Duration == 0 {
 		c.Auth.Timeout.Duration = 10 * time.Second
 	}
@@ -319,6 +334,20 @@ func (c Config) Validate() error {
 	} else if !isAbsoluteHTTPURL(c.Target.BaseURL) {
 		problems = append(problems, "target.base_url must be an absolute http or https URL")
 	}
+	if c.Target.Retry.MaxRetries != nil && *c.Target.Retry.MaxRetries < 0 {
+		problems = append(problems, "target.retry.max_retries must be greater than or equal to 0")
+	}
+	if c.Target.Retry.EnabledValue() {
+		if c.Target.Retry.WaitMin.Duration <= 0 {
+			problems = append(problems, "target.retry.wait_min must be greater than 0 when retry is enabled")
+		}
+		if c.Target.Retry.WaitMax.Duration <= 0 {
+			problems = append(problems, "target.retry.wait_max must be greater than 0 when retry is enabled")
+		}
+		if c.Target.Retry.WaitMax.Duration < c.Target.Retry.WaitMin.Duration {
+			problems = append(problems, "target.retry.wait_max must be greater than or equal to target.retry.wait_min")
+		}
+	}
 	if c.Auth.Enabled && c.Auth.TokenURL == "" {
 		problems = append(problems, "auth.token_url is required when auth.enabled=true")
 	}
@@ -354,6 +383,38 @@ func (c Config) Validate() error {
 		return errors.New(strings.Join(problems, "; "))
 	}
 	return nil
+}
+
+// EnabledValue reports whether retry behavior should be used.
+func (r RetryConfig) EnabledValue() bool {
+	if r.Enabled != nil && !*r.Enabled {
+		return false
+	}
+	return r.MaxRetriesValue() > 0
+}
+
+// MaxRetriesValue returns the configured retry count, defaulting to a light profile.
+func (r RetryConfig) MaxRetriesValue() int {
+	if r.MaxRetries == nil {
+		return 2
+	}
+	return *r.MaxRetries
+}
+
+// WaitMinValue returns the lower retry backoff bound.
+func (r RetryConfig) WaitMinValue() time.Duration {
+	if r.WaitMin.Duration == 0 {
+		return 500 * time.Millisecond
+	}
+	return r.WaitMin.Duration
+}
+
+// WaitMaxValue returns the upper retry backoff bound.
+func (r RetryConfig) WaitMaxValue() time.Duration {
+	if r.WaitMax.Duration == 0 {
+		return 5 * time.Second
+	}
+	return r.WaitMax.Duration
 }
 
 // isAbsoluteHTTPURL reports whether a config URL can be used for outbound web requests.

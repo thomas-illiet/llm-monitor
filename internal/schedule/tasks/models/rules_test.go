@@ -34,8 +34,8 @@ func TestReturnAlertThreshold(t *testing.T) {
 
 func TestModelAlertKeyIsStable(t *testing.T) {
 	at := time.Unix(42, 0).UTC()
-	got := modelAlertKey("missing", "gpt-4.1", at)
-	if got != "missing:gpt-4.1:42" {
+	got := modelAlertKey("inactive", "gpt-4.1", at)
+	if got != "inactive:gpt-4.1:42" {
 		t.Fatalf("got %q", got)
 	}
 }

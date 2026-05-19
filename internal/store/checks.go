@@ -9,12 +9,12 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-// MissingModelsForAlert lists models missing longer than the alert threshold.
-func (s *Store) MissingModelsForAlert(ctx context.Context, threshold time.Duration, now time.Time) ([]ModelState, error) {
+// InactiveModelsForAlert lists models inactive longer than the alert threshold.
+func (s *Store) InactiveModelsForAlert(ctx context.Context, threshold time.Duration, now time.Time) ([]ModelState, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT model_id, capability, excluded, status, first_seen_at, last_seen_at, missing_since, skip_reason, last_probe_at
 		FROM model_states
-		WHERE status='missing' AND missing_since IS NOT NULL AND missing_since <= $1
+		WHERE status='inactive' AND missing_since IS NOT NULL AND missing_since <= $1
 		ORDER BY missing_since ASC
 	`, now.Add(-threshold))
 	if err != nil {

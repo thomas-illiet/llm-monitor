@@ -58,7 +58,7 @@ export function formatTime(value?: string) {
 export function statusColor(model: ModelState) {
   if (model.capability === 'unknown') return 'warning'
   if (model.excluded || model.capability === 'skip') return 'secondary'
-  return model.status === 'active' ? 'success' : 'warning'
+  return model.status === 'active' ? 'success' : 'error'
 }
 
 /** Parses API timestamps into sortable millisecond values. */

@@ -45,9 +45,9 @@ The retention task deletes old rows from:
 - `email_alerts`
 - `model_snapshots`
 
-Current `model_states` are not pruned. Missing-model alert records are preserved
-while the model is still actively missing, even when their `sent_at` timestamp is
-older than the cutoff.
+Current `model_states` are not pruned. Inactive-model alert records are preserved
+while the model is still inactive, even when their `sent_at` timestamp is older
+than the cutoff.
 
 ## Failure Behavior
 

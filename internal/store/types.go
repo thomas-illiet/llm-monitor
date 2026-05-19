@@ -6,6 +6,11 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+const (
+	ModelStatusActive   = "active"
+	ModelStatusInactive = "inactive"
+)
+
 // Store owns the PostgreSQL connection pool used by repository methods.
 type Store struct {
 	pool *pgxpool.Pool

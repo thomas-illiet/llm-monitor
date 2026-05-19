@@ -1,7 +1,9 @@
 package models
 
 import (
+	"context"
 	"log/slog"
+	"time"
 
 	"llmservicemonitor/internal/config"
 	"llmservicemonitor/internal/notify"
@@ -47,4 +49,45 @@ type capabilityDetection struct {
 	Capability   string
 	SkipReason   string
 	ProbeDetails map[string]any
+}
+
+func (s *service) markAllModelsInactive(ctx context.Context, now time.Time, source, reason string) error {
+	if s.store == nil {
+		return nil
+	}
+	if now.IsZero() {
+		now = time.Now().UTC()
+	}
+	if _, err := s.store.MarkAllModelsInactive(ctx, now, source, reason); err != nil {
+		s.logger.Error("mark all models inactive", "error", err, "source", source)
+		return err
+	}
+	s.modelPlan.Store(nil)
+	return nil
+}
+
+func (s *service) markModelInactive(ctx context.Context, modelID string, now time.Time, source, reason string) error {
+	if s.store == nil {
+		return nil
+	}
+	if now.IsZero() {
+		now = time.Now().UTC()
+	}
+	if _, err := s.store.MarkModelInactive(ctx, modelID, now, source, reason); err != nil {
+		s.logger.Error("mark model inactive", "error", err, "model", modelID, "source", source)
+		return err
+	}
+	s.removeModelFromPlan(modelID)
+	return nil
+}
+
+func (s *service) removeModelFromPlan(modelID string) {
+	current := s.modelPlan.Load()
+	next := make([]shared.ModelPlanItem, 0, len(current))
+	for _, item := range current {
+		if item.ID != modelID {
+			next = append(next, item)
+		}
+	}
+	s.modelPlan.Store(next)
 }

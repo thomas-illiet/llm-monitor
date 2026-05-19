@@ -34,7 +34,7 @@ func (s *Store) ModelStatusSamples(ctx context.Context, since time.Time) ([]Metr
 				snapshot.observed_at AS at,
 				snapshot.active_count,
 				snapshot.skipped_count,
-				GREATEST(known.known_count::double precision - snapshot.active_count, 0) AS missing_count
+				GREATEST(known.known_count::double precision - snapshot.active_count, 0) AS inactive_count
 			FROM snapshot_counts snapshot
 			CROSS JOIN LATERAL (
 				SELECT COUNT(*) AS known_count
@@ -47,7 +47,7 @@ func (s *Store) ModelStatusSamples(ctx context.Context, since time.Time) ([]Metr
 		CROSS JOIN LATERAL (
 			VALUES
 				('active', active_count),
-				('missing', missing_count),
+				('inactive', inactive_count),
 				('skipped', skipped_count)
 		) AS samples(sample_group, value)
 		ORDER BY at ASC, sample_group ASC

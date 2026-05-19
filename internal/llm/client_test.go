@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -42,6 +43,113 @@ func TestClientUsesTargetCustomCA(t *testing.T) {
 	}
 	if len(models) != 1 || models[0] != "gpt-test" {
 		t.Fatalf("unexpected models: %#v", models)
+	}
+}
+
+// TestClientRetriesTransientHTTPFailures verifies retryable target requests recover from 5xx responses.
+func TestClientRetriesTransientHTTPFailures(t *testing.T) {
+	var calls int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen := atomic.AddInt32(&calls, 1)
+		if seen < 3 {
+			http.Error(w, "temporary outage", http.StatusServiceUnavailable)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":[{"id":"gpt-test"}]}`))
+	}))
+	defer server.Close()
+
+	retries := 2
+	client, err := NewClient(config.TargetConfig{
+		BaseURL:       server.URL,
+		HTTPCheckPath: "/v1/models",
+		Timeout:       config.Duration{Duration: 2 * time.Second},
+		Retry: config.RetryConfig{
+			MaxRetries: &retries,
+			WaitMin:    config.Duration{Duration: time.Millisecond, Set: true},
+			WaitMax:    config.Duration{Duration: time.Millisecond, Set: true},
+		},
+	}, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	models, err := client.ListModels(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(models) != 1 || models[0] != "gpt-test" {
+		t.Fatalf("unexpected models: %#v", models)
+	}
+	if calls != 3 {
+		t.Fatalf("calls = %d, want 3", calls)
+	}
+}
+
+// TestClientRetryCanBeDisabled verifies max_retries=0 leaves transient errors un-retried.
+func TestClientRetryCanBeDisabled(t *testing.T) {
+	var calls int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&calls, 1)
+		http.Error(w, "temporary outage", http.StatusServiceUnavailable)
+	}))
+	defer server.Close()
+
+	retries := 0
+	client, err := NewClient(config.TargetConfig{
+		BaseURL:       server.URL,
+		HTTPCheckPath: "/v1/models",
+		Timeout:       config.Duration{Duration: 2 * time.Second},
+		Retry:         config.RetryConfig{MaxRetries: &retries},
+	}, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = client.ListModels(context.Background())
+	if err == nil {
+		t.Fatal("ListModels() error = nil, want upstream 503 error")
+	}
+	if calls != 1 {
+		t.Fatalf("calls = %d, want 1", calls)
+	}
+}
+
+// TestHealthCheckKeepsLastRetriedStatusCode verifies failed retries preserve upstream status details.
+func TestHealthCheckKeepsLastRetriedStatusCode(t *testing.T) {
+	var calls int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&calls, 1)
+		http.Error(w, "still down", http.StatusBadGateway)
+	}))
+	defer server.Close()
+
+	retries := 2
+	client, err := NewClient(config.TargetConfig{
+		BaseURL:       server.URL,
+		HTTPCheckPath: "/v1/models",
+		Timeout:       config.Duration{Duration: 2 * time.Second},
+		Retry: config.RetryConfig{
+			MaxRetries: &retries,
+			WaitMin:    config.Duration{Duration: time.Millisecond, Set: true},
+			WaitMax:    config.Duration{Duration: time.Millisecond, Set: true},
+		},
+	}, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result := client.HealthCheck(context.Background())
+
+	if result.OK {
+		t.Fatal("health check OK = true, want false")
+	}
+	if result.StatusCode != http.StatusBadGateway {
+		t.Fatalf("status = %d, want 502", result.StatusCode)
+	}
+	if calls != 3 {
+		t.Fatalf("calls = %d, want 3", calls)
 	}
 }
 

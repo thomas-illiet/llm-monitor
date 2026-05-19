@@ -14,6 +14,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hashicorp/go-retryablehttp"
+
 	"llmservicemonitor/internal/config"
 )
 
@@ -40,7 +42,25 @@ func targetHTTPClient(cfg config.TargetConfig) (*http.Client, error) {
 			RootCAs:    pool,
 		}
 	}
-	return &http.Client{Timeout: cfg.Timeout.Duration, Transport: transport}, nil
+	if !cfg.Retry.EnabledValue() {
+		return &http.Client{Timeout: cfg.Timeout.Duration, Transport: transport}, nil
+	}
+	retryClient := retryablehttp.NewClient()
+	retryClient.HTTPClient = &http.Client{Transport: transport}
+	retryClient.Logger = nil
+	retryClient.RetryMax = cfg.Retry.MaxRetriesValue()
+	retryClient.RetryWaitMin = cfg.Retry.WaitMinValue()
+	retryClient.RetryWaitMax = cfg.Retry.WaitMaxValue()
+	retryClient.ErrorHandler = func(resp *http.Response, err error, _ int) (*http.Response, error) {
+		if resp != nil {
+			return resp, nil
+		}
+		return nil, err
+	}
+	return &http.Client{
+		Timeout:   cfg.Timeout.Duration,
+		Transport: &retryablehttp.RoundTripper{Client: retryClient},
+	}, nil
 }
 
 // postJSON executes a JSON POST and normalizes response timing and errors.

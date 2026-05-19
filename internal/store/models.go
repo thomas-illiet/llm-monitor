@@ -52,8 +52,8 @@ func (s *Store) ProcessModelObservation(ctx context.Context, observed []Observed
 		case !exists:
 			if _, err := tx.Exec(ctx, `
 				INSERT INTO model_states(model_id, capability, excluded, status, first_seen_at, last_seen_at, missing_since, skip_reason, last_probe_at)
-				VALUES($1, $2, $3, 'active', $4, $4, NULL, $5, $4)
-			`, model.ID, model.Capability, model.Excluded, now, model.SkipReason); err != nil {
+				VALUES($1, $2, $3, $4, $5, $5, NULL, $6, $5)
+			`, model.ID, model.Capability, model.Excluded, ModelStatusActive, now, model.SkipReason); err != nil {
 				return nil, err
 			}
 			event, err := insertModelEvent(ctx, tx, ModelEventRecord{
@@ -82,9 +82,9 @@ func (s *Store) ProcessModelObservation(ctx context.Context, observed []Observed
 			missingDuration := now.Sub(*state.MissingSince)
 			if _, err := tx.Exec(ctx, `
 				UPDATE model_states
-				SET capability=$2, excluded=$3, status='active', last_seen_at=$4, missing_since=NULL, skip_reason=$5, last_probe_at=$4
+				SET capability=$2, excluded=$3, status=$4, last_seen_at=$5, missing_since=NULL, skip_reason=$6, last_probe_at=$5
 				WHERE model_id=$1
-			`, model.ID, model.Capability, model.Excluded, now, model.SkipReason); err != nil {
+			`, model.ID, model.Capability, model.Excluded, ModelStatusActive, now, model.SkipReason); err != nil {
 				return nil, err
 			}
 			event, err := insertModelEvent(ctx, tx, ModelEventRecord{
@@ -113,9 +113,9 @@ func (s *Store) ProcessModelObservation(ctx context.Context, observed []Observed
 			events = append(events, event)
 		default:
 			if _, err := tx.Exec(ctx, `
-				UPDATE model_states SET capability=$2, excluded=$3, status='active', last_seen_at=$4, skip_reason=$5, last_probe_at=$4
+				UPDATE model_states SET capability=$2, excluded=$3, status=$4, last_seen_at=$5, skip_reason=$6, last_probe_at=$5
 				WHERE model_id=$1
-			`, model.ID, model.Capability, model.Excluded, now, model.SkipReason); err != nil {
+			`, model.ID, model.Capability, model.Excluded, ModelStatusActive, now, model.SkipReason); err != nil {
 				return nil, err
 			}
 			if state.Capability != model.Capability || state.Excluded != model.Excluded || state.SkipReason != model.SkipReason {
@@ -149,27 +149,28 @@ func (s *Store) ProcessModelObservation(ctx context.Context, observed []Observed
 	}
 
 	for modelID, state := range current {
-		if _, ok := seen[modelID]; ok || state.MissingSince != nil {
+		if _, ok := seen[modelID]; ok || state.MissingSince != nil || state.Status == ModelStatusInactive {
 			continue
 		}
 		if _, err := tx.Exec(ctx, `
-			UPDATE model_states SET status='missing', missing_since=$2 WHERE model_id=$1
-		`, modelID, now); err != nil {
+			UPDATE model_states SET status=$2, missing_since=$3 WHERE model_id=$1
+		`, modelID, ModelStatusInactive, now); err != nil {
 			return nil, err
 		}
 		event, err := insertModelEvent(ctx, tx, ModelEventRecord{
 			ModelID:    modelID,
-			EventType:  "removed",
+			EventType:  "inactive",
 			Source:     "inventory",
 			Severity:   "warning",
-			Status:     "missing",
+			Status:     ModelStatusInactive,
 			Capability: state.Capability,
 			ObservedAt: now,
-			Title:      "Model removed",
+			Title:      "Model inactive",
 			Message:    fmt.Sprintf("Model %s disappeared from /v1/models.", modelID),
 			Changed:    true,
 			Details: map[string]any{
-				"missing_since": now.Format(time.RFC3339),
+				"inactive_since": now.Format(time.RFC3339),
+				"missing_since":  now.Format(time.RFC3339),
 			},
 		})
 		if err != nil {
@@ -185,6 +186,132 @@ func (s *Store) ProcessModelObservation(ctx context.Context, observed []Observed
 	return events, nil
 }
 
+// MarkModelInactive transitions one runnable model to inactive when a probe proves it unavailable.
+func (s *Store) MarkModelInactive(ctx context.Context, modelID string, now time.Time, source, reason string) (*ModelEvent, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+
+	state, err := loadModelStateForUpdate(ctx, tx, modelID)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+	if state.Status == ModelStatusInactive || state.Excluded || state.Capability == "skip" {
+		return nil, tx.Commit(ctx)
+	}
+	event, err := markModelStateInactive(ctx, tx, state, now, source, reason)
+	if err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	return &event, nil
+}
+
+// MarkAllModelsInactive transitions all currently runnable models to inactive.
+func (s *Store) MarkAllModelsInactive(ctx context.Context, now time.Time, source, reason string) ([]ModelEvent, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+
+	rows, err := tx.Query(ctx, `
+		SELECT model_id, capability, excluded, status, first_seen_at, last_seen_at, missing_since, skip_reason, last_probe_at
+		FROM model_states
+		WHERE status <> $1 AND NOT excluded AND capability <> 'skip'
+		FOR UPDATE
+	`, ModelStatusInactive)
+	if err != nil {
+		return nil, err
+	}
+	states, err := scanModelStates(rows)
+	if err != nil {
+		return nil, err
+	}
+	events := make([]ModelEvent, 0, len(states))
+	for _, state := range states {
+		event, err := markModelStateInactive(ctx, tx, state, now, source, reason)
+		if err != nil {
+			return nil, err
+		}
+		events = append(events, event)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	return events, nil
+}
+
+func loadModelStateForUpdate(ctx context.Context, tx pgx.Tx, modelID string) (ModelState, error) {
+	rows, err := tx.Query(ctx, `
+		SELECT model_id, capability, excluded, status, first_seen_at, last_seen_at, missing_since, skip_reason, last_probe_at
+		FROM model_states
+		WHERE model_id=$1
+		FOR UPDATE
+	`, modelID)
+	if err != nil {
+		return ModelState{}, err
+	}
+	states, err := scanModelStates(rows)
+	if err != nil {
+		return ModelState{}, err
+	}
+	if len(states) == 0 {
+		return ModelState{}, pgx.ErrNoRows
+	}
+	return states[0], nil
+}
+
+func markModelStateInactive(ctx context.Context, tx pgx.Tx, state ModelState, now time.Time, source, reason string) (ModelEvent, error) {
+	if source == "" {
+		source = "monitor"
+	}
+	if reason == "" {
+		reason = "model is unavailable"
+	}
+	inactiveSince := now
+	if state.MissingSince != nil {
+		inactiveSince = *state.MissingSince
+	}
+	if _, err := tx.Exec(ctx, `
+		UPDATE model_states
+		SET status=$2, missing_since=COALESCE(missing_since, $3), skip_reason=$4, last_probe_at=$3
+		WHERE model_id=$1
+	`, state.ModelID, ModelStatusInactive, now, reason); err != nil {
+		return ModelEvent{}, err
+	}
+	event, err := insertModelEvent(ctx, tx, ModelEventRecord{
+		ModelID:    state.ModelID,
+		EventType:  "inactive",
+		Source:     source,
+		Severity:   "error",
+		Status:     ModelStatusInactive,
+		Capability: state.Capability,
+		ObservedAt: now,
+		Title:      "Model inactive",
+		Message:    fmt.Sprintf("Model %s was marked inactive: %s.", state.ModelID, reason),
+		Changed:    true,
+		Details: map[string]any{
+			"inactive_since": inactiveSince.Format(time.RFC3339),
+			"missing_since":  inactiveSince.Format(time.RFC3339),
+			"reason":         reason,
+		},
+	})
+	if err != nil {
+		return ModelEvent{}, err
+	}
+	event.MissingSince = &inactiveSince
+	event.MissingDuration = now.Sub(inactiveSince)
+	return event, nil
+}
+
 // loadModelStates reads current model state inside an observation transaction.
 func loadModelStates(ctx context.Context, tx pgx.Tx) (map[string]ModelState, error) {
 	rows, err := tx.Query(ctx, `
@@ -194,8 +321,20 @@ func loadModelStates(ctx context.Context, tx pgx.Tx) (map[string]ModelState, err
 	if err != nil {
 		return nil, err
 	}
+	states, err := scanModelStates(rows)
+	if err != nil {
+		return nil, err
+	}
+	current := map[string]ModelState{}
+	for _, state := range states {
+		current[state.ModelID] = state
+	}
+	return current, nil
+}
+
+func scanModelStates(rows pgx.Rows) ([]ModelState, error) {
 	defer rows.Close()
-	states := map[string]ModelState{}
+	var ordered []ModelState
 	for rows.Next() {
 		var state ModelState
 		var missing pgtype.Timestamptz
@@ -209,9 +348,9 @@ func loadModelStates(ctx context.Context, tx pgx.Tx) (map[string]ModelState, err
 		if lastProbe.Valid {
 			state.LastProbeAt = &lastProbe.Time
 		}
-		states[state.ModelID] = state
+		ordered = append(ordered, state)
 	}
-	return states, rows.Err()
+	return ordered, rows.Err()
 }
 
 // ListModelStates returns the current inventory shown in the dashboard.

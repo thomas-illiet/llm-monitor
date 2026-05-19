@@ -77,7 +77,7 @@ func newPrometheusCollector(db DashboardStore, logger *slog.Logger) *prometheusC
 		modelInfo:                  prometheus.NewDesc("llm_monitor_model_info", "Current model inventory metadata.", []string{"model", "capability", "status", "excluded"}, nil),
 		modelAvailable:             prometheus.NewDesc("llm_monitor_model_available", "Whether the model is currently available for scheduled probes.", []string{"model", "capability"}, nil),
 		modelLastSeenTimestamp:     prometheus.NewDesc("llm_monitor_model_last_seen_timestamp_seconds", "Unix timestamp when the model was last observed.", []string{"model", "capability"}, nil),
-		modelMissingSinceTimestamp: prometheus.NewDesc("llm_monitor_model_missing_since_timestamp_seconds", "Unix timestamp when the model became missing.", []string{"model", "capability"}, nil),
+		modelMissingSinceTimestamp: prometheus.NewDesc("llm_monitor_model_missing_since_timestamp_seconds", "Unix timestamp when the model became inactive. Metric name is kept for compatibility.", []string{"model", "capability"}, nil),
 
 		probeSuccess:               prometheus.NewDesc("llm_monitor_model_probe_success", "Whether the latest model probe succeeded.", []string{"model", "capability"}, nil),
 		probeLatencySeconds:        prometheus.NewDesc("llm_monitor_model_probe_latency_seconds", "Request latency of the latest model probe in seconds.", []string{"model", "capability"}, nil),
@@ -246,7 +246,7 @@ func modelSkipped(model store.ModelState) bool {
 }
 
 func modelAvailable(model store.ModelState) bool {
-	return model.Status == "active" && !modelSkipped(model)
+	return model.Status == store.ModelStatusActive && !modelSkipped(model)
 }
 
 func boolGauge(value bool) float64 {

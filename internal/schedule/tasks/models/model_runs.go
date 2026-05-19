@@ -103,6 +103,12 @@ func (s *service) runChatTests(ctx context.Context, modelID string) error {
 			"max_tokens":  prompt.MaxTokens,
 			"temperature": prompt.Temperature,
 		})
+		if isModelUnavailableResult(result) {
+			if err := s.markModelInactive(ctx, modelID, result.StartedAt, "scheduled_run", "chat probe reported model unavailable: "+probeFailureSummary(result)); err != nil {
+				joined = errors.Join(joined, err)
+			}
+			break
+		}
 	}
 	if !ran {
 		s.recordModelEvent(ctx, store.ModelEventRecord{
@@ -160,5 +166,8 @@ func (s *service) runEmbeddingTest(ctx context.Context, modelID, input string) e
 		"fixture_path":  s.cfg.Tests.EmbeddingFixture.Path,
 		"fixture_bytes": len([]byte(input)),
 	})
+	if isModelUnavailableResult(result) {
+		return s.markModelInactive(ctx, modelID, result.StartedAt, "scheduled_run", "embedding probe reported model unavailable: "+probeFailureSummary(result))
+	}
 	return nil
 }

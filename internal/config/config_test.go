@@ -34,6 +34,12 @@ dashboard:
 	if cfg.Target.CAFile != "/run/certs/llm-api-ca.crt" {
 		t.Fatalf("unexpected target ca file %q", cfg.Target.CAFile)
 	}
+	if !cfg.Target.Retry.EnabledValue() || cfg.Target.Retry.MaxRetriesValue() != 2 {
+		t.Fatalf("unexpected target retry defaults: %#v", cfg.Target.Retry)
+	}
+	if cfg.Target.Retry.WaitMinValue() != 500*time.Millisecond || cfg.Target.Retry.WaitMaxValue() != 5*time.Second {
+		t.Fatalf("unexpected target retry waits: %#v", cfg.Target.Retry)
+	}
 	if cfg.Schedules.HTTPCheck.Duration != 30*time.Second {
 		t.Fatalf("unexpected http schedule %s", cfg.Schedules.HTTPCheck.Duration)
 	}
@@ -60,6 +66,84 @@ dashboard:
 	}
 	if cfg.Dashboard.SLO.TTFTP99MS != 200 || cfg.Dashboard.SLO.ITLP99MS != 50 || cfg.Dashboard.SLO.RequestLatencyP99MS != 3000 {
 		t.Fatalf("unexpected dashboard slo defaults: %#v", cfg.Dashboard.SLO)
+	}
+}
+
+// TestLoadParsesTargetRetry verifies retry configuration supports explicit opt-out.
+func TestLoadParsesTargetRetry(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	data := []byte(`
+postgres:
+  dsn: postgres://user:pass@localhost:5432/monitor
+target:
+  base_url: https://llm.example.test
+  retry:
+    enabled: true
+    max_retries: 4
+    wait_min: 250ms
+    wait_max: 2s
+`)
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.Target.Retry.EnabledValue() || cfg.Target.Retry.MaxRetriesValue() != 4 {
+		t.Fatalf("unexpected retry config: %#v", cfg.Target.Retry)
+	}
+	if cfg.Target.Retry.WaitMinValue() != 250*time.Millisecond || cfg.Target.Retry.WaitMaxValue() != 2*time.Second {
+		t.Fatalf("unexpected retry waits: %#v", cfg.Target.Retry)
+	}
+
+	path = filepath.Join(dir, "disabled.yaml")
+	data = []byte(`
+postgres:
+  dsn: postgres://user:pass@localhost:5432/monitor
+target:
+  base_url: https://llm.example.test
+  retry:
+    max_retries: 0
+`)
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err = Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Target.Retry.EnabledValue() {
+		t.Fatalf("retry should be disabled when max_retries is 0: %#v", cfg.Target.Retry)
+	}
+}
+
+// TestValidateRejectsInvalidTargetRetry verifies retry values are bounded.
+func TestValidateRejectsInvalidTargetRetry(t *testing.T) {
+	negativeRetries := -1
+	cfg := Config{
+		Postgres: PostgresConfig{DSN: "postgres://user:pass@localhost:5432/monitor"},
+		Target: TargetConfig{
+			BaseURL: "https://llm.example.test",
+			Retry:   RetryConfig{MaxRetries: &negativeRetries},
+		},
+	}
+	cfg.ApplyDefaults()
+	err := cfg.Validate()
+	if err == nil || !strings.Contains(err.Error(), "target.retry.max_retries") {
+		t.Fatalf("Validate() error = %v, want retry max requirement", err)
+	}
+
+	retries := 2
+	cfg.Target.Retry = RetryConfig{
+		MaxRetries: &retries,
+		WaitMin:    Duration{Duration: 5 * time.Second, Set: true},
+		WaitMax:    Duration{Duration: time.Second, Set: true},
+	}
+	err = cfg.Validate()
+	if err == nil || !strings.Contains(err.Error(), "target.retry.wait_max") {
+		t.Fatalf("Validate() error = %v, want retry wait requirement", err)
 	}
 }
 
