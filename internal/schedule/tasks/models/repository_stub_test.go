@@ -13,6 +13,10 @@ func (r noopRepository) RecordHTTPCheck(context.Context, store.CheckRecord) erro
 	return nil
 }
 
+func (r noopRepository) LatestHTTPCheck(context.Context) (*store.CheckRecord, error) {
+	return nil, nil
+}
+
 func (r noopRepository) RecordAuthCheck(context.Context, store.CheckRecord) error {
 	return nil
 }

@@ -42,6 +42,16 @@ func (s *LocalScheduler) Start(ctx context.Context) {
 	})
 }
 
+// RunNow executes invocations immediately in order using the scheduler registry.
+func (s *LocalScheduler) RunNow(ctx context.Context, invocations ...Invocation) error {
+	for _, invocation := range invocations {
+		if err := s.runInvocation(ctx, invocation); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (s *LocalScheduler) runGroup(ctx context.Context, group Group) {
 	for _, invocation := range group.Startup {
 		if ctx.Err() != nil {

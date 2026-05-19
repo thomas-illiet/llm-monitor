@@ -14,6 +14,10 @@ func NewHTTPCheckTask(deps shared.Dependencies) runner.Task {
 	return runner.Task{
 		Name: shared.HTTPCheckTaskName,
 		Handler: func(ctx context.Context, _ runner.TaskContext) error {
+			previous, err := deps.Store.LatestHTTPCheck(ctx)
+			if err != nil {
+				logger.Error("load latest http check", "error", err)
+			}
 			result := deps.Client.HealthCheck(ctx)
 			record := store.CheckRecord{
 				At:         result.CheckedAt,
@@ -33,6 +37,13 @@ func NewHTTPCheckTask(deps shared.Dependencies) runner.Task {
 				}
 				if deps.ModelPlanStore != nil {
 					deps.ModelPlanStore.Store(nil)
+				}
+			}
+			if result.OK && previous != nil && !previous.OK && deps.RecoveryTrigger != nil {
+				logger.Info("target recovered, triggering model probes")
+				if err := deps.RecoveryTrigger.TriggerModelRecovery(ctx); err != nil {
+					logger.Error("trigger model recovery", "error", err)
+					return err
 				}
 			}
 			return nil

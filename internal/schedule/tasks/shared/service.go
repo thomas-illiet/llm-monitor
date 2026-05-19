@@ -36,6 +36,7 @@ type LLMClient interface {
 // Repository describes the persistence operations required by monitor tasks.
 type Repository interface {
 	RecordHTTPCheck(ctx context.Context, record store.CheckRecord) error
+	LatestHTTPCheck(ctx context.Context) (*store.CheckRecord, error)
 	RecordAuthCheck(ctx context.Context, record store.CheckRecord) error
 	ProcessModelObservation(ctx context.Context, observed []store.ObservedModel, now time.Time) ([]store.ModelEvent, error)
 	MarkModelInactive(ctx context.Context, modelID string, now time.Time, source, reason string) (*store.ModelEvent, error)
@@ -50,15 +51,21 @@ type Repository interface {
 	PruneHistoryBefore(ctx context.Context, cutoff time.Time) error
 }
 
+// ModelRecoveryTrigger starts model inventory and probe work after target recovery.
+type ModelRecoveryTrigger interface {
+	TriggerModelRecovery(ctx context.Context) error
+}
+
 // Dependencies groups shared task dependencies.
 type Dependencies struct {
-	Config         config.Config
-	Store          Repository
-	Client         LLMClient
-	Auth           auth.Provider
-	Notifier       notify.Notifier
-	Logger         *slog.Logger
-	ModelPlanStore ModelPlanStore
+	Config          config.Config
+	Store           Repository
+	Client          LLMClient
+	Auth            auth.Provider
+	Notifier        notify.Notifier
+	Logger          *slog.Logger
+	ModelPlanStore  ModelPlanStore
+	RecoveryTrigger ModelRecoveryTrigger
 }
 
 // ResolveLogger returns a usable logger for task packages.

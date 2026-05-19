@@ -74,14 +74,16 @@ func main() {
 	}
 
 	modelPlanStore := tasks.NewMemoryModelPlanStore()
+	modelRecoveryTrigger := tasks.NewModelRecoveryTrigger()
 	taskDeps := tasks.Dependencies{
-		Config:         cfg,
-		Store:          db,
-		Client:         llmClient,
-		Auth:           tokenProvider,
-		Notifier:       notifier,
-		Logger:         logger,
-		ModelPlanStore: modelPlanStore,
+		Config:          cfg,
+		Store:           db,
+		Client:          llmClient,
+		Auth:            tokenProvider,
+		Notifier:        notifier,
+		Logger:          logger,
+		ModelPlanStore:  modelPlanStore,
+		RecoveryTrigger: modelRecoveryTrigger,
 	}
 	taskRegistry, err := tasks.NewRegistry(taskDeps)
 	if err != nil {
@@ -89,6 +91,12 @@ func main() {
 		os.Exit(1)
 	}
 	scheduler := runner.NewLocalScheduler(taskRegistry, logger, tasks.LocalScheduleGroups(taskDeps)...)
+	modelRecoveryTrigger.Bind(func(ctx context.Context) error {
+		return scheduler.RunNow(ctx,
+			runner.Invocation{TaskName: tasks.ModelSnapshotTaskName},
+			runner.Invocation{TaskName: tasks.ModelRunsTaskName},
+		)
+	})
 	scheduler.Start(ctx)
 
 	staticRoot, err := fs.Sub(staticFiles, "static")

@@ -2,6 +2,7 @@ package checks
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -42,6 +43,11 @@ type httpCheckRepository struct {
 	markCalls int
 	source    string
 	reason    string
+	latest    *store.CheckRecord
+}
+
+func (r *httpCheckRepository) LatestHTTPCheck(context.Context) (*store.CheckRecord, error) {
+	return r.latest, nil
 }
 
 func (r *httpCheckRepository) RecordHTTPCheck(_ context.Context, record store.CheckRecord) error {
@@ -77,5 +83,73 @@ func TestHTTPCheckFailureMarksModelsInactiveAndClearsPlan(t *testing.T) {
 	}
 	if got := plan.Load(); len(got) != 0 {
 		t.Fatalf("model plan = %#v, want cleared", got)
+	}
+}
+
+type recoveryTrigger struct {
+	calls int
+	err   error
+}
+
+func (t *recoveryTrigger) TriggerModelRecovery(context.Context) error {
+	t.calls++
+	return t.err
+}
+
+func TestHTTPCheckRecoveryTriggersModelRecovery(t *testing.T) {
+	repo := &httpCheckRepository{latest: &store.CheckRecord{OK: false}}
+	recovery := &recoveryTrigger{}
+	task := NewHTTPCheckTask(shared.Dependencies{
+		Store:           repo,
+		Client:          httpCheckClient{result: llm.HTTPCheckResult{CheckedAt: time.Now().UTC(), OK: true, StatusCode: 200}},
+		RecoveryTrigger: recovery,
+	})
+
+	if err := task.Handler(context.Background(), runner.TaskContext{}); err != nil {
+		t.Fatal(err)
+	}
+	if recovery.calls != 1 {
+		t.Fatalf("recovery trigger calls = %d, want 1", recovery.calls)
+	}
+	if repo.markCalls != 0 {
+		t.Fatalf("inactive mark calls = %d, want 0", repo.markCalls)
+	}
+}
+
+func TestHTTPCheckDoesNotTriggerRecoveryWithoutFailedPreviousCheck(t *testing.T) {
+	for name, previous := range map[string]*store.CheckRecord{
+		"none": nil,
+		"ok":   &store.CheckRecord{OK: true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			repo := &httpCheckRepository{latest: previous}
+			recovery := &recoveryTrigger{}
+			task := NewHTTPCheckTask(shared.Dependencies{
+				Store:           repo,
+				Client:          httpCheckClient{result: llm.HTTPCheckResult{CheckedAt: time.Now().UTC(), OK: true, StatusCode: 200}},
+				RecoveryTrigger: recovery,
+			})
+
+			if err := task.Handler(context.Background(), runner.TaskContext{}); err != nil {
+				t.Fatal(err)
+			}
+			if recovery.calls != 0 {
+				t.Fatalf("recovery trigger calls = %d, want 0", recovery.calls)
+			}
+		})
+	}
+}
+
+func TestHTTPCheckRecoveryReturnsTriggerError(t *testing.T) {
+	repo := &httpCheckRepository{latest: &store.CheckRecord{OK: false}}
+	recoveryErr := errors.New("recovery failed")
+	task := NewHTTPCheckTask(shared.Dependencies{
+		Store:           repo,
+		Client:          httpCheckClient{result: llm.HTTPCheckResult{CheckedAt: time.Now().UTC(), OK: true, StatusCode: 200}},
+		RecoveryTrigger: &recoveryTrigger{err: recoveryErr},
+	})
+
+	if err := task.Handler(context.Background(), runner.TaskContext{}); !errors.Is(err, recoveryErr) {
+		t.Fatalf("handler error = %v, want %v", err, recoveryErr)
 	}
 }

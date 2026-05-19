@@ -129,6 +129,39 @@ func TestLocalSchedulerRunsStartupBeforeRecurring(t *testing.T) {
 	}
 }
 
+func TestLocalSchedulerRunNowRunsInvocationsInOrder(t *testing.T) {
+	events := make(chan string, 2)
+	registry := NewRegistry()
+	mustRegister(t, registry, Task{
+		Name: "monitor.snapshot",
+		Handler: func(context.Context, TaskContext) error {
+			events <- "snapshot"
+			return nil
+		},
+	})
+	mustRegister(t, registry, Task{
+		Name: "monitor.model_runs",
+		Handler: func(context.Context, TaskContext) error {
+			events <- "runs"
+			return nil
+		},
+	})
+	scheduler := NewLocalScheduler(registry, testLogger())
+
+	if err := scheduler.RunNow(context.Background(),
+		Invocation{TaskName: "monitor.snapshot"},
+		Invocation{TaskName: "monitor.model_runs"},
+	); err != nil {
+		t.Fatal(err)
+	}
+	if got := receiveEvent(t, events); got != "snapshot" {
+		t.Fatalf("first event = %q, want snapshot", got)
+	}
+	if got := receiveEvent(t, events); got != "runs" {
+		t.Fatalf("second event = %q, want runs", got)
+	}
+}
+
 func mustRegister(t *testing.T, registry *Registry, task Task) {
 	t.Helper()
 	if err := registry.Register(task); err != nil {
