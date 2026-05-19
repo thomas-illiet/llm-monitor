@@ -16,9 +16,9 @@ COPY --from=frontend /src/web/dist/ ./cmd/server/static/
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/llm-monitor ./cmd/server
 
 FROM alpine:3.22
-RUN addgroup -S app && adduser -S app -G app
+RUN addgroup -S -g 1000 appuser && adduser -S -D -H -u 1000 -G appuser appuser
 RUN apk add --no-cache ca-certificates
-USER app:app
+USER appuser:appuser
 WORKDIR /app
 COPY --from=backend /out/llm-monitor /app/llm-monitor
 ENV LLM_MONITOR_CONFIG=/config/config.yaml
