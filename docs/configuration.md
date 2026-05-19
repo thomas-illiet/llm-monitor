@@ -72,7 +72,7 @@ The built-in charts are:
 
 - Time to first token by model, rendered as a line chart.
 - Request latency by model, rendered as a line chart.
-- HTTP check latency, rendered as a bar chart.
+- HTTP check latency, rendered as a line chart.
 - Model status history, rendered as a stacked bar chart.
 - Model detail latency, throughput, and error charts, rendered as bar or stacked bar charts depending on the metric.
 

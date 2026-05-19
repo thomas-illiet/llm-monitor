@@ -78,7 +78,7 @@ func TestStaticDashboardCharts(t *testing.T) {
 	assertChartTypes(t, gotTypes, map[string]string{
 		"ttft-by-model":            "line",
 		"request-latency-by-model": "line",
-		"http-latency":             "bar",
+		"http-latency":             "line",
 	})
 }
 

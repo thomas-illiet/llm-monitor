@@ -37,7 +37,7 @@ var dashboardCharts = []dashboardChartConfig{
 	{
 		ID:      "http-latency",
 		Title:   "HTTP check latency",
-		Type:    "bar",
+		Type:    "line",
 		Metric:  "http_latency_ms",
 		GroupBy: "check",
 	},
