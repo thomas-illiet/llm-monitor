@@ -41,7 +41,7 @@ export function chartData(chart: ConfiguredChart): any {
       borderWidth: isLine ? 2 : 1,
       borderRadius: isLine ? 0 : 4,
       tension: 0,
-      spanGaps: false,
+      spanGaps: isLine,
       pointRadius: isLine ? 1.5 : 0
     }))
   }
