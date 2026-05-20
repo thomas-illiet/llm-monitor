@@ -62,8 +62,18 @@ helm upgrade --install llm-monitor ./charts/llm-monitor \
 
 The generated Secret keys are derived from `config.auth.mtls.cert_file` and
 `config.auth.mtls.key_file`, which default to `client.crt` and `client.key`.
-`config.auth.client_secret` is rendered inline in the generated ConfigMap; use
-`secretFiles.data.oauth-client-secret` instead when the value should stay in a
+
+These secret values are rendered inline in the generated ConfigMap when set:
+
+```bash
+helm upgrade --install llm-monitor ./charts/llm-monitor \
+  --set-string config.auth.client_secret="$CLIENT_SECRET" \
+  --set-string config.smtp.password="$SMTP_PASSWORD" \
+  --set-string config.mcp.bearer_token="$MCP_BEARER_TOKEN"
+```
+
+Use `secretFiles.data.oauth-client-secret`, `secretFiles.data.smtp-password`, or
+`secretFiles.data.mcp-bearer-token` instead when a value should stay in a
 mounted Kubernetes Secret.
 
 ## Gateway API

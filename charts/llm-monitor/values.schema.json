@@ -285,6 +285,22 @@
               }
             }
           }
+        },
+        "smtp": {
+          "type": "object",
+          "properties": {
+            "password": {
+              "type": "string"
+            }
+          }
+        },
+        "mcp": {
+          "type": "object",
+          "properties": {
+            "bearer_token": {
+              "type": "string"
+            }
+          }
         }
       }
     },

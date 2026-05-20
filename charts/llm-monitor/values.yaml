@@ -107,6 +107,8 @@ config:
     host: "smtp.example.com"
     port: 587
     username: "llm-monitor@example.com"
+    # Set with --set-string config.smtp.password=... to render inline in config.yaml.
+    # password: ""
     password_file: "/run/secrets/smtp-password"
     from: "llm-monitor@example.com"
     to:
@@ -116,6 +118,8 @@ config:
   mcp:
     enabled: false
     path: "/mcp"
+    # Set with --set-string config.mcp.bearer_token=... to render inline in config.yaml.
+    # bearer_token: ""
     bearer_token_file: "/run/secrets/mcp-bearer-token"
 
   schedules:
