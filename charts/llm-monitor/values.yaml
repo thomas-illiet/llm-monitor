@@ -21,7 +21,7 @@ service:
   port: 8080
 
 gateway:
-  enabled: true
+  enabled: false
   create: false
   annotations: {}
   parentRefs:
