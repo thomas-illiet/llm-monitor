@@ -242,6 +242,7 @@ func TestModelUnavailableResultDetectsRemovedModel(t *testing.T) {
 		{OK: false, StatusCode: http.StatusNotFound, Error: "llm returned 404: model not found"},
 		{OK: false, StatusCode: http.StatusBadRequest, Error: "model_not_found: no such model"},
 		{OK: false, StatusCode: http.StatusUnprocessableEntity, Error: "model does not exist"},
+		{OK: false, StatusCode: http.StatusServiceUnavailable, Error: "503 Model unavailable"},
 	}
 	for _, tt := range tests {
 		if !isModelUnavailableResult(tt) {

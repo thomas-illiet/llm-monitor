@@ -108,3 +108,35 @@ func TestRunModelTestsRecordsHealthyModelWhenAnotherModelReturnsBadRequest(t *te
 		t.Fatalf("healthy model record = %#v, present = %v; want successful record", record, ok)
 	}
 }
+
+func TestRunModelTestsRemovesServiceUnavailableModelFromPlan(t *testing.T) {
+	plan := shared.NewMemoryModelPlanStore()
+	plan.Store([]shared.ModelPlanItem{{ID: "unavailable-model", Capability: capabilityChat}})
+	repo := &recordingRunRepository{}
+	service := newService(shared.Dependencies{
+		Config: config.Config{
+			Models: config.ModelsConfig{MaxConcurrency: 1},
+			Tests: config.TestsConfig{
+				ChatPrompts: []config.ChatPromptConfig{
+					{ID: "smoke", Prompt: "Say ok.", MaxTokens: 4},
+				},
+			},
+		},
+		Store:          repo,
+		Client:         &modelRunClient{results: map[string]llm.RunResult{"unavailable-model": {OK: false, StatusCode: http.StatusServiceUnavailable, Error: "503 Model unavailable"}}},
+		Logger:         slog.New(slog.NewTextHandler(io.Discard, nil)),
+		ModelPlanStore: plan,
+	})
+
+	err := service.runModelTests(context.Background(), runner.TaskContext{})
+
+	if err != nil {
+		t.Fatalf("runModelTests() error = %v", err)
+	}
+	if got := plan.Load(); len(got) != 0 {
+		t.Fatalf("model plan = %#v, want unavailable model removed", got)
+	}
+	if len(repo.chatRuns) != 1 || repo.chatRuns[0].StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("chat runs = %#v, want recorded 503 probe", repo.chatRuns)
+	}
+}

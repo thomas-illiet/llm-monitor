@@ -81,6 +81,9 @@ func isModelUnavailableResult(result llm.RunResult) bool {
 	if result.StatusCode == http.StatusNotFound || result.StatusCode == http.StatusGone {
 		return true
 	}
+	if result.StatusCode == http.StatusServiceUnavailable {
+		return hasModelUnavailableHint(result.Error)
+	}
 	if result.StatusCode != http.StatusBadRequest && result.StatusCode != http.StatusUnprocessableEntity {
 		return false
 	}
