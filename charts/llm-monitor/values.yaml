@@ -39,6 +39,17 @@ gateway:
         namespaces:
           from: Same
 
+ingress:
+  enabled: false
+  className: nginx
+  annotations: {}
+  hosts:
+    - host: monitor.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
 route:
   enabled: false
   annotations: {}

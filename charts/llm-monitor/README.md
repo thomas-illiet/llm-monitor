@@ -95,6 +95,29 @@ gateway:
 
 Set `gateway.enabled: false` if the cluster does not have Gateway API CRDs installed.
 
+## ingress-nginx
+
+For clusters that already run ingress-nginx, enable the Kubernetes `Ingress` alternative and disable Gateway API rendering:
+
+```yaml
+gateway:
+  enabled: false
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+  hosts:
+    - host: monitor.apps.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: monitor-tls
+      hosts:
+        - monitor.apps.example.com
+```
+
 ## OpenShift Route
 
 OpenShift Route support is kept as an alternative for clusters that do not use Gateway API. It is disabled by default. Leave `route.host` empty to let OpenShift generate the hostname, or set it explicitly:
