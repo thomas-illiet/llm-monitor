@@ -149,6 +149,29 @@ func TestDetectModelCapabilityUsesUnknownForTransientProbeFailure(t *testing.T) 
 	}
 }
 
+func TestDetectModelsPreservesKnownCapabilityForGatewayBadRequest(t *testing.T) {
+	client := &capabilityProbeClient{
+		embeddingResult: llm.RunResult{OK: false, StatusCode: http.StatusBadRequest, Error: "llm gateway upstream failed while routing request"},
+		chatResult:      llm.RunResult{OK: false, StatusCode: http.StatusBadRequest, Error: "llm gateway upstream failed while routing request"},
+	}
+	service := testTaskService(client)
+
+	got := service.detectModels(context.Background(), []string{"known-chat"}, map[string]string{"known-chat": capabilityChat})
+
+	if len(got) != 1 {
+		t.Fatalf("observed models = %d, want 1", len(got))
+	}
+	if got[0].Capability != capabilityChat {
+		t.Fatalf("capability = %q, want preserved %q", got[0].Capability, capabilityChat)
+	}
+	if got[0].SkipReason != "" {
+		t.Fatalf("skip reason = %q, want empty after capability preservation", got[0].SkipReason)
+	}
+	if got[0].ProbeDetails["preserved_capability"] != capabilityChat {
+		t.Fatalf("preserved capability detail = %#v, want %q", got[0].ProbeDetails["preserved_capability"], capabilityChat)
+	}
+}
+
 func TestPreservedRunnableCapabilityKeepsKnownCapabilityForTransientFailure(t *testing.T) {
 	detection := capabilityDetection{Capability: capabilityUnknown, SkipReason: "chat probe temporarily unavailable"}
 

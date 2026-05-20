@@ -114,11 +114,16 @@ func hasTransientProbeHint(errorMessage string) bool {
 	errorText := strings.ToLower(errorMessage)
 	transientHints := []string{
 		"all models exhausted",
+		"bad gateway",
+		"backend error",
 		"connection refused",
 		"connection reset",
 		"context deadline",
 		"eof",
+		"gateway",
 		"no such host",
+		"proxy",
+		"upstream",
 		"rate limit",
 		"rate-limited",
 		"timeout",
