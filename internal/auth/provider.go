@@ -64,6 +64,9 @@ type clientCredentialsProvider struct {
 
 // NewProvider builds either a static token provider or an OAuth2 mTLS provider.
 func NewProvider(authCfg config.AuthConfig, targetCfg config.TargetConfig, logger *slog.Logger) (Provider, error) {
+	if authCfg.ClientAuthMethod == "" {
+		authCfg.ClientAuthMethod = "client_secret_basic"
+	}
 	if !authCfg.Enabled {
 		return staticProvider{token: strings.TrimSpace(targetCfg.APIKey)}, nil
 	}
@@ -122,11 +125,13 @@ func (p *clientCredentialsProvider) Check(ctx context.Context) CheckResult {
 func (p *clientCredentialsProvider) fetch(ctx context.Context) (string, time.Time, int, error) {
 	form := url.Values{}
 	form.Set("grant_type", "client_credentials")
-	if p.cfg.ClientID != "" {
-		form.Set("client_id", p.cfg.ClientID)
-	}
-	if p.clientSecret != "" {
-		form.Set("client_secret", p.clientSecret)
+	if p.cfg.ClientAuthMethod == "client_secret_post" {
+		if p.cfg.ClientID != "" {
+			form.Set("client_id", p.cfg.ClientID)
+		}
+		if p.clientSecret != "" {
+			form.Set("client_secret", p.clientSecret)
+		}
 	}
 	if len(p.cfg.Scopes) > 0 {
 		form.Set("scope", strings.Join(p.cfg.Scopes, " "))
@@ -141,6 +146,9 @@ func (p *clientCredentialsProvider) fetch(ctx context.Context) (string, time.Tim
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Accept", "application/json")
+	if p.cfg.ClientAuthMethod == "client_secret_basic" {
+		req.SetBasicAuth(p.cfg.ClientID, p.clientSecret)
+	}
 
 	resp, err := p.httpClient.Do(req)
 	if err != nil {

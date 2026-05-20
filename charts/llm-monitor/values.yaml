@@ -89,10 +89,9 @@ config:
     client_id: "llm-monitor"
     # Set with --set-string config.auth.client_secret=... to render inline in config.yaml.
     # client_secret: ""
-    scopes:
-      - "llm.read"
-      - "llm.invoke"
-    audience: "llm-service"
+    client_auth_method: "client_secret_basic"
+    scopes: []
+    audience: ""
     timeout: "10s"
     refresh_skew: "30s"
     mtls:

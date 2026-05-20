@@ -52,6 +52,9 @@ dashboard:
 	if cfg.MCP.Path != "/mcp" {
 		t.Fatalf("unexpected mcp path %q", cfg.MCP.Path)
 	}
+	if cfg.Auth.ClientAuthMethod != "client_secret_basic" {
+		t.Fatalf("unexpected auth client method %q", cfg.Auth.ClientAuthMethod)
+	}
 	if cfg.Dashboard.DefaultWindow.Duration != 24*time.Hour {
 		t.Fatalf("unexpected dashboard window %s", cfg.Dashboard.DefaultWindow.Duration)
 	}
@@ -265,6 +268,21 @@ func TestValidateRejectsNegativeRetentionHistory(t *testing.T) {
 	err := cfg.Validate()
 	if err == nil || !strings.Contains(err.Error(), "retention.history must be greater than or equal to 0") {
 		t.Fatalf("Validate() error = %v, want retention history requirement", err)
+	}
+}
+
+// TestValidateRejectsUnknownAuthClientMethod verifies OAuth client
+// authentication mode is constrained to supported token endpoint styles.
+func TestValidateRejectsUnknownAuthClientMethod(t *testing.T) {
+	cfg := Config{
+		Postgres: PostgresConfig{DSN: "postgres://user:pass@localhost:5432/monitor"},
+		Target:   TargetConfig{BaseURL: "https://llm.example.test"},
+		Auth:     AuthConfig{ClientAuthMethod: "unsupported"},
+	}
+	cfg.ApplyDefaults()
+	err := cfg.Validate()
+	if err == nil || !strings.Contains(err.Error(), "auth.client_auth_method must be client_secret_basic or client_secret_post") {
+		t.Fatalf("Validate() error = %v, want auth client method requirement", err)
 	}
 }
 

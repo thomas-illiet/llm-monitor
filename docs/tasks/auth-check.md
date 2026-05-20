@@ -17,7 +17,7 @@ because no token endpoint is configured.
 ## Inputs
 
 - `auth.enabled`: selects OAuth client credentials or static target API key mode.
-- `auth.token_url`, `auth.client_id`, and `auth.client_secret`.
+- `auth.token_url`, `auth.client_id`, `auth.client_secret`, and `auth.client_auth_method`.
 - `auth.scopes`, `auth.audience`, `auth.timeout`, and `auth.refresh_skew`.
 - `auth.mtls.*` when the token endpoint requires mutual TLS.
 - `target.api_key` when `auth.enabled` is `false`.

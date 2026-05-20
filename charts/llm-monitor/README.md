@@ -39,6 +39,11 @@ helm upgrade --install llm-monitor ./charts/llm-monitor \
   --set-string config.mcp.bearer_token="$MCP_BEARER_TOKEN"
 ```
 
+OAuth client credentials are sent with `Authorization: Basic ...` by default
+(`config.auth.client_auth_method=client_secret_basic`). Set
+`config.auth.client_auth_method=client_secret_post` only for token endpoints
+that require credentials in the form body.
+
 Certificates can still be created from values and mounted at `/run/certs`:
 
 ```yaml

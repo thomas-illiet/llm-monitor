@@ -31,6 +31,11 @@ For the Helm chart, pass these values with `--set-string config.<path>=...`.
 Certificate and CA settings still use file paths because TLS libraries load them
 from mounted files.
 
+OAuth client credentials are sent with HTTP Basic authentication by default
+(`auth.client_auth_method: client_secret_basic`). Set
+`auth.client_auth_method: client_secret_post` only for token endpoints that
+expect `client_id` and `client_secret` in the form body.
+
 ## MCP Endpoint
 
 The optional MCP Streamable HTTP endpoint is disabled by default. Enable it with `mcp.enabled: true`, set `mcp.path` if `/mcp` is not suitable, and provide a dedicated bearer token.

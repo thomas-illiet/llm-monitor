@@ -128,15 +128,16 @@ type RetryConfig struct {
 
 // AuthConfig controls optional OAuth2 client credentials authentication.
 type AuthConfig struct {
-	Enabled      bool       `yaml:"enabled"`
-	TokenURL     string     `yaml:"token_url"`
-	ClientID     string     `yaml:"client_id"`
-	ClientSecret string     `yaml:"client_secret"`
-	Scopes       []string   `yaml:"scopes"`
-	Audience     string     `yaml:"audience"`
-	Timeout      Duration   `yaml:"timeout"`
-	RefreshSkew  Duration   `yaml:"refresh_skew"`
-	MTLS         MTLSConfig `yaml:"mtls"`
+	Enabled          bool       `yaml:"enabled"`
+	TokenURL         string     `yaml:"token_url"`
+	ClientID         string     `yaml:"client_id"`
+	ClientSecret     string     `yaml:"client_secret"`
+	ClientAuthMethod string     `yaml:"client_auth_method"`
+	Scopes           []string   `yaml:"scopes"`
+	Audience         string     `yaml:"audience"`
+	Timeout          Duration   `yaml:"timeout"`
+	RefreshSkew      Duration   `yaml:"refresh_skew"`
+	MTLS             MTLSConfig `yaml:"mtls"`
 }
 
 // MTLSConfig controls optional mutual TLS for OAuth token requests.
@@ -262,6 +263,9 @@ func (c *Config) ApplyDefaults() {
 	if c.Auth.Timeout.Duration == 0 {
 		c.Auth.Timeout.Duration = 10 * time.Second
 	}
+	if c.Auth.ClientAuthMethod == "" {
+		c.Auth.ClientAuthMethod = "client_secret_basic"
+	}
 	if c.Auth.RefreshSkew.Duration == 0 {
 		c.Auth.RefreshSkew.Duration = 30 * time.Second
 	}
@@ -346,6 +350,9 @@ func (c Config) Validate() error {
 	}
 	if c.Auth.Enabled && c.Auth.TokenURL == "" {
 		problems = append(problems, "auth.token_url is required when auth.enabled=true")
+	}
+	if c.Auth.ClientAuthMethod != "client_secret_basic" && c.Auth.ClientAuthMethod != "client_secret_post" {
+		problems = append(problems, "auth.client_auth_method must be client_secret_basic or client_secret_post")
 	}
 	if c.SMTP.Enabled {
 		if c.SMTP.Host == "" {
