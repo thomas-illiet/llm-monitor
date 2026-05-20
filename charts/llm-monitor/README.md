@@ -29,7 +29,7 @@ The namespace SecurityContextConstraints must allow UID `1000`. A default restri
 
 The application config is generated from `values.config` and mounted at `/config/config.yaml`. The chart does not deploy PostgreSQL; set `config.postgres.dsn` to a reachable external database.
 
-Secrets and certificates are created with `stringData`:
+Plain secret and certificate values are created with `stringData`:
 
 ```yaml
 secretFiles:
@@ -48,6 +48,23 @@ certFiles:
 ```
 
 Reference those files from `values.config` using `/run/secrets/<key>` and `/run/certs/<key>`. Do not commit real secret values to source control.
+
+For OAuth mTLS certificates that are already base64-encoded, set the data next
+to the mTLS file paths. The chart writes these values to the certificate Secret
+with Kubernetes `data` and mounts them at `/run/certs`:
+
+```bash
+helm upgrade --install llm-monitor ./charts/llm-monitor \
+  --set-string config.auth.client_secret="$CLIENT_SECRET" \
+  --set-string config.auth.mtls.cert_file_data="$CERT_CRT_BASE64" \
+  --set-string config.auth.mtls.key_file_data="$CERT_KEY_BASE64"
+```
+
+The generated Secret keys are derived from `config.auth.mtls.cert_file` and
+`config.auth.mtls.key_file`, which default to `client.crt` and `client.key`.
+`config.auth.client_secret` is rendered inline in the generated ConfigMap; use
+`secretFiles.data.oauth-client-secret` instead when the value should stay in a
+mounted Kubernetes Secret.
 
 ## Gateway API
 

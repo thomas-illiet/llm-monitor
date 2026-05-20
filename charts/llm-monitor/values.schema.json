@@ -260,6 +260,31 @@
               "minLength": 1
             }
           }
+        },
+        "auth": {
+          "type": "object",
+          "properties": {
+            "client_secret": {
+              "type": "string"
+            },
+            "mtls": {
+              "type": "object",
+              "properties": {
+                "cert_file": {
+                  "type": "string"
+                },
+                "cert_file_data": {
+                  "type": "string"
+                },
+                "key_file": {
+                  "type": "string"
+                },
+                "key_file_data": {
+                  "type": "string"
+                }
+              }
+            }
+          }
         }
       }
     },

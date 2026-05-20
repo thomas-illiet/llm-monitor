@@ -1,3 +1,6 @@
+{{- $mtls := .Values.config.auth.mtls | default dict -}}
+{{- $hasMTLSData := or ($mtls.cert_file_data | default "") ($mtls.key_file_data | default "") -}}
+{{- $hasCertFiles := or .Values.certFiles.data $hasMTLSData -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -13,7 +16,7 @@ spec:
     metadata:
       annotations:
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
-        {{- if or .Values.secretFiles.data .Values.certFiles.data }}
+        {{- if or .Values.secretFiles.data $hasCertFiles }}
         checksum/secrets: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
         {{- end }}
         {{- with .Values.podAnnotations }}
@@ -71,7 +74,7 @@ spec:
               mountPath: /run/secrets
               readOnly: true
             {{- end }}
-            {{- if .Values.certFiles.data }}
+            {{- if $hasCertFiles }}
             - name: cert-files
               mountPath: /run/certs
               readOnly: true
@@ -96,7 +99,7 @@ spec:
           secret:
             secretName: {{ include "llm-monitor.fullname" . }}-secret-files
         {{- end }}
-        {{- if .Values.certFiles.data }}
+        {{- if $hasCertFiles }}
         - name: cert-files
           secret:
             secretName: {{ include "llm-monitor.fullname" . }}-cert-files

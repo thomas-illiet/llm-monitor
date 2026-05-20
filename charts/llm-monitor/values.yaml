@@ -95,7 +95,11 @@ config:
     refresh_skew: "30s"
     mtls:
       cert_file: "/run/certs/client.crt"
+      # Base64-encoded data rendered into the cert Secret with --set-string.
+      cert_file_data: ""
       key_file: "/run/certs/client.key"
+      # Base64-encoded data rendered into the cert Secret with --set-string.
+      key_file_data: ""
       ca_file: "/run/certs/ca.crt"
 
   smtp:

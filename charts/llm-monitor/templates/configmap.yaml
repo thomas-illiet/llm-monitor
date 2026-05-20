@@ -1,5 +1,10 @@
 {{- $postgresDsn := required "config.postgres.dsn is required" .Values.config.postgres.dsn -}}
 {{- $targetBaseURL := required "config.target.base_url is required" .Values.config.target.base_url -}}
+{{- $config := deepCopy .Values.config -}}
+{{- with $config.auth.mtls }}
+{{- $_ := unset . "cert_file_data" -}}
+{{- $_ := unset . "key_file_data" -}}
+{{- end -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -8,7 +13,7 @@ metadata:
     {{- include "llm-monitor.labels" . | nindent 4 }}
 data:
   config.yaml: |
-{{ toYaml .Values.config | indent 4 }}
+{{ toYaml $config | indent 4 }}
   {{- if .Values.embeddingFixture.enabled }}
   embedding-fixture.txt: |
 {{ .Values.embeddingFixture.content | indent 4 }}
