@@ -1,12 +1,21 @@
 {{- $postgresDsn := required "config.postgres.dsn is required" .Values.config.postgres.dsn -}}
 {{- $targetBaseURL := required "config.target.base_url is required" .Values.config.target.base_url -}}
 {{- $config := deepCopy .Values.config -}}
-{{- with $config.auth.mtls }}
+{{- with $config.target }}
+{{- $_ := unset . "api_key_file" -}}
+{{- end -}}
+{{- with $config.auth }}
+{{- $_ := unset . "client_secret_file" -}}
+{{- with .mtls }}
 {{- $_ := unset . "cert_file_data" -}}
 {{- $_ := unset . "key_file_data" -}}
 {{- end -}}
-{{- if not $config.smtp.enabled }}
-{{- $_ := unset $config.smtp "password_file" -}}
+{{- end -}}
+{{- with $config.smtp }}
+{{- $_ := unset . "password_file" -}}
+{{- end -}}
+{{- with $config.mcp }}
+{{- $_ := unset . "bearer_token_file" -}}
 {{- end -}}
 apiVersion: v1
 kind: ConfigMap

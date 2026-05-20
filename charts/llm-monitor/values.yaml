@@ -75,7 +75,8 @@ config:
     http_check_path: "/v1/models"
     timeout: "30s"
     # ca_file: "/run/certs/llm-api-ca.crt"
-    # api_key_file: "/run/secrets/target-api-key"
+    # Set with --set-string config.target.api_key=... to render inline in config.yaml.
+    # api_key: ""
     retry:
       enabled: true
       max_retries: 2
@@ -86,7 +87,8 @@ config:
     enabled: false
     token_url: "https://auth.example.com/oauth2/token"
     client_id: "llm-monitor"
-    client_secret_file: "/run/secrets/oauth-client-secret"
+    # Set with --set-string config.auth.client_secret=... to render inline in config.yaml.
+    # client_secret: ""
     scopes:
       - "llm.read"
       - "llm.invoke"
@@ -109,7 +111,6 @@ config:
     username: "llm-monitor@example.com"
     # Set with --set-string config.smtp.password=... to render inline in config.yaml.
     # password: ""
-    password_file: "/run/secrets/smtp-password"
     from: "llm-monitor@example.com"
     to:
       - "platform@example.com"
@@ -120,7 +121,6 @@ config:
     path: "/mcp"
     # Set with --set-string config.mcp.bearer_token=... to render inline in config.yaml.
     # bearer_token: ""
-    bearer_token_file: "/run/secrets/mcp-bearer-token"
 
   schedules:
     http_check: "30s"
@@ -157,14 +157,6 @@ config:
       ttft_p99_ms: 200
       itl_p99_ms: 50
       request_latency_p99_ms: 3000
-
-secretFiles:
-  data: {}
-  # data:
-  #   target-api-key: "replace-me"
-  #   oauth-client-secret: "replace-me"
-  #   smtp-password: "replace-me"
-  #   mcp-bearer-token: "replace-me"
 
 certFiles:
   data: {}

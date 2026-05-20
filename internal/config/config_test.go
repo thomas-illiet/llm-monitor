@@ -277,13 +277,13 @@ func TestValidateMCPRequiresBearerToken(t *testing.T) {
 	}
 	cfg.ApplyDefaults()
 	err := cfg.Validate()
-	if err == nil || !strings.Contains(err.Error(), "mcp.bearer_token or mcp.bearer_token_file is required") {
+	if err == nil || !strings.Contains(err.Error(), "mcp.bearer_token is required") {
 		t.Fatalf("Validate() error = %v, want mcp bearer token requirement", err)
 	}
 
-	cfg.MCP.BearerTokenFile = "/run/secrets/mcp-token"
+	cfg.MCP.BearerToken = "mcp-token"
 	if err := cfg.Validate(); err != nil {
-		t.Fatalf("Validate() with bearer token file error = %v", err)
+		t.Fatalf("Validate() with bearer token error = %v", err)
 	}
 }
 

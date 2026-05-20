@@ -29,16 +29,19 @@ The namespace SecurityContextConstraints must allow UID `1000`. A default restri
 
 The application config is generated from `values.config` and mounted at `/config/config.yaml`. The chart does not deploy PostgreSQL; set `config.postgres.dsn` to a reachable external database.
 
-Plain secret and certificate values are created with `stringData`:
+Application secrets are rendered inline in the generated ConfigMap when set:
+
+```bash
+helm upgrade --install llm-monitor ./charts/llm-monitor \
+  --set-string config.target.api_key="$TARGET_API_KEY" \
+  --set-string config.auth.client_secret="$CLIENT_SECRET" \
+  --set-string config.smtp.password="$SMTP_PASSWORD" \
+  --set-string config.mcp.bearer_token="$MCP_BEARER_TOKEN"
+```
+
+Certificates can still be created from values and mounted at `/run/certs`:
 
 ```yaml
-secretFiles:
-  data:
-    target-api-key: "replace-me"
-    oauth-client-secret: "replace-me"
-    smtp-password: "replace-me"
-    mcp-bearer-token: "replace-me"
-
 certFiles:
   data:
     llm-api-ca.crt: |
@@ -47,7 +50,8 @@ certFiles:
       -----END CERTIFICATE-----
 ```
 
-Reference those files from `values.config` using `/run/secrets/<key>` and `/run/certs/<key>`. Do not commit real secret values to source control.
+Reference certificate files from `values.config` using `/run/certs/<key>`. Do
+not commit real secret values to source control.
 
 For OAuth mTLS certificates that are already base64-encoded, set the data next
 to the mTLS file paths. The chart writes these values to the certificate Secret
@@ -55,26 +59,12 @@ with Kubernetes `data` and mounts them at `/run/certs`:
 
 ```bash
 helm upgrade --install llm-monitor ./charts/llm-monitor \
-  --set-string config.auth.client_secret="$CLIENT_SECRET" \
   --set-string config.auth.mtls.cert_file_data="$CERT_CRT_BASE64" \
   --set-string config.auth.mtls.key_file_data="$CERT_KEY_BASE64"
 ```
 
 The generated Secret keys are derived from `config.auth.mtls.cert_file` and
 `config.auth.mtls.key_file`, which default to `client.crt` and `client.key`.
-
-These secret values are rendered inline in the generated ConfigMap when set:
-
-```bash
-helm upgrade --install llm-monitor ./charts/llm-monitor \
-  --set-string config.auth.client_secret="$CLIENT_SECRET" \
-  --set-string config.smtp.password="$SMTP_PASSWORD" \
-  --set-string config.mcp.bearer_token="$MCP_BEARER_TOKEN"
-```
-
-Use `secretFiles.data.oauth-client-secret`, `secretFiles.data.smtp-password`, or
-`secretFiles.data.mcp-bearer-token` instead when a value should stay in a
-mounted Kubernetes Secret.
 
 ## Gateway API
 

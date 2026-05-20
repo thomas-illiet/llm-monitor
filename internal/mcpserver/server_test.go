@@ -6,8 +6,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"slices"
 	"testing"
 	"time"
@@ -46,28 +44,11 @@ func (f *fakeStore) ModelPerformance(_ context.Context, query store.ModelPerform
 	return f.performance, nil
 }
 
-func TestNewHandlerReadsBearerTokenFile(t *testing.T) {
-	dir := t.TempDir()
-	tokenPath := filepath.Join(dir, "mcp-token")
-	if err := os.WriteFile(tokenPath, []byte("from-file\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+func TestNewHandlerRejectsEmptyBearerToken(t *testing.T) {
 	cfg := testConfig()
 	cfg.MCP.BearerToken = ""
-	cfg.MCP.BearerTokenFile = tokenPath
-	handler, err := NewHandler(cfg, testStore(), nil)
-	if err != nil {
-		t.Fatalf("NewHandler() error = %v", err)
-	}
-
-	req := httptest.NewRequest(http.MethodPost, "/mcp", bytes.NewReader([]byte(initializeRequest(1))))
-	req.Header.Set("Authorization", "Bearer from-file")
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json, text/event-stream")
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	if _, err := NewHandler(cfg, testStore(), nil); err == nil {
+		t.Fatal("NewHandler() error = nil, want empty bearer token error")
 	}
 }
 

@@ -16,7 +16,7 @@ spec:
     metadata:
       annotations:
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
-        {{- if or .Values.secretFiles.data $hasCertFiles }}
+        {{- if $hasCertFiles }}
         checksum/secrets: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
         {{- end }}
         {{- with .Values.podAnnotations }}
@@ -69,11 +69,6 @@ spec:
             - name: config
               mountPath: /config
               readOnly: true
-            {{- if .Values.secretFiles.data }}
-            - name: secret-files
-              mountPath: /run/secrets
-              readOnly: true
-            {{- end }}
             {{- if $hasCertFiles }}
             - name: cert-files
               mountPath: /run/certs
@@ -94,11 +89,6 @@ spec:
               - key: embedding-fixture.txt
                 path: embedding-fixture.txt
               {{- end }}
-        {{- if .Values.secretFiles.data }}
-        - name: secret-files
-          secret:
-            secretName: {{ include "llm-monitor.fullname" . }}-secret-files
-        {{- end }}
         {{- if $hasCertFiles }}
         - name: cert-files
           secret:

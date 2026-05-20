@@ -35,7 +35,7 @@ Run it with:
 
 - `LLM_MONITOR_CONFIG=/config/config.yaml`
 - a read-only mounted config file
-- read-only mounted API CA, mTLS cert/key, and secret files when enabled
+- read-only mounted API CA and mTLS cert/key files when enabled
 - a PostgreSQL DSN reachable from the container
 
 Example:

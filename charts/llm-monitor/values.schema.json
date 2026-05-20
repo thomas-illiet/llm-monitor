@@ -258,6 +258,9 @@
             "base_url": {
               "type": "string",
               "minLength": 1
+            },
+            "api_key": {
+              "type": "string"
             }
           }
         },
@@ -300,17 +303,6 @@
             "bearer_token": {
               "type": "string"
             }
-          }
-        }
-      }
-    },
-    "secretFiles": {
-      "type": "object",
-      "properties": {
-        "data": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "string"
           }
         }
       }

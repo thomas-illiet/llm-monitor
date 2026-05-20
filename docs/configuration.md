@@ -16,18 +16,20 @@ Configuration is loaded from `LLM_MONITOR_CONFIG`, defaulting to `config.yaml`. 
 - `target.base_url`: OpenAI-compatible API base URL.
 - `auth.token_url`: required only when `auth.enabled` is `true`.
 - `smtp.host`, `smtp.from`, and `smtp.to`: required only when `smtp.enabled` is `true`.
-- `mcp.bearer_token` or `mcp.bearer_token_file`: required only when `mcp.enabled` is `true`.
+- `mcp.bearer_token`: required only when `mcp.enabled` is `true`.
 
 ## Secrets
 
-Secrets can be supplied inline for local use or via file fields for deployment:
+Secret values are supplied inline in the config file:
 
-- `target.api_key_file`
-- `auth.client_secret_file`
-- `smtp.password_file`
-- `mcp.bearer_token_file`
+- `target.api_key`
+- `auth.client_secret`
+- `smtp.password`
+- `mcp.bearer_token`
 
-Prefer file fields in production so Docker/Kubernetes secrets can be mounted read-only.
+For the Helm chart, pass these values with `--set-string config.<path>=...`.
+Certificate and CA settings still use file paths because TLS libraries load them
+from mounted files.
 
 ## MCP Endpoint
 
@@ -78,6 +80,6 @@ The built-in charts are:
 
 ## Related Docs
 
-- [Deployment](deployment.md) explains how config files and mounted secrets are passed to the container.
+- [Deployment](deployment.md) explains how config files and certificates are passed to the container.
 - [Scheduled Tasks](tasks/README.md) documents the runtime behavior controlled by `schedules`, `tests`, `models`, and `retention`.
 - [Operations](operations.md) covers the operational impact of health checks, alerts, and retention.

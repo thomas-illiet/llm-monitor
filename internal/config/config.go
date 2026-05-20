@@ -115,7 +115,6 @@ type TargetConfig struct {
 	Timeout       Duration    `yaml:"timeout"`
 	CAFile        string      `yaml:"ca_file"`
 	APIKey        string      `yaml:"api_key"`
-	APIKeyFile    string      `yaml:"api_key_file"`
 	Retry         RetryConfig `yaml:"retry"`
 }
 
@@ -133,7 +132,6 @@ type AuthConfig struct {
 	TokenURL     string     `yaml:"token_url"`
 	ClientID     string     `yaml:"client_id"`
 	ClientSecret string     `yaml:"client_secret"`
-	SecretFile   string     `yaml:"client_secret_file"`
 	Scopes       []string   `yaml:"scopes"`
 	Audience     string     `yaml:"audience"`
 	Timeout      Duration   `yaml:"timeout"`
@@ -156,7 +154,6 @@ type SMTPConfig struct {
 	Port               int      `yaml:"port"`
 	Username           string   `yaml:"username"`
 	Password           string   `yaml:"password"`
-	PasswordFile       string   `yaml:"password_file"`
 	From               string   `yaml:"from"`
 	To                 []string `yaml:"to"`
 	StartTLS           bool     `yaml:"starttls"`
@@ -165,10 +162,9 @@ type SMTPConfig struct {
 
 // MCPConfig controls the optional Streamable HTTP MCP endpoint.
 type MCPConfig struct {
-	Enabled         bool   `yaml:"enabled"`
-	Path            string `yaml:"path"`
-	BearerToken     string `yaml:"bearer_token"`
-	BearerTokenFile string `yaml:"bearer_token_file"`
+	Enabled     bool   `yaml:"enabled"`
+	Path        string `yaml:"path"`
+	BearerToken string `yaml:"bearer_token"`
 }
 
 // ScheduleConfig controls recurring monitor intervals.
@@ -366,8 +362,8 @@ func (c Config) Validate() error {
 		if c.MCP.Path == "" || !strings.HasPrefix(c.MCP.Path, "/") || c.MCP.Path == "/" {
 			problems = append(problems, "mcp.path must start with / and cannot be /")
 		}
-		if c.MCP.BearerToken == "" && c.MCP.BearerTokenFile == "" {
-			problems = append(problems, "mcp.bearer_token or mcp.bearer_token_file is required when mcp.enabled=true")
+		if c.MCP.BearerToken == "" {
+			problems = append(problems, "mcp.bearer_token is required when mcp.enabled=true")
 		}
 	}
 	if c.Retention.History.Duration < 0 {
@@ -421,19 +417,4 @@ func (r RetryConfig) WaitMaxValue() time.Duration {
 func isAbsoluteHTTPURL(raw string) bool {
 	parsed, err := url.Parse(raw)
 	return err == nil && parsed.Scheme != "" && parsed.Host != "" && (parsed.Scheme == "http" || parsed.Scheme == "https")
-}
-
-// ReadSecret returns an inline secret or reads one from a mounted secret file.
-func ReadSecret(value, file string) (string, error) {
-	if value != "" {
-		return value, nil
-	}
-	if file == "" {
-		return "", nil
-	}
-	data, err := os.ReadFile(file)
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimSpace(string(data)), nil
 }

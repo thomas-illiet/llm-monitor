@@ -40,11 +40,7 @@ type server struct {
 
 // NewHandler builds the protected Streamable HTTP MCP handler.
 func NewHandler(cfg config.Config, db Store, logger *slog.Logger) (http.Handler, error) {
-	token, err := config.ReadSecret(cfg.MCP.BearerToken, cfg.MCP.BearerTokenFile)
-	if err != nil {
-		return nil, fmt.Errorf("read mcp bearer token: %w", err)
-	}
-	token = strings.TrimSpace(token)
+	token := strings.TrimSpace(cfg.MCP.BearerToken)
 	if token == "" {
 		return nil, errors.New("mcp bearer token is empty")
 	}

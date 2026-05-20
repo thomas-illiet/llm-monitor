@@ -42,16 +42,12 @@ type SMTPNotifier struct {
 	logger   *slog.Logger
 }
 
-// NewSMTPNotifier prepares SMTP settings and reads any mounted password file.
+// NewSMTPNotifier prepares SMTP settings.
 func NewSMTPNotifier(cfg config.SMTPConfig, logger *slog.Logger) (*SMTPNotifier, error) {
 	if !cfg.Enabled {
 		return &SMTPNotifier{cfg: cfg, logger: logger}, nil
 	}
-	password, err := config.ReadSecret(cfg.Password, cfg.PasswordFile)
-	if err != nil {
-		return nil, err
-	}
-	return &SMTPNotifier{cfg: cfg, password: password, logger: logger}, nil
+	return &SMTPNotifier{cfg: cfg, password: strings.TrimSpace(cfg.Password), logger: logger}, nil
 }
 
 // Send delivers an alert email, or logs a skip when SMTP is disabled.

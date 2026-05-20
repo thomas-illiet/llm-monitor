@@ -10,6 +10,7 @@ target:
   http_check_path: "/v1/models"
   timeout: "30s"
   ca_file: "/run/certs/llm-api-ca.crt"
+  api_key: "replace-me"
   retry:
     enabled: true
     max_retries: 2
@@ -20,7 +21,7 @@ auth:
   enabled: true
   token_url: "https://auth.example.com/oauth2/token"
   client_id: "llm-monitor"
-  client_secret_file: "/run/secrets/oauth-client-secret"
+  client_secret: "replace-me"
   scopes: ["llm.read", "llm.invoke"]
   audience: "llm-service"
   timeout: "10s"
@@ -35,7 +36,7 @@ smtp:
   host: "smtp.example.com"
   port: 587
   username: "llm-monitor@example.com"
-  password_file: "/run/secrets/smtp-password"
+  password: "replace-me"
   from: "llm-monitor@example.com"
   to: ["platform@example.com"]
   starttls: true
@@ -43,7 +44,7 @@ smtp:
 mcp:
   enabled: false
   path: "/mcp"
-  bearer_token_file: "/run/secrets/mcp-bearer-token"
+  bearer_token: "replace-me"
 
 schedules:
   http_check: "30s"

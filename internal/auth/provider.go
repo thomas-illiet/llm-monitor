@@ -65,24 +65,16 @@ type clientCredentialsProvider struct {
 // NewProvider builds either a static token provider or an OAuth2 mTLS provider.
 func NewProvider(authCfg config.AuthConfig, targetCfg config.TargetConfig, logger *slog.Logger) (Provider, error) {
 	if !authCfg.Enabled {
-		token, err := config.ReadSecret(targetCfg.APIKey, targetCfg.APIKeyFile)
-		if err != nil {
-			return nil, fmt.Errorf("read target api key: %w", err)
-		}
-		return staticProvider{token: token}, nil
+		return staticProvider{token: strings.TrimSpace(targetCfg.APIKey)}, nil
 	}
 
-	secret, err := config.ReadSecret(authCfg.ClientSecret, authCfg.SecretFile)
-	if err != nil {
-		return nil, fmt.Errorf("read oauth client secret: %w", err)
-	}
 	httpClient, err := mtlsHTTPClient(authCfg)
 	if err != nil {
 		return nil, err
 	}
 	return &clientCredentialsProvider{
 		cfg:          authCfg,
-		clientSecret: secret,
+		clientSecret: strings.TrimSpace(authCfg.ClientSecret),
 		httpClient:   httpClient,
 		logger:       logger,
 	}, nil
