@@ -22,6 +22,7 @@ import (
 // targetHTTPClient creates the outbound client used by all LLM API requests.
 func targetHTTPClient(cfg config.TargetConfig) (*http.Client, error) {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
+	var tlsConfig *tls.Config
 	if cfg.CAFile != "" {
 		ca, err := os.ReadFile(cfg.CAFile)
 		if err != nil {
@@ -37,10 +38,19 @@ func targetHTTPClient(cfg config.TargetConfig) (*http.Client, error) {
 		if !pool.AppendCertsFromPEM(ca) {
 			return nil, errors.New("failed to parse target ca")
 		}
-		transport.TLSClientConfig = &tls.Config{
+		tlsConfig = &tls.Config{
 			MinVersion: tls.VersionTLS12,
 			RootCAs:    pool,
 		}
+	}
+	if cfg.InsecureSkipVerify {
+		if tlsConfig == nil {
+			tlsConfig = &tls.Config{MinVersion: tls.VersionTLS12}
+		}
+		tlsConfig.InsecureSkipVerify = true
+	}
+	if tlsConfig != nil {
+		transport.TLSClientConfig = tlsConfig
 	}
 	if !cfg.Retry.EnabledValue() {
 		return &http.Client{Timeout: cfg.Timeout.Duration, Transport: transport}, nil

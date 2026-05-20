@@ -44,6 +44,14 @@ OAuth client credentials are sent with `Authorization: Basic ...` by default
 `config.auth.client_auth_method=client_secret_post` only for token endpoints
 that require credentials in the form body.
 
+To skip TLS certificate verification for outbound HTTP requests to the target
+API and OAuth token endpoint, set:
+
+```bash
+helm upgrade --install llm-monitor ./charts/llm-monitor \
+  --set config.tls.insecure_skip_verify=true
+```
+
 Certificates can still be created from values and mounted at `/run/certs`:
 
 ```yaml

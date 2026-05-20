@@ -167,6 +167,37 @@ func TestValidateRejectsInvalidTargetBaseURL(t *testing.T) {
 	}
 }
 
+// TestLoadAppliesGlobalTLSInsecureSkipVerify verifies the global outbound HTTP
+// TLS switch is propagated to target and OAuth clients.
+func TestLoadAppliesGlobalTLSInsecureSkipVerify(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	data := []byte(`
+postgres:
+  dsn: postgres://user:pass@localhost:5432/monitor
+tls:
+  insecure_skip_verify: true
+target:
+  base_url: https://llm.example.test
+`)
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.TLS.InsecureSkipVerify {
+		t.Fatal("tls.insecure_skip_verify = false, want true")
+	}
+	if !cfg.Target.InsecureSkipVerify {
+		t.Fatal("target insecure skip verify = false, want true")
+	}
+	if !cfg.Auth.MTLS.InsecureSkipVerify {
+		t.Fatal("auth mtls insecure skip verify = false, want true")
+	}
+}
+
 // TestLoadParsesDashboardBranding verifies dashboard branding is loaded and trimmed.
 func TestLoadParsesDashboardBranding(t *testing.T) {
 	dir := t.TempDir()

@@ -86,6 +86,7 @@ func (d Duration) MarshalYAML() (any, error) {
 type Config struct {
 	Server    ServerConfig    `yaml:"server"`
 	Postgres  PostgresConfig  `yaml:"postgres"`
+	TLS       TLSConfig       `yaml:"tls"`
 	Target    TargetConfig    `yaml:"target"`
 	Auth      AuthConfig      `yaml:"auth"`
 	SMTP      SMTPConfig      `yaml:"smtp"`
@@ -107,15 +108,21 @@ type PostgresConfig struct {
 	DSN string `yaml:"dsn"`
 }
 
+// TLSConfig controls shared outbound HTTP TLS behavior.
+type TLSConfig struct {
+	InsecureSkipVerify bool `yaml:"insecure_skip_verify"`
+}
+
 // TargetConfig controls outbound calls to the OpenAI-compatible LLM API.
 type TargetConfig struct {
-	Name          string      `yaml:"name"`
-	BaseURL       string      `yaml:"base_url"`
-	HTTPCheckPath string      `yaml:"http_check_path"`
-	Timeout       Duration    `yaml:"timeout"`
-	CAFile        string      `yaml:"ca_file"`
-	APIKey        string      `yaml:"api_key"`
-	Retry         RetryConfig `yaml:"retry"`
+	Name               string      `yaml:"name"`
+	BaseURL            string      `yaml:"base_url"`
+	HTTPCheckPath      string      `yaml:"http_check_path"`
+	Timeout            Duration    `yaml:"timeout"`
+	CAFile             string      `yaml:"ca_file"`
+	APIKey             string      `yaml:"api_key"`
+	InsecureSkipVerify bool        `yaml:"insecure_skip_verify"`
+	Retry              RetryConfig `yaml:"retry"`
 }
 
 // RetryConfig controls retry behavior for outbound LLM API HTTP calls.
@@ -259,6 +266,10 @@ func (c *Config) ApplyDefaults() {
 	}
 	if !c.Target.Retry.WaitMax.Set && c.Target.Retry.WaitMax.Duration == 0 {
 		c.Target.Retry.WaitMax.Duration = 5 * time.Second
+	}
+	if c.TLS.InsecureSkipVerify {
+		c.Target.InsecureSkipVerify = true
+		c.Auth.MTLS.InsecureSkipVerify = true
 	}
 	if c.Auth.Timeout.Duration == 0 {
 		c.Auth.Timeout.Duration = 10 * time.Second

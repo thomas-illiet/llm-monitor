@@ -92,3 +92,33 @@ func TestClientCredentialsProviderSupportsPostClientAuth(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// TestClientCredentialsProviderCanSkipTLSVerification verifies OAuth token
+// requests can use the shared insecure TLS mode.
+func TestClientCredentialsProviderCanSkipTLSVerification(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"access_token": "token-1",
+			"expires_in":   3600,
+		})
+	}))
+	defer server.Close()
+
+	provider, err := NewProvider(config.AuthConfig{
+		Enabled:      true,
+		TokenURL:     server.URL,
+		ClientID:     "client",
+		ClientSecret: "secret",
+		MTLS: config.MTLSConfig{
+			InsecureSkipVerify: true,
+		},
+		Timeout:     config.Duration{Duration: 2 * time.Second},
+		RefreshSkew: config.Duration{Duration: time.Minute},
+	}, config.TargetConfig{}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := provider.Token(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+}

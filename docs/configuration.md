@@ -36,6 +36,11 @@ OAuth client credentials are sent with HTTP Basic authentication by default
 `auth.client_auth_method: client_secret_post` only for token endpoints that
 expect `client_id` and `client_secret` in the form body.
 
+Set `tls.insecure_skip_verify: true` to skip certificate verification for
+outbound HTTP requests to the target API and OAuth token endpoint. Keep it off
+unless the upstream endpoints use certificates that cannot be trusted through
+`target.ca_file` or `auth.mtls.ca_file`.
+
 ## MCP Endpoint
 
 The optional MCP Streamable HTTP endpoint is disabled by default. Enable it with `mcp.enabled: true`, set `mcp.path` if `/mcp` is not suitable, and provide a dedicated bearer token.

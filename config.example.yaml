@@ -4,6 +4,9 @@ server:
 postgres:
   dsn: "postgres://llm_monitor:llm_monitor@postgres:5432/llm_monitor?sslmode=disable"
 
+# tls:
+#   insecure_skip_verify: true
+
 target:
   name: "production-llm"
   base_url: "https://llm.example.com"

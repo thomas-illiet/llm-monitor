@@ -69,6 +69,10 @@ config:
   postgres:
     dsn: "postgres://llm_monitor:llm_monitor@postgres.example.com:5432/llm_monitor?sslmode=require"
 
+  # Skip TLS certificate verification for all outbound HTTP clients.
+  # tls:
+  #   insecure_skip_verify: true
+
   target:
     name: "production-llm"
     base_url: "https://llm.example.com"

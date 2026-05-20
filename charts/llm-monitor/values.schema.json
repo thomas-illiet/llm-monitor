@@ -251,6 +251,14 @@
             }
           }
         },
+        "tls": {
+          "type": "object",
+          "properties": {
+            "insecure_skip_verify": {
+              "type": "boolean"
+            }
+          }
+        },
         "target": {
           "type": "object",
           "required": ["base_url"],

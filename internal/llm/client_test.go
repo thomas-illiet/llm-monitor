@@ -46,6 +46,34 @@ func TestClientUsesTargetCustomCA(t *testing.T) {
 	}
 }
 
+// TestClientCanSkipTargetTLSVerification verifies the global TLS escape hatch
+// can be propagated to target HTTP requests.
+func TestClientCanSkipTargetTLSVerification(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":[{"id":"gpt-test"}]}`))
+	}))
+	defer server.Close()
+
+	client, err := NewClient(config.TargetConfig{
+		BaseURL:            server.URL,
+		HTTPCheckPath:      "/v1/models",
+		Timeout:            config.Duration{Duration: 2 * time.Second},
+		InsecureSkipVerify: true,
+	}, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	models, err := client.ListModels(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(models) != 1 || models[0] != "gpt-test" {
+		t.Fatalf("unexpected models: %#v", models)
+	}
+}
+
 // TestClientRetriesTransientHTTPFailures verifies retryable target requests recover from 5xx responses.
 func TestClientRetriesTransientHTTPFailures(t *testing.T) {
 	var calls int32
