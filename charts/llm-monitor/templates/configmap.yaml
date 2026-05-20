@@ -5,6 +5,9 @@
 {{- $_ := unset . "cert_file_data" -}}
 {{- $_ := unset . "key_file_data" -}}
 {{- end -}}
+{{- if not $config.smtp.enabled }}
+{{- $_ := unset $config.smtp "password_file" -}}
+{{- end -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:

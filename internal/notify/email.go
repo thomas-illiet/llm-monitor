@@ -44,6 +44,9 @@ type SMTPNotifier struct {
 
 // NewSMTPNotifier prepares SMTP settings and reads any mounted password file.
 func NewSMTPNotifier(cfg config.SMTPConfig, logger *slog.Logger) (*SMTPNotifier, error) {
+	if !cfg.Enabled {
+		return &SMTPNotifier{cfg: cfg, logger: logger}, nil
+	}
 	password, err := config.ReadSecret(cfg.Password, cfg.PasswordFile)
 	if err != nil {
 		return nil, err

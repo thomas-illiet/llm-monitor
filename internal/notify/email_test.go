@@ -77,6 +77,21 @@ func TestPlainMessageBuildsTextOnlyEmail(t *testing.T) {
 	}
 }
 
+// TestNewSMTPNotifierSkipsPasswordFileWhenDisabled verifies disabled SMTP does
+// not require a mounted Kubernetes secret at startup.
+func TestNewSMTPNotifierSkipsPasswordFileWhenDisabled(t *testing.T) {
+	notifier, err := NewSMTPNotifier(config.SMTPConfig{
+		Enabled:      false,
+		PasswordFile: "/run/secrets/smtp-password",
+	}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	if err != nil {
+		t.Fatalf("NewSMTPNotifier returned error: %v", err)
+	}
+	if notifier == nil {
+		t.Fatal("NewSMTPNotifier returned nil notifier")
+	}
+}
+
 // TestSendMailDevPreview sends one manually-triggered preview email to local MailDev.
 func TestSendMailDevPreview(t *testing.T) {
 	if os.Getenv("MAILDEV_PREVIEW") != "1" {
