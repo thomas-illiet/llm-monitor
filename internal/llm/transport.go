@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -75,22 +76,29 @@ func targetHTTPClient(cfg config.TargetConfig) (*http.Client, error) {
 
 // postJSON executes a JSON POST and normalizes response timing and errors.
 func (c *Client) postJSON(ctx context.Context, start time.Time, endpoint string, payload any) (RunResult, []byte) {
+	model := payloadModel(payload)
+	endpointLabel := safeEndpointLabel(endpoint)
+	c.logger.Debug("llm post request started", "endpoint", endpointLabel, "model", model)
 	body, err := json.Marshal(payload)
 	if err != nil {
+		c.logger.Warn("llm post request encode failed", "endpoint", endpointLabel, "model", model, "error", err)
 		return RunResult{StartedAt: start.UTC(), Latency: time.Since(start), Error: err.Error()}, nil
 	}
 	req, err := c.newRequest(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
 	if err != nil {
+		c.logger.Warn("llm post request build failed", "endpoint", endpointLabel, "model", model, "error", err)
 		return RunResult{StartedAt: start.UTC(), Latency: time.Since(start), Error: err.Error()}, nil
 	}
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
+		c.logger.Warn("llm post request failed", "endpoint", endpointLabel, "model", model, "latency_ms", millisSince(start), "error", err)
 		return RunResult{StartedAt: start.UTC(), Latency: time.Since(start), Error: err.Error()}, nil
 	}
 	defer resp.Body.Close()
 	respBody, err := io.ReadAll(io.LimitReader(resp.Body, 2<<20))
 	if err != nil {
+		c.logger.Warn("llm post response read failed", "endpoint", endpointLabel, "model", model, "status", resp.StatusCode, "latency_ms", millisSince(start), "error", err)
 		return RunResult{StartedAt: start.UTC(), StatusCode: resp.StatusCode, Latency: time.Since(start), Error: err.Error()}, nil
 	}
 	result := RunResult{
@@ -101,15 +109,20 @@ func (c *Client) postJSON(ctx context.Context, start time.Time, endpoint string,
 	}
 	if !result.OK {
 		result.Error = fmt.Sprintf("llm returned %d: %s", resp.StatusCode, trimBody(respBody))
+		c.logger.Warn("llm post request returned error", "endpoint", endpointLabel, "model", model, "status", resp.StatusCode, "latency_ms", millisSince(start), "error", result.Error)
+		return result, respBody
 	}
+	c.logger.Debug("llm post request completed", "endpoint", endpointLabel, "model", model, "status", resp.StatusCode, "latency_ms", millisSince(start))
 	return result, respBody
 }
 
 // newRequest builds an authenticated request against the target base URL.
 func (c *Client) newRequest(ctx context.Context, method, endpoint string, body io.Reader) (*http.Request, error) {
-	target := *c.baseURL
-	target.Path = strings.TrimRight(c.baseURL.Path, "/") + "/" + strings.TrimLeft(endpoint, "/")
-	req, err := http.NewRequestWithContext(ctx, method, target.String(), body)
+	target, err := c.resolveEndpoint(endpoint)
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequestWithContext(ctx, method, target, body)
 	if err != nil {
 		return nil, err
 	}
@@ -124,6 +137,56 @@ func (c *Client) newRequest(ctx context.Context, method, endpoint string, body i
 		}
 	}
 	return req, nil
+}
+
+func (c *Client) resolveEndpoint(endpoint string) (string, error) {
+	endpoint = strings.TrimSpace(endpoint)
+	parsed, err := url.Parse(endpoint)
+	if err != nil {
+		return "", err
+	}
+	if parsed.IsAbs() {
+		if (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
+			return "", fmt.Errorf("endpoint must use http or https: %s", safeEndpointLabel(endpoint))
+		}
+		return parsed.String(), nil
+	}
+	if !strings.HasPrefix(endpoint, "/") {
+		return "", fmt.Errorf("endpoint must start with / or be an absolute URL: %s", endpoint)
+	}
+	target := *c.baseURL
+	target.Path = strings.TrimRight(c.baseURL.Path, "/") + "/" + strings.TrimLeft(parsed.Path, "/")
+	target.RawQuery = parsed.RawQuery
+	target.ForceQuery = parsed.ForceQuery
+	target.Fragment = parsed.Fragment
+	return target.String(), nil
+}
+
+func payloadModel(payload any) string {
+	values, ok := payload.(map[string]any)
+	if !ok {
+		return ""
+	}
+	model, _ := values["model"].(string)
+	return model
+}
+
+func safeEndpointLabel(endpoint string) string {
+	parsed, err := url.Parse(strings.TrimSpace(endpoint))
+	if err != nil {
+		return endpoint
+	}
+	if parsed.IsAbs() {
+		parsed.RawQuery = ""
+		parsed.ForceQuery = false
+		parsed.Fragment = ""
+		return parsed.String()
+	}
+	return parsed.Path
+}
+
+func millisSince(start time.Time) float64 {
+	return float64(time.Since(start).Microseconds()) / 1000
 }
 
 // trimBody keeps upstream error payloads compact when stored or returned.

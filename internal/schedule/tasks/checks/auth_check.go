@@ -15,6 +15,11 @@ func NewAuthCheckTask(deps shared.Dependencies) runner.Task {
 		Name: shared.AuthCheckTaskName,
 		Handler: func(ctx context.Context, _ runner.TaskContext) error {
 			result := deps.Auth.Check(ctx)
+			if !result.OK {
+				logger.Warn("auth check failed", "status", result.StatusCode, "latency_ms", shared.Milliseconds(result.Latency), "error", result.Error)
+			} else {
+				logger.Debug("auth check completed", "status", result.StatusCode, "latency_ms", shared.Milliseconds(result.Latency))
+			}
 			record := store.CheckRecord{
 				At:         result.CheckedAt,
 				OK:         result.OK,

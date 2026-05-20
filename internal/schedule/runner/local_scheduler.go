@@ -119,9 +119,12 @@ func (s *LocalScheduler) runInvocation(ctx context.Context, invocation Invocatio
 		if task.Timeout > 0 {
 			runCtx, cancel = context.WithTimeout(ctx, task.Timeout)
 		}
+		startedAt := time.Now()
+		s.logger.Debug("scheduled task started", "task", task.Name, "run", runID, "attempt", attempt)
 		err := task.Handler(runCtx, taskCtx)
 		cancel()
 		if err == nil {
+			s.logger.Debug("scheduled task completed", "task", task.Name, "run", runID, "attempt", attempt, "latency_ms", float64(time.Since(startedAt).Microseconds())/1000)
 			return nil
 		}
 		lastErr = err

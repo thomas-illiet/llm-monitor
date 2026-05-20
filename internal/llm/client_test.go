@@ -74,6 +74,118 @@ func TestClientCanSkipTargetTLSVerification(t *testing.T) {
 	}
 }
 
+// TestClientUsesCustomTargetEndpoints verifies model, chat, embedding, and
+// health calls use configurable endpoint paths.
+func TestClientUsesCustomTargetEndpoints(t *testing.T) {
+	var modelCalls int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/vendor/models":
+			atomic.AddInt32(&modelCalls, 1)
+			_, _ = w.Write([]byte(`{"data":[{"id":"gpt-test"}]}`))
+		case "/vendor/chat":
+			if r.Method != http.MethodPost {
+				t.Fatalf("chat method = %s, want POST", r.Method)
+			}
+			_, _ = w.Write([]byte(`{"usage":{"prompt_tokens":2,"completion_tokens":3,"total_tokens":5}}`))
+		case "/vendor/embeddings":
+			if r.Method != http.MethodPost {
+				t.Fatalf("embedding method = %s, want POST", r.Method)
+			}
+			_, _ = w.Write([]byte(`{"data":[{"embedding":[0.1,0.2,0.3]}],"usage":{"prompt_tokens":7,"total_tokens":7}}`))
+		default:
+			t.Fatalf("unexpected path %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	client, err := NewClient(config.TargetConfig{
+		BaseURL: server.URL,
+		Timeout: config.Duration{Duration: 2 * time.Second},
+		Endpoints: config.TargetEndpointsConfig{
+			Models:     "/vendor/models",
+			Chat:       "/vendor/chat",
+			Embeddings: "/vendor/embeddings",
+		},
+	}, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	models, err := client.ListModels(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(models) != 1 || models[0] != "gpt-test" {
+		t.Fatalf("unexpected models: %#v", models)
+	}
+	health := client.HealthCheck(context.Background())
+	if !health.OK {
+		t.Fatalf("health check failed: %#v", health)
+	}
+	if modelCalls != 2 {
+		t.Fatalf("models endpoint calls = %d, want 2", modelCalls)
+	}
+
+	chat := client.RunChat(context.Background(), ChatRequest{
+		Model:       "gpt-test",
+		Prompt:      "hello",
+		MaxTokens:   4,
+		Temperature: 0,
+	})
+	if !chat.OK || chat.InputTokens == nil || *chat.InputTokens != 2 || chat.OutputTokens == nil || *chat.OutputTokens != 3 {
+		t.Fatalf("unexpected chat result: %#v", chat)
+	}
+
+	embedding := client.RunEmbedding(context.Background(), "embed-test", "hello")
+	if !embedding.OK || embedding.VectorDimensions == nil || *embedding.VectorDimensions != 3 {
+		t.Fatalf("unexpected embedding result: %#v", embedding)
+	}
+}
+
+// TestClientUsesAbsoluteEndpointURL verifies an endpoint can target a full URL
+// instead of being joined to target.base_url.
+func TestClientUsesAbsoluteEndpointURL(t *testing.T) {
+	var absoluteCalls int32
+	absoluteServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&absoluteCalls, 1)
+		if r.URL.Path != "/absolute/models" {
+			t.Fatalf("absolute path = %s, want /absolute/models", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":[{"id":"absolute-model"}]}`))
+	}))
+	defer absoluteServer.Close()
+
+	baseServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatalf("base server should not be called, got %s", r.URL.Path)
+	}))
+	defer baseServer.Close()
+
+	client, err := NewClient(config.TargetConfig{
+		BaseURL: baseServer.URL,
+		Timeout: config.Duration{Duration: 2 * time.Second},
+		Endpoints: config.TargetEndpointsConfig{
+			Models: absoluteServer.URL + "/absolute/models",
+		},
+	}, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	models, err := client.ListModels(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(models) != 1 || models[0] != "absolute-model" {
+		t.Fatalf("unexpected models: %#v", models)
+	}
+	if absoluteCalls != 1 {
+		t.Fatalf("absolute endpoint calls = %d, want 1", absoluteCalls)
+	}
+}
+
 // TestClientRetriesTransientHTTPFailures verifies retryable target requests recover from 5xx responses.
 func TestClientRetriesTransientHTTPFailures(t *testing.T) {
 	var calls int32

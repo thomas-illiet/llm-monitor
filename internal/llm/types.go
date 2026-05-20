@@ -17,11 +17,14 @@ type TokenProvider interface {
 
 // Client calls an OpenAI-compatible LLM service and normalizes probe metrics.
 type Client struct {
-	baseURL       *url.URL
-	httpCheckPath string
-	httpClient    *http.Client
-	tokenProvider TokenProvider
-	logger        *slog.Logger
+	baseURL            *url.URL
+	httpCheckEndpoint  string
+	modelsEndpoint     string
+	chatEndpoint       string
+	embeddingsEndpoint string
+	httpClient         *http.Client
+	tokenProvider      TokenProvider
+	logger             *slog.Logger
 }
 
 // ChatRequest describes one chat probe sent to the completions endpoint.

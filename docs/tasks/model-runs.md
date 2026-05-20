@@ -16,6 +16,8 @@ against the latest runnable model plan produced by the model snapshot task.
 ## Inputs
 
 - Current shared `ModelPlanStore` populated by `monitor.model_snapshot`.
+- `target.endpoints.chat` and `target.endpoints.embeddings`, defaulting to the
+  OpenAI-compatible routes.
 - `models.max_concurrency`, defaulting to `4`, to bound parallel model probes.
 - `tests.chat_prompts`: prompt IDs, prompt text, max token limits, and temperatures
   for chat models.

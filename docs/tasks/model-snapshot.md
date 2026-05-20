@@ -16,7 +16,9 @@ model lifecycle alerts.
 
 ## Inputs
 
-- `target.base_url` and authentication settings for `GET /v1/models`.
+- `target.base_url`, `target.endpoints.models`, and authentication settings for
+  model inventory requests.
+- `target.endpoints.chat` and `target.endpoints.embeddings` for capability probes.
 - `models.max_concurrency`, defaulting to `4`, to bound parallel capability probes.
 - `models.absence_alert_after`, defaulting to `24h`, for inactive and returned alerts.
 - `tests.embedding_fixture.path` and `tests.embedding_fixture.max_bytes` for
@@ -26,11 +28,11 @@ model lifecycle alerts.
 ## Execution
 
 The handler from `internal/schedule/tasks/models/model_snapshot.go` first calls
-`/v1/models` and extracts model IDs. Each model is classified by probing chat
-first, then embeddings:
+the configured model inventory endpoint and extracts model IDs. Each model is
+classified by probing chat first, then embeddings:
 
-- Chat probe: `POST /v1/chat/completions` with prompt `Reply with ok.`
-- Embedding probe: `POST /v1/embeddings` with the configured embedding fixture or a fallback probe string.
+- Chat probe: `POST target.endpoints.chat` with prompt `Reply with ok.`
+- Embedding probe: `POST target.endpoints.embeddings` with the configured embedding fixture or a fallback probe string.
 
 If a chat probe succeeds, the model is classified as `chat`. If chat fails and the
 embedding probe returns a non-empty vector, the model is classified as `embedding`.
@@ -77,7 +79,7 @@ model events.
 
 ## Failure Behavior
 
-If `/v1/models` fails after configured retries, currently runnable models are marked inactive, the runnable model plan is cleared, and the task returns the upstream error.
+If the configured model inventory endpoint fails after configured retries, currently runnable models are marked inactive, the runnable model plan is cleared, and the task returns the upstream error.
 Individual capability probe failures are captured in model event details where
 possible. If persistence fails while processing the observation, the task returns
 an error; the local scheduler logs it and continues on the next tick.

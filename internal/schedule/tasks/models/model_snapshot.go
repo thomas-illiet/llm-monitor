@@ -35,8 +35,10 @@ func (s *service) refreshModels(ctx context.Context, _ runner.TaskContext) error
 		s.sendInactiveModelAlerts(ctx, now)
 		return err
 	}
+	s.logger.Debug("model inventory loaded", "models", len(modelIDs))
 	knownCapabilities := s.lastKnownRunnableCapabilities(ctx)
 	observed := s.detectModels(ctx, modelIDs, knownCapabilities)
+	s.logger.Debug("model capability detection completed", "models", len(observed))
 	now := time.Now().UTC()
 	events, err := s.store.ProcessModelObservation(ctx, observed, now)
 	if err != nil {

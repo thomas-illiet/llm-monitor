@@ -24,8 +24,10 @@ func NewModelRunsTask(deps shared.Dependencies) runner.Task {
 func (s *service) runModelTests(ctx context.Context, _ runner.TaskContext) error {
 	plan := s.modelPlan.Load()
 	if len(plan) == 0 {
+		s.logger.Debug("model run plan empty, skipping scheduled probes")
 		return nil
 	}
+	s.logger.Debug("model run probes started", "models", len(plan), "concurrency", s.modelConcurrency())
 	embeddingText := s.loadEmbeddingFixture()
 	sem := make(chan struct{}, s.modelConcurrency())
 	var wg sync.WaitGroup
@@ -58,6 +60,11 @@ func (s *service) runModelTests(ctx context.Context, _ runner.TaskContext) error
 	var joined error
 	for err := range errs {
 		joined = errors.Join(joined, err)
+	}
+	if joined != nil {
+		s.logger.Warn("model run probes completed with errors", "models", len(plan), "error", joined)
+	} else {
+		s.logger.Debug("model run probes completed", "models", len(plan))
 	}
 	return joined
 }
@@ -98,6 +105,11 @@ func (s *service) runChatTests(ctx context.Context, modelID string) error {
 			s.logger.Error("record chat run", "error", err, "model", modelID)
 			joined = errors.Join(joined, err)
 		}
+		if !result.OK {
+			s.logger.Warn("chat probe failed", "model", modelID, "prompt", prompt.ID, "status", result.StatusCode, "latency_ms", ms(result.Latency), "error", result.Error)
+		} else {
+			s.logger.Debug("chat probe completed", "model", modelID, "prompt", prompt.ID, "status", result.StatusCode, "latency_ms", ms(result.Latency))
+		}
 		s.recordScheduledRunEvent(ctx, modelID, capabilityChat, prompt.ID, result, map[string]any{
 			"prompt_id":   prompt.ID,
 			"max_tokens":  prompt.MaxTokens,
@@ -128,6 +140,7 @@ func (s *service) runChatTests(ctx context.Context, modelID string) error {
 
 func (s *service) runEmbeddingTest(ctx context.Context, modelID, input string) error {
 	if strings.TrimSpace(input) == "" {
+		s.logger.Warn("embedding probe skipped", "model", modelID, "fixture_path", s.cfg.Tests.EmbeddingFixture.Path, "reason", "empty embedding fixture")
 		s.recordModelEvent(ctx, store.ModelEventRecord{
 			ModelID:    modelID,
 			EventType:  "skipped",
@@ -161,6 +174,11 @@ func (s *service) runEmbeddingTest(ctx context.Context, modelID, input string) e
 	if err := s.store.RecordEmbeddingRun(ctx, record); err != nil {
 		s.logger.Error("record embedding run", "error", err, "model", modelID)
 		return err
+	}
+	if !result.OK {
+		s.logger.Warn("embedding probe failed", "model", modelID, "status", result.StatusCode, "latency_ms", ms(result.Latency), "error", result.Error)
+	} else {
+		s.logger.Debug("embedding probe completed", "model", modelID, "status", result.StatusCode, "latency_ms", ms(result.Latency))
 	}
 	s.recordScheduledRunEvent(ctx, modelID, capabilityEmbedding, "", result, map[string]any{
 		"fixture_path":  s.cfg.Tests.EmbeddingFixture.Path,

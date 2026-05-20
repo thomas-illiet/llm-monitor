@@ -66,6 +66,9 @@ config:
   server:
     address: ":8080"
 
+  logging:
+    level: "info"
+
   postgres:
     dsn: "postgres://llm_monitor:llm_monitor@postgres.example.com:5432/llm_monitor?sslmode=require"
 
@@ -76,7 +79,12 @@ config:
   target:
     name: "production-llm"
     base_url: "https://llm.example.com"
-    http_check_path: "/v1/models"
+    # Optional legacy health-check override. Defaults to target.endpoints.models.
+    # http_check_path: "/v1/models"
+    endpoints:
+      models: "/v1/models"
+      chat: "/v1/chat/completions"
+      embeddings: "/v1/embeddings"
     timeout: "30s"
     # ca_file: "/run/certs/llm-api-ca.crt"
     # Set with --set-string config.target.api_key=... to render inline in config.yaml.

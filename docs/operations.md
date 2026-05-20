@@ -35,10 +35,11 @@ Alert send attempts are recorded even when SMTP delivery fails, and failures als
 ## Troubleshooting
 
 - No dashboard data: confirm PostgreSQL connectivity and that `model_snapshot` has run at least once.
+- Need more diagnostics: set `logging.level: debug` and restart the service to include task and outbound LLM request timing details.
 - Auth degraded: check OAuth URL, client secret, mTLS files, CA trust, and token endpoint status.
-- HTTP degraded: check `target.base_url`, `target.http_check_path`, CA trust, and network routing.
+- HTTP degraded: check `target.base_url`, `target.http_check_path` or `target.endpoints.models`, CA trust, and network routing.
 - Models inactive: inspect HTTP checks and model events; the target may be unreachable or the model may no longer be available.
-- Models skipped: inspect model event details; skipped models usually failed both embedding and chat capability probes.
+- Models skipped: inspect model event details; skipped models usually failed both embedding and chat capability probes. For non-standard providers, verify `target.endpoints.chat` and `target.endpoints.embeddings`.
 - Empty embedding runs: confirm `tests.embedding_fixture.path` is mounted and readable.
 
 ## Routine Maintenance

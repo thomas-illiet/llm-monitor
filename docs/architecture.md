@@ -31,7 +31,7 @@ flowchart LR
 
 ## Data Flow
 
-1. The local taskrunner invokes `monitor.model_snapshot`, which lists `/v1/models` and classifies each model with embedding and chat probes.
+1. The local taskrunner invokes `monitor.model_snapshot`, which lists the configured model endpoint and classifies each model with embedding and chat probes.
 2. The store writes a snapshot, updates current model state, and emits lifecycle events.
 3. The snapshot task updates the shared `ModelPlanStore`, then `monitor.model_runs` probes runnable models on the configured interval.
 4. Check, run, token, latency, and event data are persisted.

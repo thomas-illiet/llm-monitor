@@ -13,7 +13,7 @@ func (c *Client) RunEmbedding(ctx context.Context, model, input string) RunResul
 		"model": model,
 		"input": input,
 	}
-	result, body := c.postJSON(ctx, start, "/v1/embeddings", payload)
+	result, body := c.postJSON(ctx, start, c.embeddingsEndpoint, payload)
 	if !result.OK {
 		return result
 	}
@@ -29,6 +29,7 @@ func (c *Client) RunEmbedding(ctx context.Context, model, input string) RunResul
 	if err := json.Unmarshal(body, &decoded); err != nil {
 		result.OK = false
 		result.Error = err.Error()
+		c.logger.Warn("llm embedding response decode failed", "endpoint", safeEndpointLabel(c.embeddingsEndpoint), "model", model, "status", result.StatusCode, "latency_ms", millisSince(start), "error", err)
 		return result
 	}
 	result.InputTokens = decoded.Usage.PromptTokens

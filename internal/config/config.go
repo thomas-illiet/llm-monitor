@@ -85,6 +85,7 @@ func (d Duration) MarshalYAML() (any, error) {
 // Config is the complete runtime configuration loaded from YAML.
 type Config struct {
 	Server    ServerConfig    `yaml:"server"`
+	Logging   LoggingConfig   `yaml:"logging"`
 	Postgres  PostgresConfig  `yaml:"postgres"`
 	TLS       TLSConfig       `yaml:"tls"`
 	Target    TargetConfig    `yaml:"target"`
@@ -103,6 +104,11 @@ type ServerConfig struct {
 	Address string `yaml:"address"`
 }
 
+// LoggingConfig controls application log verbosity.
+type LoggingConfig struct {
+	Level string `yaml:"level"`
+}
+
 // PostgresConfig controls persistence connectivity.
 type PostgresConfig struct {
 	DSN string `yaml:"dsn"`
@@ -115,14 +121,22 @@ type TLSConfig struct {
 
 // TargetConfig controls outbound calls to the OpenAI-compatible LLM API.
 type TargetConfig struct {
-	Name               string      `yaml:"name"`
-	BaseURL            string      `yaml:"base_url"`
-	HTTPCheckPath      string      `yaml:"http_check_path"`
-	Timeout            Duration    `yaml:"timeout"`
-	CAFile             string      `yaml:"ca_file"`
-	APIKey             string      `yaml:"api_key"`
-	InsecureSkipVerify bool        `yaml:"insecure_skip_verify"`
-	Retry              RetryConfig `yaml:"retry"`
+	Name               string                `yaml:"name"`
+	BaseURL            string                `yaml:"base_url"`
+	HTTPCheckPath      string                `yaml:"http_check_path"`
+	Endpoints          TargetEndpointsConfig `yaml:"endpoints"`
+	Timeout            Duration              `yaml:"timeout"`
+	CAFile             string                `yaml:"ca_file"`
+	APIKey             string                `yaml:"api_key"`
+	InsecureSkipVerify bool                  `yaml:"insecure_skip_verify"`
+	Retry              RetryConfig           `yaml:"retry"`
+}
+
+// TargetEndpointsConfig controls the OpenAI-like endpoint URLs used by probes.
+type TargetEndpointsConfig struct {
+	Models     string `yaml:"models"`
+	Chat       string `yaml:"chat"`
+	Embeddings string `yaml:"embeddings"`
 }
 
 // RetryConfig controls retry behavior for outbound LLM API HTTP calls.
@@ -251,12 +265,29 @@ func (c *Config) ApplyDefaults() {
 	if c.Server.Address == "" {
 		c.Server.Address = ":8080"
 	}
+	c.Logging.Level = strings.ToLower(strings.TrimSpace(c.Logging.Level))
+	if c.Logging.Level == "" {
+		c.Logging.Level = "info"
+	}
 	if c.Target.Name == "" {
 		c.Target.Name = "default"
 	}
 	c.Target.BaseURL = strings.TrimSpace(c.Target.BaseURL)
+	c.Target.Endpoints.Models = strings.TrimSpace(c.Target.Endpoints.Models)
+	if c.Target.Endpoints.Models == "" {
+		c.Target.Endpoints.Models = "/v1/models"
+	}
+	c.Target.Endpoints.Chat = strings.TrimSpace(c.Target.Endpoints.Chat)
+	if c.Target.Endpoints.Chat == "" {
+		c.Target.Endpoints.Chat = "/v1/chat/completions"
+	}
+	c.Target.Endpoints.Embeddings = strings.TrimSpace(c.Target.Endpoints.Embeddings)
+	if c.Target.Endpoints.Embeddings == "" {
+		c.Target.Endpoints.Embeddings = "/v1/embeddings"
+	}
+	c.Target.HTTPCheckPath = strings.TrimSpace(c.Target.HTTPCheckPath)
 	if c.Target.HTTPCheckPath == "" {
-		c.Target.HTTPCheckPath = "/v1/models"
+		c.Target.HTTPCheckPath = c.Target.Endpoints.Models
 	}
 	if c.Target.Timeout.Duration == 0 {
 		c.Target.Timeout.Duration = 30 * time.Second
@@ -340,10 +371,25 @@ func (c Config) Validate() error {
 	if c.Postgres.DSN == "" {
 		problems = append(problems, "postgres.dsn is required")
 	}
+	if !isLogLevel(c.Logging.Level) {
+		problems = append(problems, "logging.level must be debug, info, warn, or error")
+	}
 	if c.Target.BaseURL == "" {
 		problems = append(problems, "target.base_url is required")
 	} else if !isAbsoluteHTTPURL(c.Target.BaseURL) {
 		problems = append(problems, "target.base_url must be an absolute http or https URL")
+	}
+	if !isHTTPPathOrURL(c.Target.HTTPCheckPath) {
+		problems = append(problems, "target.http_check_path must start with / or be an absolute http or https URL")
+	}
+	if !isHTTPPathOrURL(c.Target.Endpoints.Models) {
+		problems = append(problems, "target.endpoints.models must start with / or be an absolute http or https URL")
+	}
+	if !isHTTPPathOrURL(c.Target.Endpoints.Chat) {
+		problems = append(problems, "target.endpoints.chat must start with / or be an absolute http or https URL")
+	}
+	if !isHTTPPathOrURL(c.Target.Endpoints.Embeddings) {
+		problems = append(problems, "target.endpoints.embeddings must start with / or be an absolute http or https URL")
 	}
 	if c.Target.Retry.MaxRetries != nil && *c.Target.Retry.MaxRetries < 0 {
 		problems = append(problems, "target.retry.max_retries must be greater than or equal to 0")
@@ -429,6 +475,21 @@ func (r RetryConfig) WaitMaxValue() time.Duration {
 		return 5 * time.Second
 	}
 	return r.WaitMax.Duration
+}
+
+// isLogLevel reports whether a configured level is accepted by the app logger.
+func isLogLevel(level string) bool {
+	switch level {
+	case "debug", "info", "warn", "error":
+		return true
+	default:
+		return false
+	}
+}
+
+// isHTTPPathOrURL reports whether an endpoint is a rooted path or absolute web URL.
+func isHTTPPathOrURL(raw string) bool {
+	return strings.HasPrefix(raw, "/") || isAbsoluteHTTPURL(raw)
 }
 
 // isAbsoluteHTTPURL reports whether a config URL can be used for outbound web requests.

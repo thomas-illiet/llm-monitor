@@ -19,6 +19,11 @@ func NewHTTPCheckTask(deps shared.Dependencies) runner.Task {
 				logger.Error("load latest http check", "error", err)
 			}
 			result := deps.Client.HealthCheck(ctx)
+			if !result.OK {
+				logger.Warn("http check failed", "status", result.StatusCode, "latency_ms", shared.Milliseconds(result.Latency), "error", result.Error)
+			} else {
+				logger.Debug("http check completed", "status", result.StatusCode, "latency_ms", shared.Milliseconds(result.Latency))
+			}
 			record := store.CheckRecord{
 				At:         result.CheckedAt,
 				OK:         result.OK,

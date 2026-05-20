@@ -251,6 +251,15 @@
             }
           }
         },
+        "logging": {
+          "type": "object",
+          "properties": {
+            "level": {
+              "type": "string",
+              "enum": ["debug", "info", "warn", "error", "DEBUG", "INFO", "WARN", "ERROR"]
+            }
+          }
+        },
         "tls": {
           "type": "object",
           "properties": {
@@ -266,6 +275,27 @@
             "base_url": {
               "type": "string",
               "minLength": 1
+            },
+            "http_check_path": {
+              "type": "string",
+              "minLength": 1
+            },
+            "endpoints": {
+              "type": "object",
+              "properties": {
+                "models": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "chat": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "embeddings": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
             },
             "api_key": {
               "type": "string"

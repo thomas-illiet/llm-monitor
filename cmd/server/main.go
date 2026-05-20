@@ -27,7 +27,7 @@ var staticFiles embed.FS
 
 // main wires configuration, storage, monitoring, and the HTTP server.
 func main() {
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	logger := newLogger("info")
 
 	configPath := os.Getenv("LLM_MONITOR_CONFIG")
 	if configPath == "" {
@@ -39,6 +39,16 @@ func main() {
 		logger.Error("load config", "error", err)
 		os.Exit(1)
 	}
+	logger = newLogger(cfg.Logging.Level)
+	logger.Info("config loaded",
+		"log_level", cfg.Logging.Level,
+		"target", cfg.Target.Name,
+		"target_base_url", cfg.Target.BaseURL,
+		"models_endpoint", cfg.Target.Endpoints.Models,
+		"chat_endpoint", cfg.Target.Endpoints.Chat,
+		"embeddings_endpoint", cfg.Target.Endpoints.Embeddings,
+		"http_check_endpoint", cfg.Target.HTTPCheckPath,
+	)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -131,4 +141,19 @@ func main() {
 	if err := server.Shutdown(shutdownCtx); err != nil {
 		logger.Error("shutdown server", "error", err)
 	}
+}
+
+func newLogger(level string) *slog.Logger {
+	var slogLevel slog.Level
+	switch level {
+	case "debug":
+		slogLevel = slog.LevelDebug
+	case "warn":
+		slogLevel = slog.LevelWarn
+	case "error":
+		slogLevel = slog.LevelError
+	default:
+		slogLevel = slog.LevelInfo
+	}
+	return slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slogLevel}))
 }

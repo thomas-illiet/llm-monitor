@@ -16,7 +16,10 @@ service.
 ## Inputs
 
 - `target.base_url`: base URL for the monitored LLM API.
-- `target.http_check_path`: path requested on the target, defaulting to `/v1/models`.
+- `target.http_check_path`: optional path or absolute URL requested on the target.
+  When omitted, it defaults to `target.endpoints.models`.
+- `target.endpoints.models`: default model inventory endpoint, used by HTTP
+  checks when `target.http_check_path` is not set.
 - `target.timeout`, `target.ca_file`, `target.retry`, and target authentication settings used by the LLM HTTP client.
 
 ## Execution

@@ -31,6 +31,26 @@ For the Helm chart, pass these values with `--set-string config.<path>=...`.
 Certificate and CA settings still use file paths because TLS libraries load them
 from mounted files.
 
+## Logging
+
+`logging.level` controls stdout verbosity. Supported levels are `debug`, `info`,
+`warn`, and `error`; the default is `info`. Use `debug` when diagnosing provider
+integration issues because it includes task starts/completions and per-request
+endpoint/status/latency details without logging request bodies or secrets.
+
+## Target Endpoints
+
+`target.endpoints` customizes the OpenAI-like routes used by the monitor:
+
+- `target.endpoints.models`: model inventory endpoint. Defaults to `/v1/models`.
+- `target.endpoints.chat`: chat completions endpoint. Defaults to `/v1/chat/completions`.
+- `target.endpoints.embeddings`: embedding endpoint. Defaults to `/v1/embeddings`.
+
+Each endpoint can be either a path beginning with `/`, resolved against
+`target.base_url`, or an absolute `http`/`https` URL. `target.http_check_path` is
+still supported for existing configs; when omitted, HTTP checks use
+`target.endpoints.models`.
+
 OAuth client credentials are sent with HTTP Basic authentication by default
 (`auth.client_auth_method: client_secret_basic`). Set
 `auth.client_auth_method: client_secret_post` only for token endpoints that
@@ -51,7 +71,7 @@ The `schedules` block controls independent local task schedules:
 
 - `http_check`: target reachability.
 - `auth_check`: token endpoint health.
-- `model_snapshot`: `/v1/models` inventory and capability detection.
+- `model_snapshot`: model inventory and capability detection.
 - `model_runs`: scheduled chat and embedding probes.
 
 Durations use Go strings such as `30s`, `5m`, or `24h`.
