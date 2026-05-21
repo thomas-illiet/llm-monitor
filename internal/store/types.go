@@ -46,6 +46,7 @@ type ModelState struct {
 	Status       string     `json:"status"`
 	FirstSeenAt  time.Time  `json:"first_seen_at"`
 	LastSeenAt   time.Time  `json:"last_seen_at"`
+	NextCheckAt  *time.Time `json:"next_check_at,omitempty"`
 	MissingSince *time.Time `json:"missing_since,omitempty"`
 	SkipReason   string     `json:"skip_reason,omitempty"`
 	LastProbeAt  *time.Time `json:"last_probe_at,omitempty"`

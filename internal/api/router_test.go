@@ -484,8 +484,15 @@ func TestRuntimeConfigExposesRetentionHistory(t *testing.T) {
 
 // TestDashboardResponseShapeIncludesRuntimeConfig verifies the dashboard payload exposes runtime metadata.
 func TestDashboardResponseShapeIncludesRuntimeConfig(t *testing.T) {
+	nextCheck := time.Date(2026, 5, 17, 10, 15, 0, 0, time.UTC)
 	payload := DashboardResponse{
 		GeneratedAt: time.Date(2026, 5, 17, 10, 0, 0, 0, time.UTC),
+		Models: []store.ModelState{{
+			ModelID:     "chat-a",
+			Capability:  "chat",
+			Status:      "active",
+			NextCheckAt: &nextCheck,
+		}},
 		Config: RuntimeConfig{
 			Retention: RetentionRuntimeConfig{HistorySeconds: 42},
 			SiteName:  "Platform Monitor",
@@ -505,15 +512,51 @@ func TestDashboardResponseShapeIncludesRuntimeConfig(t *testing.T) {
 			SiteName string `json:"site_name"`
 			SiteURL  string `json:"site_url"`
 		} `json:"config"`
+		Models []struct {
+			ModelID     string `json:"model_id"`
+			NextCheckAt string `json:"next_check_at"`
+		} `json:"models"`
 	}
 	if err := json.Unmarshal(raw, &got); err != nil {
 		t.Fatalf("Unmarshal() error = %v", err)
+	}
+	if len(got.Models) != 1 || got.Models[0].ModelID != "chat-a" || got.Models[0].NextCheckAt == "" {
+		t.Fatalf("models = %#v, want serialized next_check_at", got.Models)
 	}
 	if got.Config.Retention.HistorySeconds != 42 {
 		t.Fatalf("history seconds = %d, want 42", got.Config.Retention.HistorySeconds)
 	}
 	if got.Config.SiteName != "Platform Monitor" || got.Config.SiteURL != "https://monitor.example.test" {
 		t.Fatalf("runtime branding = %q %q, want configured site name and url", got.Config.SiteName, got.Config.SiteURL)
+	}
+}
+
+type scheduledManualQueue struct {
+	manualChecksQueue
+	next map[string]time.Time
+	err  error
+}
+
+func (q *scheduledManualQueue) ScheduledModelRuns(context.Context) (map[string]time.Time, error) {
+	return q.next, q.err
+}
+
+func TestAttachModelNextChecksUsesQueueSchedule(t *testing.T) {
+	nextCheck := time.Date(2026, 5, 17, 10, 15, 0, 0, time.UTC)
+	router := Router{taskQueue: &scheduledManualQueue{
+		next: map[string]time.Time{"chat-a": nextCheck},
+	}}
+
+	models := router.attachModelNextChecks(context.Background(), []store.ModelState{
+		{ModelID: "chat-a", Capability: "chat", Status: "active"},
+		{ModelID: "inactive", Capability: "chat", Status: "inactive"},
+	})
+
+	if models[0].NextCheckAt == nil || !models[0].NextCheckAt.Equal(nextCheck) {
+		t.Fatalf("chat next_check_at = %v, want %s", models[0].NextCheckAt, nextCheck)
+	}
+	if models[1].NextCheckAt != nil {
+		t.Fatalf("inactive next_check_at = %v, want nil", models[1].NextCheckAt)
 	}
 }
 

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"strings"
@@ -38,6 +39,7 @@ func (r *Router) dashboard(w http.ResponseWriter, req *http.Request) {
 		writeError(w, err)
 		return
 	}
+	models = r.attachModelNextChecks(ctx, models)
 	authCheck, _ := r.store.LatestAuthCheck(ctx)
 	httpCheck, _ := r.store.LatestHTTPCheck(ctx)
 	slo := r.sloThresholds()
@@ -81,6 +83,28 @@ func (r *Router) dashboard(w http.ResponseWriter, req *http.Request) {
 		Config:             r.runtimeConfig(),
 	}
 	writeJSON(w, http.StatusOK, response)
+}
+
+func (r *Router) attachModelNextChecks(ctx context.Context, models []store.ModelState) []store.ModelState {
+	reader, ok := r.taskQueue.(modelRunScheduleReader)
+	if !ok {
+		return models
+	}
+	nextChecks, err := reader.ScheduledModelRuns(ctx)
+	if err != nil {
+		if r.logger != nil {
+			r.logger.Warn("read model run schedules", "error", err)
+		}
+		return models
+	}
+	for i := range models {
+		nextCheck, ok := nextChecks[models[i].ModelID]
+		if !ok {
+			continue
+		}
+		models[i].NextCheckAt = &nextCheck
+	}
+	return models
 }
 
 // modelDashboard returns model-scoped KPI, chart, and run telemetry.

@@ -121,6 +121,7 @@ export interface ModelState {
   status: 'active' | 'inactive' | string
   first_seen_at: string
   last_seen_at: string
+  next_check_at?: string
   missing_since?: string
   skip_reason?: string
   last_probe_at?: string

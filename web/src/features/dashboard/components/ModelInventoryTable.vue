@@ -35,7 +35,12 @@ const headers = [
     sortable: true,
     sortRaw: (a: ModelInventoryRow, b: ModelInventoryRow) => compareNullableNumbers(a.last_check_at, b.last_check_at)
   },
-  { title: 'First seen', key: 'first_seen_at', sortable: true },
+  {
+    title: 'Next check',
+    key: 'next_check_at',
+    sortable: true,
+    sortRaw: (a: ModelInventoryRow, b: ModelInventoryRow) => compareNullableNumbers(a.next_check_timestamp, b.next_check_timestamp)
+  },
   { title: 'Last seen', key: 'last_seen_at', sortable: true },
   { title: 'Action', key: 'actions', sortable: false, align: 'end' as const },
 ]
@@ -103,8 +108,8 @@ const checkingModels = computed(() => new Set(props.checkingModelIds ?? []))
           {{ item.last_check_label }}
         </VChip>
       </template>
-      <template #item.first_seen_at="{ item }">
-        {{ formatTime(item.first_seen_at) }}
+      <template #item.next_check_at="{ item }">
+        {{ formatTime(item.next_check_at) }}
       </template>
       <template #item.last_seen_at="{ item }">
         {{ formatTime(item.last_seen_at) }}

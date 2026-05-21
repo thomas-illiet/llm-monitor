@@ -41,6 +41,10 @@ type ManualTaskQueue interface {
 	InspectJobs(ctx context.Context, ids []string) ([]queue.JobStatus, error)
 }
 
+type modelRunScheduleReader interface {
+	ScheduledModelRuns(ctx context.Context) (map[string]time.Time, error)
+}
+
 type runnableModelStore interface {
 	RunnableModels(ctx context.Context) ([]store.RunnableModel, error)
 }

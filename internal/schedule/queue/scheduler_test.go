@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hibiken/asynq"
+
 	"llmservicemonitor/internal/config"
 	"llmservicemonitor/internal/schedule/tasks/shared"
 	"llmservicemonitor/internal/store"
@@ -77,5 +79,39 @@ func TestScheduledModelRunPayloadIsStable(t *testing.T) {
 	}
 	if string(first.Payload()) != string(second.Payload()) {
 		t.Fatalf("scheduled payload changed between calls: %s != %s", first.Payload(), second.Payload())
+	}
+}
+
+func TestModelRunNextChecksFiltersSchedulerEntries(t *testing.T) {
+	chatNext := time.Date(2026, 5, 21, 10, 15, 0, 0, time.UTC)
+	chatLater := chatNext.Add(5 * time.Minute)
+	embedNext := time.Date(2026, 5, 21, 10, 30, 0, 0, time.UTC)
+	chatPayload, err := shared.MarshalModelRunPayload(shared.ModelRunPayload{ModelID: "chat-a", Capability: "chat"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	embedPayload, err := shared.MarshalModelRunPayload(shared.ModelRunPayload{ModelID: "embed-a", Capability: "embedding"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got := modelRunNextChecks([]*asynq.SchedulerEntry{
+		nil,
+		{Task: nil, Next: chatNext},
+		{Task: asynq.NewTask(shared.HTTPCheckTaskName, nil), Next: chatNext},
+		{Task: asynq.NewTask(shared.ModelRunTaskName, []byte(`{"model_id":""}`)), Next: chatNext},
+		{Task: asynq.NewTask(shared.ModelRunTaskName, chatPayload), Next: chatLater},
+		{Task: asynq.NewTask(shared.ModelRunTaskName, chatPayload), Next: chatNext},
+		{Task: asynq.NewTask(shared.ModelRunTaskName, embedPayload), Next: embedNext},
+	})
+
+	if len(got) != 2 {
+		t.Fatalf("next checks len = %d, want 2: %#v", len(got), got)
+	}
+	if !got["chat-a"].Equal(chatNext) {
+		t.Fatalf("chat next = %s, want %s", got["chat-a"], chatNext)
+	}
+	if !got["embed-a"].Equal(embedNext) {
+		t.Fatalf("embed next = %s, want %s", got["embed-a"], embedNext)
 	}
 }

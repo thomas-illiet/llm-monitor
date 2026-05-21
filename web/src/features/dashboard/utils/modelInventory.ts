@@ -9,6 +9,7 @@ export type ModelInventoryRow = ModelState & {
   last_check_label: string
   last_check_color: CheckColor
   last_check_at: number | null
+  next_check_timestamp: number | null
 }
 
 /** Builds the latest known run map for model inventory status chips. */
@@ -32,7 +33,8 @@ export function modelInventoryRows(models: ModelState[], runs: Map<string, Recen
       status_label: statusLabel(model),
       last_check_label: checkLabel(lastRun),
       last_check_color: checkColor(lastRun),
-      last_check_at: timestampFor(lastRun?.started_at)
+      last_check_at: timestampFor(lastRun?.started_at),
+      next_check_timestamp: timestampFor(model.next_check_at)
     }
   })
 }

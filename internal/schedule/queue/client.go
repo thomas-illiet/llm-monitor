@@ -114,3 +114,34 @@ func (c *Client) InspectJobs(_ context.Context, ids []string) ([]JobStatus, erro
 	}
 	return statuses, nil
 }
+
+// ScheduledModelRuns returns the next scheduler enqueue time by runnable model.
+func (c *Client) ScheduledModelRuns(ctx context.Context) (map[string]time.Time, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	entries, err := c.inspector.SchedulerEntries()
+	if err != nil {
+		return nil, err
+	}
+	return modelRunNextChecks(entries), nil
+}
+
+func modelRunNextChecks(entries []*asynq.SchedulerEntry) map[string]time.Time {
+	nextChecks := map[string]time.Time{}
+	for _, entry := range entries {
+		if entry == nil || entry.Task == nil || entry.Task.Type() != shared.ModelRunTaskName || entry.Next.IsZero() {
+			continue
+		}
+		payload, err := shared.UnmarshalModelRunPayload(entry.Task.Payload())
+		if err != nil {
+			continue
+		}
+		next := entry.Next.UTC()
+		current, exists := nextChecks[payload.ModelID]
+		if !exists || next.Before(current) {
+			nextChecks[payload.ModelID] = next
+		}
+	}
+	return nextChecks
+}
