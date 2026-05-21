@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -87,6 +88,8 @@ type Config struct {
 	Server    ServerConfig    `yaml:"server"`
 	Logging   LoggingConfig   `yaml:"logging"`
 	Postgres  PostgresConfig  `yaml:"postgres"`
+	Redis     RedisConfig     `yaml:"redis"`
+	Asynq     AsynqConfig     `yaml:"asynq"`
 	TLS       TLSConfig       `yaml:"tls"`
 	Target    TargetConfig    `yaml:"target"`
 	Auth      AuthConfig      `yaml:"auth"`
@@ -112,6 +115,22 @@ type LoggingConfig struct {
 // PostgresConfig controls persistence connectivity.
 type PostgresConfig struct {
 	DSN string `yaml:"dsn"`
+}
+
+// RedisConfig controls the Redis instance used by Asynq queues.
+type RedisConfig struct {
+	Addr     string `yaml:"addr"`
+	Username string `yaml:"username"`
+	Password string `yaml:"password"`
+	DB       int    `yaml:"db"`
+}
+
+// AsynqConfig controls queue, worker, scheduler, and manual task retention settings.
+type AsynqConfig struct {
+	Queue                 string   `yaml:"queue"`
+	WorkerConcurrency     int      `yaml:"worker_concurrency"`
+	SchedulerSyncInterval Duration `yaml:"scheduler_sync_interval"`
+	ManualTaskRetention   Duration `yaml:"manual_task_retention"`
 }
 
 // TLSConfig controls shared outbound HTTP TLS behavior.
@@ -191,10 +210,18 @@ type MCPConfig struct {
 
 // ScheduleConfig controls recurring monitor intervals.
 type ScheduleConfig struct {
-	HTTPCheck     Duration `yaml:"http_check"`
-	AuthCheck     Duration `yaml:"auth_check"`
-	ModelSnapshot Duration `yaml:"model_snapshot"`
-	ModelRuns     Duration `yaml:"model_runs"`
+	HTTPCheck         Duration                   `yaml:"http_check"`
+	AuthCheck         Duration                   `yaml:"auth_check"`
+	ModelSnapshot     Duration                   `yaml:"model_snapshot"`
+	ModelRuns         Duration                   `yaml:"model_runs"`
+	ModelRunOverrides []ModelRunScheduleOverride `yaml:"model_run_overrides"`
+}
+
+// ModelRunScheduleOverride controls a model-specific probe interval.
+type ModelRunScheduleOverride struct {
+	ModelID  string   `yaml:"model_id"`
+	Pattern  string   `yaml:"pattern"`
+	Interval Duration `yaml:"interval"`
 }
 
 // ModelsConfig controls inventory alerting and probe concurrency.
@@ -268,6 +295,24 @@ func (c *Config) ApplyDefaults() {
 	c.Logging.Level = strings.ToLower(strings.TrimSpace(c.Logging.Level))
 	if c.Logging.Level == "" {
 		c.Logging.Level = "info"
+	}
+	c.Redis.Addr = strings.TrimSpace(c.Redis.Addr)
+	if c.Redis.Addr == "" {
+		c.Redis.Addr = "localhost:6379"
+	}
+	c.Redis.Username = strings.TrimSpace(c.Redis.Username)
+	c.Asynq.Queue = strings.TrimSpace(c.Asynq.Queue)
+	if c.Asynq.Queue == "" {
+		c.Asynq.Queue = "default"
+	}
+	if c.Asynq.WorkerConcurrency <= 0 {
+		c.Asynq.WorkerConcurrency = 10
+	}
+	if c.Asynq.SchedulerSyncInterval.Duration == 0 {
+		c.Asynq.SchedulerSyncInterval.Duration = 30 * time.Second
+	}
+	if c.Asynq.ManualTaskRetention.Duration == 0 {
+		c.Asynq.ManualTaskRetention.Duration = 10 * time.Minute
 	}
 	if c.Target.Name == "" {
 		c.Target.Name = "default"
@@ -371,6 +416,36 @@ func (c Config) Validate() error {
 	if c.Postgres.DSN == "" {
 		problems = append(problems, "postgres.dsn is required")
 	}
+	if strings.TrimSpace(c.Redis.Addr) == "" {
+		problems = append(problems, "redis.addr is required")
+	}
+	if c.Redis.DB < 0 {
+		problems = append(problems, "redis.db must be greater than or equal to 0")
+	}
+	if strings.TrimSpace(c.Asynq.Queue) == "" {
+		problems = append(problems, "asynq.queue is required")
+	}
+	if c.Asynq.WorkerConcurrency <= 0 {
+		problems = append(problems, "asynq.worker_concurrency must be greater than 0")
+	}
+	if c.Asynq.SchedulerSyncInterval.Duration <= 0 {
+		problems = append(problems, "asynq.scheduler_sync_interval must be greater than 0")
+	}
+	if c.Asynq.ManualTaskRetention.Duration <= 0 {
+		problems = append(problems, "asynq.manual_task_retention must be greater than 0")
+	}
+	if c.Schedules.HTTPCheck.Duration <= 0 {
+		problems = append(problems, "schedules.http_check must be greater than 0")
+	}
+	if c.Schedules.AuthCheck.Duration <= 0 {
+		problems = append(problems, "schedules.auth_check must be greater than 0")
+	}
+	if c.Schedules.ModelSnapshot.Duration <= 0 {
+		problems = append(problems, "schedules.model_snapshot must be greater than 0")
+	}
+	if c.Schedules.ModelRuns.Duration <= 0 {
+		problems = append(problems, "schedules.model_runs must be greater than 0")
+	}
 	if !isLogLevel(c.Logging.Level) {
 		problems = append(problems, "logging.level must be debug, info, warn, or error")
 	}
@@ -432,6 +507,24 @@ func (c Config) Validate() error {
 	}
 	if c.Retention.History.Duration < 0 {
 		problems = append(problems, "retention.history must be greater than or equal to 0")
+	}
+	for i, override := range c.Schedules.ModelRunOverrides {
+		modelID := strings.TrimSpace(override.ModelID)
+		pattern := strings.TrimSpace(override.Pattern)
+		switch {
+		case modelID == "" && pattern == "":
+			problems = append(problems, fmt.Sprintf("schedules.model_run_overrides[%d] requires model_id or pattern", i))
+		case modelID != "" && pattern != "":
+			problems = append(problems, fmt.Sprintf("schedules.model_run_overrides[%d] must set only one of model_id or pattern", i))
+		}
+		if override.Interval.Duration <= 0 {
+			problems = append(problems, fmt.Sprintf("schedules.model_run_overrides[%d].interval must be greater than 0", i))
+		}
+		if pattern != "" {
+			if _, err := regexp.Compile(wildcardPatternRegexp(pattern)); err != nil {
+				problems = append(problems, fmt.Sprintf("schedules.model_run_overrides[%d].pattern is invalid", i))
+			}
+		}
 	}
 	if c.Dashboard.SiteURL != "" {
 		parsed, err := url.Parse(c.Dashboard.SiteURL)
@@ -496,4 +589,21 @@ func isHTTPPathOrURL(raw string) bool {
 func isAbsoluteHTTPURL(raw string) bool {
 	parsed, err := url.Parse(raw)
 	return err == nil && parsed.Scheme != "" && parsed.Host != "" && (parsed.Scheme == "http" || parsed.Scheme == "https")
+}
+
+func wildcardPatternRegexp(pattern string) string {
+	var builder strings.Builder
+	builder.WriteString("^")
+	for _, r := range pattern {
+		switch r {
+		case '*':
+			builder.WriteString(".*")
+		case '?':
+			builder.WriteString(".")
+		default:
+			builder.WriteString(regexp.QuoteMeta(string(r)))
+		}
+	}
+	builder.WriteString("$")
+	return builder.String()
 }

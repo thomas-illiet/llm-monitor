@@ -7,6 +7,18 @@ logging:
 postgres:
   dsn: "postgres://llm_monitor:llm_monitor@postgres:5432/llm_monitor?sslmode=disable"
 
+redis:
+  addr: "redis:6379"
+  username: ""
+  password: ""
+  db: 0
+
+asynq:
+  queue: "default"
+  worker_concurrency: 10
+  scheduler_sync_interval: "30s"
+  manual_task_retention: "10m"
+
 # tls:
 #   insecure_skip_verify: true
 
@@ -63,6 +75,11 @@ schedules:
   auth_check: "60s"
   model_snapshot: "5m"
   model_runs: "15m"
+  model_run_overrides:
+    - model_id: "premium-chat-model"
+      interval: "5m"
+    - pattern: "embedding-*"
+      interval: "30m"
 
 retention:
   history: "90d"

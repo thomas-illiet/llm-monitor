@@ -19,10 +19,22 @@ services:
       - "1080:1080"
       - "1025:1025"
 
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
   app:
     build: .
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
       maildev:
         condition: service_started
@@ -37,5 +49,44 @@ services:
       - ./examples/config.compose.yaml:/config/config.yaml:ro
       - ./examples/embedding-fixture.txt:/config/embedding-fixture.txt:ro
 
+  scheduler:
+    build: .
+    command: ["/app/llm-monitor-scheduler"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      maildev:
+        condition: service_started
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    volumes:
+      - ./examples/config.compose.yaml:/config/config.yaml:ro
+      - ./examples/embedding-fixture.txt:/config/embedding-fixture.txt:ro
+
+  worker:
+    build: .
+    command: ["/app/llm-monitor-worker"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      maildev:
+        condition: service_started
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    volumes:
+      - ./examples/config.compose.yaml:/config/config.yaml:ro
+      - ./examples/embedding-fixture.txt:/config/embedding-fixture.txt:ro
+
 volumes:
   postgres-data:
+  redis-data:

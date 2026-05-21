@@ -249,6 +249,31 @@ func (s *Store) MarkAllModelsInactive(ctx context.Context, now time.Time, source
 	return events, nil
 }
 
+// RunnableModels returns active non-excluded models that can be probed by workers.
+func (s *Store) RunnableModels(ctx context.Context) ([]RunnableModel, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT model_id, capability
+		FROM model_states
+		WHERE status=$1
+			AND NOT excluded
+			AND capability IN ('chat', 'embedding')
+		ORDER BY model_id ASC
+	`, ModelStatusActive)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var models []RunnableModel
+	for rows.Next() {
+		var model RunnableModel
+		if err := rows.Scan(&model.ModelID, &model.Capability); err != nil {
+			return nil, err
+		}
+		models = append(models, model)
+	}
+	return models, rows.Err()
+}
+
 func loadModelStateForUpdate(ctx context.Context, tx pgx.Tx, modelID string) (ModelState, error) {
 	rows, err := tx.Query(ctx, `
 		SELECT model_id, capability, excluded, status, first_seen_at, last_seen_at, missing_since, skip_reason, last_probe_at

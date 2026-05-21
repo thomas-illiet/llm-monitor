@@ -13,6 +13,7 @@ Configuration is loaded from `LLM_MONITOR_CONFIG`, defaulting to `config.yaml`. 
 ## Required Values
 
 - `postgres.dsn`: PostgreSQL connection string.
+- `redis.addr`: Redis host/port used by Asynq. Defaults to `localhost:6379`.
 - `target.base_url`: OpenAI-compatible API base URL.
 - `auth.token_url`: required only when `auth.enabled` is `true`.
 - `smtp.host`, `smtp.from`, and `smtp.to`: required only when `smtp.enabled` is `true`.
@@ -37,6 +38,16 @@ from mounted files.
 `warn`, and `error`; the default is `info`. Use `debug` when diagnosing provider
 integration issues because it includes task starts/completions and per-request
 endpoint/status/latency details without logging request bodies or secrets.
+
+## Queue
+
+Redis and Asynq back task execution:
+
+- `redis.addr`, `redis.username`, `redis.password`, and `redis.db` configure the queue backend.
+- `asynq.queue` selects the queue name. Defaults to `default`.
+- `asynq.worker_concurrency` controls how many tasks a worker processes at once.
+- `asynq.scheduler_sync_interval` controls how often the scheduler refreshes dynamic model schedules.
+- `asynq.manual_task_retention` keeps manually triggered job status long enough for dashboard polling.
 
 ## Target Endpoints
 
@@ -67,12 +78,16 @@ The optional MCP Streamable HTTP endpoint is disabled by default. Enable it with
 
 ## Probe Scheduling
 
-The `schedules` block controls independent local task schedules:
+The `schedules` block controls independent Asynq schedules:
 
 - `http_check`: target reachability.
 - `auth_check`: token endpoint health.
 - `model_snapshot`: model inventory and capability detection.
-- `model_runs`: scheduled chat and embedding probes.
+- `model_runs`: default interval for one-model probe tasks.
+- `model_run_overrides`: optional exact `model_id` or wildcard `pattern` intervals.
+
+Exact `model_id` overrides win over wildcard patterns, and unmatched models use
+`model_runs`. Wildcards support `*` and `?`, for example `embedding-*`.
 
 Durations use Go strings such as `30s`, `5m`, or `24h`.
 See [Scheduled Tasks](tasks/README.md) for each registered task, stable task

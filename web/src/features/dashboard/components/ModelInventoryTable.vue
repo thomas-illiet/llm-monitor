@@ -13,11 +13,13 @@ import type { ModelInventoryRow } from '@/features/dashboard/utils/modelInventor
 const props = defineProps<{
   models: ModelState[]
   runs?: RecentRun[]
+  checkingModelIds?: string[]
 }>()
 
 const emit = defineEmits<{
   openDashboard: [modelId: string]
   openEvents: [modelId: string]
+  runCheck: [modelId: string]
 }>()
 
 const search = shallowRef('')
@@ -45,6 +47,8 @@ const lastRunByModel = computed(() => {
 const tableRows = computed<ModelInventoryRow[]>(() => {
   return modelInventoryRows(props.models, lastRunByModel.value)
 })
+
+const checkingModels = computed(() => new Set(props.checkingModelIds ?? []))
 </script>
 
 <template>
@@ -116,11 +120,19 @@ const tableRows = computed<ModelInventoryRow[]>(() => {
               variant="tonal"
               density="compact"
               :aria-label="`Actions for ${item.model_id}`"
+              :loading="checkingModels.has(item.model_id)"
             >
               Action
             </VBtn>
           </template>
           <VList density="compact" min-width="160">
+            <VListItem
+              prepend-icon="mdi-play-circle-outline"
+              :disabled="checkingModels.has(item.model_id)"
+              @click="emit('runCheck', item.model_id)"
+            >
+              <VListItemTitle>Run check</VListItemTitle>
+            </VListItem>
             <VListItem prepend-icon="mdi-view-dashboard-outline" @click="emit('openDashboard', item.model_id)">
               <VListItemTitle>Dashboard</VListItemTitle>
             </VListItem>

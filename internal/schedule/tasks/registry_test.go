@@ -18,7 +18,7 @@ func TestNewRegistryRegistersStableTaskNames(t *testing.T) {
 		AuthCheckTaskName,
 		HistoryRetentionTaskName,
 		HTTPCheckTaskName,
-		ModelRunsTaskName,
+		ModelRunTaskName,
 		ModelSnapshotTaskName,
 	}
 	slices.Sort(want)
@@ -47,14 +47,11 @@ func TestLocalScheduleGroupsPreserveModelStartupOrder(t *testing.T) {
 		if len(group.Startup) != 1 || group.Startup[0].TaskName != ModelSnapshotTaskName {
 			t.Fatalf("model startup = %+v, want initial model snapshot", group.Startup)
 		}
-		if len(group.Recurring) != 2 {
-			t.Fatalf("model recurring schedules = %+v, want snapshot and model runs", group.Recurring)
+		if len(group.Recurring) != 1 {
+			t.Fatalf("model recurring schedules = %+v, want snapshot only", group.Recurring)
 		}
 		if group.Recurring[0].TaskName != ModelSnapshotTaskName || group.Recurring[0].RunImmediately {
 			t.Fatalf("first recurring model schedule = %+v, want delayed snapshot", group.Recurring[0])
-		}
-		if group.Recurring[1].TaskName != ModelRunsTaskName || !group.Recurring[1].RunImmediately {
-			t.Fatalf("second recurring model schedule = %+v, want immediate model runs", group.Recurring[1])
 		}
 	}
 	if !modelGroupFound {

@@ -49,9 +49,8 @@ The latest HTTP check feeds `/api/status`, `/metrics`, and dashboard status view
 
 Network errors, request creation errors, TLS errors, or non-healthy HTTP status
 codes are recorded as failed checks. After a failed final check, currently
-runnable models are marked inactive and the in-memory model plan is cleared. If
-persistence fails, the task returns the storage error; the local scheduler logs it
-and continues on the next tick.
+runnable models are marked inactive. If persistence fails, the task returns the
+storage error so the worker records the failure.
 
 ## Related Code
 

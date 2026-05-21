@@ -3,15 +3,14 @@
 ## Purpose
 
 `monitor.model_snapshot` snapshots the current model inventory, classifies model
-capabilities, updates lifecycle state, reloads the runnable model plan, and emits
-model lifecycle alerts.
+capabilities, updates lifecycle state, and emits model lifecycle alerts.
 
 ## Schedule
 
 - Config key: `schedules.model_snapshot`
 - Default interval: `5m`
-- Startup behavior: runs once before the first scheduled model run, then repeats
-  only after the first configured interval has elapsed.
+- Startup behavior: enqueued at scheduler startup, then repeats on the configured
+  interval.
 - Payload: empty JSON payload.
 
 ## Inputs
@@ -40,11 +39,9 @@ If both probes fail with transient signals such as rate limits, timeouts, or 5xx
 responses, the capability is marked `unknown`; the last known runnable capability
 is preserved when available. Otherwise the model is marked `skip`.
 
-The resulting observation is persisted, current model state is updated, lifecycle
-events are derived, and the shared `ModelPlanStore` is replaced with runnable
-`chat` and `embedding` models. The current implementation uses an in-memory
-store; the interface keeps this boundary replaceable for a future distributed
-runner.
+The resulting observation is persisted, current model state is updated, and
+lifecycle events are derived. The Asynq scheduler reads active runnable model
+state from PostgreSQL on each sync to add, remove, or retime per-model runs.
 
 ## Stored Output
 
@@ -79,10 +76,10 @@ model events.
 
 ## Failure Behavior
 
-If the configured model inventory endpoint fails after configured retries, currently runnable models are marked inactive, the runnable model plan is cleared, and the task returns the upstream error.
+If the configured model inventory endpoint fails after configured retries, currently runnable models are marked inactive and the task returns the upstream error.
 Individual capability probe failures are captured in model event details where
 possible. If persistence fails while processing the observation, the task returns
-an error; the local scheduler logs it and continues on the next tick.
+an error so the worker records the failure.
 
 ## Related Code
 

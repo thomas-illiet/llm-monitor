@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, shallowRef, onMounted, onUnmounted } from 'vue'
-import { Activity, RefreshCw, Moon, Sun } from '@lucide/vue'
+import { Activity, PlayCircle, RefreshCw, Moon, Sun } from '@lucide/vue'
 import type { StatusSummary } from '@/types'
 
 const props = defineProps<{
@@ -8,11 +8,13 @@ const props = defineProps<{
   generatedAt?: string
   siteName: string
   loading: boolean
+  checking: boolean
   isDark: boolean
 }>()
 
 const emit = defineEmits<{
   refresh: []
+  'run-checks': []
   'toggle-theme': []
 }>()
 
@@ -101,11 +103,24 @@ const generatedLabel = computed(() => {
         </VBtn>
         <VBtn
           class="status-action-button status-action-button--primary"
+          :loading="checking"
+          :disabled="checking"
+          icon
+          size="small"
+          variant="flat"
+          aria-label="Run checks"
+          @click="emit('run-checks')"
+        >
+          <PlayCircle :size="18" />
+          <VTooltip activator="parent" location="bottom">Run checks</VTooltip>
+        </VBtn>
+        <VBtn
+          class="status-action-button"
           :loading="loading"
           :disabled="loading"
           icon
           size="small"
-          variant="flat"
+          variant="tonal"
           aria-label="Refresh dashboard"
           @click="emit('refresh')"
         >

@@ -34,7 +34,7 @@ Alert send attempts are recorded even when SMTP delivery fails, and failures als
 
 ## Troubleshooting
 
-- No dashboard data: confirm PostgreSQL connectivity and that `model_snapshot` has run at least once.
+- No dashboard data: confirm PostgreSQL and Redis connectivity, that the scheduler and worker are running, and that `model_snapshot` has completed at least once.
 - Need more diagnostics: set `logging.level: debug` and restart the service to include task and outbound LLM request timing details.
 - Auth degraded: check OAuth URL, client secret, mTLS files, CA trust, and token endpoint status.
 - HTTP degraded: check `target.base_url`, `target.http_check_path` or `target.endpoints.models`, CA trust, and network routing.

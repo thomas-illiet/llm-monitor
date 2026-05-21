@@ -12,6 +12,8 @@ The Go service exposes JSON APIs for health and dashboard data, plus a static SP
 | `GET /api/dashboard` | Full dashboard payload. |
 | `GET /api/model-dashboard` | Model-specific KPIs, charts, and recent runs. |
 | `GET /api/model-events` | Paginated model event timeline. |
+| `POST /api/checks/run` | Enqueue manual global or model-specific checks. |
+| `GET /api/checks/jobs` | Poll retained Asynq task status for manual checks. |
 | `mcp.path`, default `/mcp` | Optional read-only MCP Streamable HTTP endpoint. |
 
 ## `GET /healthz`
@@ -91,6 +93,36 @@ Returns a paginated model event timeline. Query parameters:
 ```
 
 Invalid or missing `model_id` returns `400`; server-side failures return `500`.
+
+## `POST /api/checks/run`
+
+Enqueues manual work and returns `202 Accepted` with retained task IDs for
+dashboard polling.
+
+Global checks enqueue HTTP check, auth check, model snapshot, and one model run
+for each currently runnable model:
+
+```json
+{ "scope": "all" }
+```
+
+One-model checks enqueue a single `monitor.model_run` task:
+
+```json
+{ "scope": "model", "model_id": "gpt-test" }
+```
+
+## `GET /api/checks/jobs`
+
+Polls retained queue status for manual jobs. Pass a comma-separated `ids`
+parameter:
+
+```text
+/api/checks/jobs?ids=job-a,job-b
+```
+
+The response contains each job state, task type, optional `model_id`, last error,
+and completion timestamp when available.
 
 ## `/mcp`
 

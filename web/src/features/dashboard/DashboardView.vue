@@ -9,6 +9,7 @@ import ModelDashboardDialog from '@/features/dashboard/components/ModelDashboard
 import ModelInventoryTable from '@/features/dashboard/components/ModelInventoryTable.vue'
 import ModelEventsDialog from '@/features/dashboard/components/ModelEventsDialog.vue'
 import { useDashboardData } from '@/features/dashboard/composables/useDashboardData'
+import { useManualChecks } from '@/features/dashboard/composables/useManualChecks'
 import {
   KPI_RANGE_PRESETS,
   clampKpiRangeValue,
@@ -19,6 +20,13 @@ import { usePersistentTheme } from '@/features/dashboard/composables/usePersiste
 
 const { selectedKpiRange } = usePersistentKpiRange()
 const { data, loading, error, refresh } = useDashboardData({ kpiRange: selectedKpiRange })
+const {
+  globalChecking,
+  checkingModelIds,
+  error: manualCheckError,
+  runAllChecks,
+  runModelCheck
+} = useManualChecks({ onComplete: refresh })
 const hasInitialData = computed(() => data.value !== null)
 const { isDark, toggleTheme } = usePersistentTheme()
 const selectedDashboardModel = shallowRef<string | null>(null)
@@ -83,8 +91,10 @@ function openModelDashboard(modelId: string) {
           :generated-at="data?.generated_at"
           :site-name="siteName"
           :loading="loading"
+          :checking="globalChecking"
           :is-dark="isDark"
           @refresh="refresh"
+          @run-checks="runAllChecks"
           @toggle-theme="toggleTheme"
         />
 
@@ -96,6 +106,15 @@ function openModelDashboard(modelId: string) {
           variant="tonal"
         >
           {{ error }}
+        </VAlert>
+        <VAlert
+          v-if="manualCheckError"
+          class="app-alert"
+          density="comfortable"
+          type="error"
+          variant="tonal"
+        >
+          {{ manualCheckError }}
         </VAlert>
 
         <div v-if="loading && !hasInitialData" class="loading-state">
@@ -125,8 +144,10 @@ function openModelDashboard(modelId: string) {
           <ModelInventoryTable
             :models="data.models"
             :runs="data.runs"
+            :checking-model-ids="checkingModelIds"
             @open-dashboard="openModelDashboard"
             @open-events="openModelEvents"
+            @run-check="runModelCheck"
           />
           <ModelDashboardDialog
             v-model="dashboardDialogOpen"

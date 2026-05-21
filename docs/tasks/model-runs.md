@@ -2,23 +2,25 @@
 
 ## Purpose
 
-`monitor.model_runs` executes recurring performance and availability probes
-against the latest runnable model plan produced by the model snapshot task.
+`monitor.model_run` executes one performance and availability probe task for one
+runnable model.
 
 ## Schedule
 
 - Config key: `schedules.model_runs`
 - Default interval: `15m`
-- Startup behavior: runs immediately after the initial model snapshot has loaded
-  the model plan, then repeats on the configured interval.
-- Payload: empty JSON payload.
+- Per-model overrides: `schedules.model_run_overrides` with exact `model_id` or
+  wildcard `pattern`.
+- Startup behavior: the scheduler creates one periodic entry for each active
+  runnable model loaded from PostgreSQL.
+- Payload: `model_id`, `capability`, optional `requested_at`, and `reason`.
 
 ## Inputs
 
-- Current shared `ModelPlanStore` populated by `monitor.model_snapshot`.
+- Active, non-excluded runnable models from `model_states`.
 - `target.endpoints.chat` and `target.endpoints.embeddings`, defaulting to the
   OpenAI-compatible routes.
-- `models.max_concurrency`, defaulting to `4`, to bound parallel model probes.
+- `asynq.worker_concurrency` to bound parallel queued work per worker.
 - `tests.chat_prompts`: prompt IDs, prompt text, max token limits, and temperatures
   for chat models.
 - `tests.embedding_fixture.path` and `tests.embedding_fixture.max_bytes` for
@@ -26,9 +28,10 @@ against the latest runnable model plan produced by the model snapshot task.
 
 ## Execution
 
-The handler from `internal/schedule/tasks/models/model_runs.go` reads the shared
-model plan. If the plan is empty, the task exits successfully without work.
-Otherwise, it runs model probes concurrently up to `models.max_concurrency`.
+The dynamic Asynq scheduler reads runnable models and enqueues one
+`monitor.model_run` task per model on that model's interval. The handler from
+`internal/schedule/tasks/models/model_runs.go` validates the task payload and
+runs the probe for that single model.
 
 For models classified as `chat`, the task runs every configured chat prompt with a
 non-empty `id` and `prompt`. It uses streaming chat completions so it can capture
@@ -84,9 +87,8 @@ If the embedding fixture is empty or unreadable, the task records a skipped mode
 event and does not call the embedding endpoint.
 
 Probe errors are stored with the run result and reflected in the corresponding
-model event. Storage errors are joined and returned after all scheduled model
-probes finish, allowing the local scheduler to log the failure while preserving
-as many results as possible.
+model event. Storage errors are returned to Asynq so the worker logs the failed
+task.
 
 ## Related Code
 

@@ -43,6 +43,15 @@ dashboard:
 	if cfg.Target.HTTPCheckPath != cfg.Target.Endpoints.Models {
 		t.Fatalf("http check path = %q, want models endpoint %q", cfg.Target.HTTPCheckPath, cfg.Target.Endpoints.Models)
 	}
+	if cfg.Redis.Addr != "localhost:6379" {
+		t.Fatalf("redis addr = %q, want localhost:6379", cfg.Redis.Addr)
+	}
+	if cfg.Asynq.Queue != "default" || cfg.Asynq.WorkerConcurrency != 10 {
+		t.Fatalf("unexpected asynq defaults: %#v", cfg.Asynq)
+	}
+	if cfg.Asynq.SchedulerSyncInterval.Duration != 30*time.Second || cfg.Asynq.ManualTaskRetention.Duration != 10*time.Minute {
+		t.Fatalf("unexpected asynq duration defaults: %#v", cfg.Asynq)
+	}
 	if !cfg.Target.Retry.EnabledValue() || cfg.Target.Retry.MaxRetriesValue() != 2 {
 		t.Fatalf("unexpected target retry defaults: %#v", cfg.Target.Retry)
 	}
@@ -322,6 +331,66 @@ func TestValidateRejectsInvalidTargetBaseURL(t *testing.T) {
 			err := cfg.Validate()
 			if err == nil || !strings.Contains(err.Error(), "target.base_url must be an absolute http or https URL") {
 				t.Fatalf("Validate() error = %v, want target base_url requirement", err)
+			}
+		})
+	}
+}
+
+// TestLoadParsesModelRunScheduleOverrides verifies exact and pattern overrides are loaded.
+func TestLoadParsesModelRunScheduleOverrides(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	data := []byte(`
+postgres:
+  dsn: postgres://user:pass@localhost:5432/monitor
+target:
+  base_url: https://llm.example.test
+schedules:
+  model_run_overrides:
+    - model_id: "chat-a"
+      interval: "5m"
+    - pattern: "embedding-*"
+      interval: "30m"
+`)
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.Schedules.ModelRunOverrides) != 2 {
+		t.Fatalf("overrides len = %d, want 2", len(cfg.Schedules.ModelRunOverrides))
+	}
+	if cfg.Schedules.ModelRunOverrides[0].Interval.Duration != 5*time.Minute {
+		t.Fatalf("exact override interval = %s, want 5m", cfg.Schedules.ModelRunOverrides[0].Interval.Duration)
+	}
+}
+
+// TestValidateRejectsInvalidModelRunScheduleOverrides verifies override shape is explicit.
+func TestValidateRejectsInvalidModelRunScheduleOverrides(t *testing.T) {
+	tests := []struct {
+		name     string
+		override ModelRunScheduleOverride
+		want     string
+	}{
+		{name: "missing selector", override: ModelRunScheduleOverride{Interval: Duration{Duration: time.Minute}}, want: "requires model_id or pattern"},
+		{name: "two selectors", override: ModelRunScheduleOverride{ModelID: "a", Pattern: "*", Interval: Duration{Duration: time.Minute}}, want: "must set only one"},
+		{name: "missing interval", override: ModelRunScheduleOverride{ModelID: "a"}, want: "interval must be greater than 0"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := Config{
+				Postgres: PostgresConfig{DSN: "postgres://user:pass@localhost:5432/monitor"},
+				Target:   TargetConfig{BaseURL: "https://llm.example.test"},
+				Schedules: ScheduleConfig{
+					ModelRunOverrides: []ModelRunScheduleOverride{tt.override},
+				},
+			}
+			cfg.ApplyDefaults()
+			err := cfg.Validate()
+			if err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("Validate() error = %v, want %s", err, tt.want)
 			}
 		})
 	}

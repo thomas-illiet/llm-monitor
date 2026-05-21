@@ -13,12 +13,8 @@ import (
 	"time"
 
 	"llmservicemonitor/internal/api"
-	"llmservicemonitor/internal/auth"
 	"llmservicemonitor/internal/config"
-	"llmservicemonitor/internal/llm"
-	"llmservicemonitor/internal/notify"
-	"llmservicemonitor/internal/schedule/runner"
-	"llmservicemonitor/internal/schedule/tasks"
+	"llmservicemonitor/internal/schedule/queue"
 	"llmservicemonitor/internal/store"
 )
 
@@ -65,49 +61,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	tokenProvider, err := auth.NewProvider(cfg.Auth, cfg.Target, logger)
+	taskQueue, err := queue.NewClient(cfg)
 	if err != nil {
-		logger.Error("build auth provider", "error", err)
+		logger.Error("connect redis queue", "error", err)
 		os.Exit(1)
 	}
-
-	llmClient, err := llm.NewClient(cfg.Target, tokenProvider, logger)
-	if err != nil {
-		logger.Error("build llm client", "error", err)
-		os.Exit(1)
-	}
-
-	notifier, err := notify.NewSMTPNotifier(cfg.SMTP, logger)
-	if err != nil {
-		logger.Error("build smtp notifier", "error", err)
-		os.Exit(1)
-	}
-
-	modelPlanStore := tasks.NewMemoryModelPlanStore()
-	modelRecoveryTrigger := tasks.NewModelRecoveryTrigger()
-	taskDeps := tasks.Dependencies{
-		Config:          cfg,
-		Store:           db,
-		Client:          llmClient,
-		Auth:            tokenProvider,
-		Notifier:        notifier,
-		Logger:          logger,
-		ModelPlanStore:  modelPlanStore,
-		RecoveryTrigger: modelRecoveryTrigger,
-	}
-	taskRegistry, err := tasks.NewRegistry(taskDeps)
-	if err != nil {
-		logger.Error("build task registry", "error", err)
-		os.Exit(1)
-	}
-	scheduler := runner.NewLocalScheduler(taskRegistry, logger, tasks.LocalScheduleGroups(taskDeps)...)
-	modelRecoveryTrigger.Bind(func(ctx context.Context) error {
-		return scheduler.RunNow(ctx,
-			runner.Invocation{TaskName: tasks.ModelSnapshotTaskName},
-			runner.Invocation{TaskName: tasks.ModelRunsTaskName},
-		)
-	})
-	scheduler.Start(ctx)
+	defer taskQueue.Close()
 
 	staticRoot, err := fs.Sub(staticFiles, "static")
 	if err != nil {
@@ -115,7 +74,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	handler, err := api.NewRouter(cfg, db, staticRoot, logger)
+	handler, err := api.NewRouter(cfg, db, staticRoot, logger, taskQueue)
 	if err != nil {
 		logger.Error("build http router", "error", err)
 		os.Exit(1)

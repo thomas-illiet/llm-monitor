@@ -50,8 +50,7 @@ The latest auth check feeds `/api/status`, `/metrics`, and dashboard status view
 
 Token endpoint errors, TLS errors, invalid JSON, missing `access_token`, and
 non-2xx OAuth responses are captured in the check result. If persistence fails,
-the task returns the storage error; the local scheduler logs it and continues on
-the next tick.
+the task returns the storage error so the worker records the failure.
 
 ## Related Code
 

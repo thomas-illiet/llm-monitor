@@ -12,7 +12,7 @@ const (
 	HTTPCheckTaskName        = shared.HTTPCheckTaskName
 	AuthCheckTaskName        = shared.AuthCheckTaskName
 	ModelSnapshotTaskName    = shared.ModelSnapshotTaskName
-	ModelRunsTaskName        = shared.ModelRunsTaskName
+	ModelRunTaskName         = shared.ModelRunTaskName
 	HistoryRetentionTaskName = shared.HistoryRetentionTaskName
 
 	HistoryRetentionInterval = shared.HistoryRetentionInterval
@@ -38,7 +38,7 @@ func NewRegistry(deps Dependencies) (*runner.Registry, error) {
 		checks.NewHTTPCheckTask(deps),
 		checks.NewAuthCheckTask(deps),
 		models.NewModelSnapshotTask(deps),
-		models.NewModelRunsTask(deps),
+		models.NewModelRunTask(deps),
 		retention.NewHistoryRetentionTask(deps),
 	} {
 		if err := registry.Register(task); err != nil {
@@ -64,7 +64,6 @@ func LocalScheduleGroups(deps Dependencies) []runner.Group {
 			Startup: []runner.Invocation{{TaskName: ModelSnapshotTaskName}},
 			Recurring: []runner.ScheduledTask{
 				{TaskName: ModelSnapshotTaskName, Interval: cfg.Schedules.ModelSnapshot.Duration},
-				{TaskName: ModelRunsTaskName, Interval: cfg.Schedules.ModelRuns.Duration, RunImmediately: true},
 			},
 		},
 	}

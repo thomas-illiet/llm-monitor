@@ -2,6 +2,8 @@ package shared
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"log/slog"
 	"os"
 	"sync/atomic"
@@ -18,7 +20,7 @@ const (
 	HTTPCheckTaskName        = "monitor.http_check"
 	AuthCheckTaskName        = "monitor.auth_check"
 	ModelSnapshotTaskName    = "monitor.model_snapshot"
-	ModelRunsTaskName        = "monitor.model_runs"
+	ModelRunTaskName         = "monitor.model_run"
 	HistoryRetentionTaskName = "monitor.history_retention"
 
 	HistoryRetentionInterval = 24 * time.Hour
@@ -87,6 +89,40 @@ type ModelPlanItem struct {
 	ID         string
 	Capability string
 	Excluded   bool
+}
+
+// ModelRunPayload scopes a queued probe to one runnable model.
+type ModelRunPayload struct {
+	ModelID     string    `json:"model_id"`
+	Capability  string    `json:"capability"`
+	RequestedAt time.Time `json:"requested_at"`
+	Reason      string    `json:"reason,omitempty"`
+}
+
+// MarshalModelRunPayload serializes a one-model scheduled probe payload.
+func MarshalModelRunPayload(payload ModelRunPayload) ([]byte, error) {
+	if payload.ModelID == "" {
+		return nil, fmt.Errorf("model_id is required")
+	}
+	if payload.Capability == "" {
+		return nil, fmt.Errorf("capability is required")
+	}
+	return json.Marshal(payload)
+}
+
+// UnmarshalModelRunPayload parses the queued payload for a one-model probe.
+func UnmarshalModelRunPayload(raw []byte) (ModelRunPayload, error) {
+	var payload ModelRunPayload
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return ModelRunPayload{}, err
+	}
+	if payload.ModelID == "" {
+		return ModelRunPayload{}, fmt.Errorf("model_id is required")
+	}
+	if payload.Capability == "" {
+		return ModelRunPayload{}, fmt.Errorf("capability is required")
+	}
+	return payload, nil
 }
 
 // MemoryModelPlanStore keeps the model plan in process for the local scheduler.

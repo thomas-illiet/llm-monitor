@@ -3,6 +3,7 @@ package api
 import (
 	"time"
 
+	"llmservicemonitor/internal/schedule/queue"
 	"llmservicemonitor/internal/store"
 )
 
@@ -82,4 +83,20 @@ type ModelEventsResponse struct {
 	Limit   int                           `json:"limit"`
 	Offset  int                           `json:"offset"`
 	Filters store.ModelEventFilterOptions `json:"filters"`
+}
+
+// RunChecksRequest starts one manual check group from the dashboard.
+type RunChecksRequest struct {
+	Scope   string `json:"scope"`
+	ModelID string `json:"model_id,omitempty"`
+}
+
+// RunChecksResponse describes the tasks accepted for manual execution.
+type RunChecksResponse struct {
+	Jobs []queue.EnqueuedTask `json:"jobs"`
+}
+
+// CheckJobsResponse describes the latest queue state for manual jobs.
+type CheckJobsResponse struct {
+	Jobs []queue.JobStatus `json:"jobs"`
 }

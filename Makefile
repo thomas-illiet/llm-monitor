@@ -77,9 +77,11 @@ web-build: $(NODE_MODULES_STAMP) ## Build the Vue frontend.
 	$(NPM) run build
 
 .PHONY: build
-build: web-build ## Build frontend assets and the Go server binary.
+build: web-build ## Build frontend assets and the Go server, worker, and scheduler binaries.
 	mkdir -p $(BIN_DIR)
 	go build -trimpath -o $(BIN) ./cmd/server
+	go build -trimpath -o $(BIN)-worker ./cmd/worker
+	go build -trimpath -o $(BIN)-scheduler ./cmd/scheduler
 
 .PHONY: run
 run: ## Run the Go server locally.

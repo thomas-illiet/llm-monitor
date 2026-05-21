@@ -2,7 +2,7 @@
 
 ![LLM Service Monitor banner](docs/assets/banner.svg)
 
-Single-image monitor for OpenAI-compatible LLM services. The Go backend runs scheduled probes through a local task runner, persists PostgreSQL history, sends model lifecycle alerts by SMTP, and serves a Vue/Vuetify dashboard from embedded static assets.
+Single-image monitor for OpenAI-compatible LLM services. The Go API, Asynq scheduler, and worker processes run scheduled probes through Redis, persist PostgreSQL history, send model lifecycle alerts by SMTP, and serve a Vue/Vuetify dashboard from embedded static assets.
 
 ## Screenshot
 
@@ -14,7 +14,7 @@ Single-image monitor for OpenAI-compatible LLM services. The Go backend runs sch
 docker compose up --build
 ```
 
-Docker Compose exposes the app at [http://localhost:18080](http://localhost:18080) and MailDev at [http://localhost:1080](http://localhost:1080). The sample compose config disables OAuth, sends SMTP alerts to MailDev on `maildev:1025`, and points the target at a local placeholder API. For a real target, copy [config.example.yaml](config.example.yaml), fill in the endpoint, auth, SMTP, and certificate settings, then mount secrets read-only.
+Docker Compose starts PostgreSQL, Redis, the API server, scheduler, worker, and MailDev. It exposes the app at [http://localhost:18080](http://localhost:18080) and MailDev at [http://localhost:1080](http://localhost:1080). The sample compose config disables OAuth, sends SMTP alerts to MailDev on `maildev:1025`, and points the target at a local placeholder API. For a real target, copy [config.example.yaml](config.example.yaml), fill in the endpoint, auth, SMTP, and certificate settings, then mount secrets read-only.
 
 ## Development
 

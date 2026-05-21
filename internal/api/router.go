@@ -9,6 +9,7 @@ import (
 
 	"llmservicemonitor/internal/config"
 	"llmservicemonitor/internal/mcpserver"
+	"llmservicemonitor/internal/schedule/queue"
 	"llmservicemonitor/internal/store"
 )
 
@@ -31,17 +32,35 @@ type DashboardStore interface {
 	ModelPerformance(ctx context.Context, query store.ModelPerformanceQuery) ([]store.ModelPerformanceRow, error)
 }
 
+// ManualTaskQueue describes the queue operations used by manual dashboard checks.
+type ManualTaskQueue interface {
+	EnqueueHTTPCheck(ctx context.Context) (queue.EnqueuedTask, error)
+	EnqueueAuthCheck(ctx context.Context) (queue.EnqueuedTask, error)
+	EnqueueModelSnapshot(ctx context.Context) (queue.EnqueuedTask, error)
+	EnqueueModelRun(ctx context.Context, model store.RunnableModel, reason string) (queue.EnqueuedTask, error)
+	InspectJobs(ctx context.Context, ids []string) ([]queue.JobStatus, error)
+}
+
+type runnableModelStore interface {
+	RunnableModels(ctx context.Context) ([]store.RunnableModel, error)
+}
+
 // Router owns API configuration, persistence access, and embedded frontend assets.
 type Router struct {
-	cfg    config.Config
-	store  DashboardStore
-	static fs.FS
-	logger *slog.Logger
+	cfg       config.Config
+	store     DashboardStore
+	static    fs.FS
+	logger    *slog.Logger
+	taskQueue ManualTaskQueue
 }
 
 // NewRouter registers API endpoints and the embedded frontend fallback handler.
-func NewRouter(cfg config.Config, db DashboardStore, static fs.FS, logger *slog.Logger) (http.Handler, error) {
-	router := &Router{cfg: cfg, store: db, static: static, logger: logger}
+func NewRouter(cfg config.Config, db DashboardStore, static fs.FS, logger *slog.Logger, queues ...ManualTaskQueue) (http.Handler, error) {
+	var taskQueue ManualTaskQueue
+	if len(queues) > 0 {
+		taskQueue = queues[0]
+	}
+	router := &Router{cfg: cfg, store: db, static: static, logger: logger, taskQueue: taskQueue}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", router.healthz)
 	mux.Handle("GET /metrics", router.metricsHandler())
@@ -49,6 +68,8 @@ func NewRouter(cfg config.Config, db DashboardStore, static fs.FS, logger *slog.
 	mux.HandleFunc("GET /api/dashboard", router.dashboard)
 	mux.HandleFunc("GET /api/model-dashboard", router.modelDashboard)
 	mux.HandleFunc("GET /api/model-events", router.modelEvents)
+	mux.HandleFunc("POST /api/checks/run", router.runChecks)
+	mux.HandleFunc("GET /api/checks/jobs", router.checkJobs)
 	if cfg.MCP.Enabled {
 		handler, err := mcpserver.NewHandler(cfg, db, logger)
 		if err != nil {

@@ -89,10 +89,14 @@ func TestRunModelTestsRecordsHealthyModelWhenAnotherModelReturnsBadRequest(t *te
 		ModelPlanStore: plan,
 	})
 
-	err := service.runModelTests(context.Background(), runner.TaskContext{})
+	err := service.runModelTest(context.Background(), modelRunTaskContext(t, "broken-gateway-model", capabilityChat))
+	if err != nil {
+		t.Fatalf("runModelTest(broken) error = %v", err)
+	}
+	err = service.runModelTest(context.Background(), modelRunTaskContext(t, "healthy-chat-model", capabilityChat))
 
 	if err != nil {
-		t.Fatalf("runModelTests() error = %v", err)
+		t.Fatalf("runModelTest(healthy) error = %v", err)
 	}
 	if len(repo.chatRuns) != 2 {
 		t.Fatalf("chat runs = %d, want 2: %#v", len(repo.chatRuns), repo.chatRuns)
@@ -128,10 +132,10 @@ func TestRunModelTestsRemovesServiceUnavailableModelFromPlan(t *testing.T) {
 		ModelPlanStore: plan,
 	})
 
-	err := service.runModelTests(context.Background(), runner.TaskContext{})
+	err := service.runModelTest(context.Background(), modelRunTaskContext(t, "unavailable-model", capabilityChat))
 
 	if err != nil {
-		t.Fatalf("runModelTests() error = %v", err)
+		t.Fatalf("runModelTest() error = %v", err)
 	}
 	if got := plan.Load(); len(got) != 0 {
 		t.Fatalf("model plan = %#v, want unavailable model removed", got)
@@ -139,4 +143,16 @@ func TestRunModelTestsRemovesServiceUnavailableModelFromPlan(t *testing.T) {
 	if len(repo.chatRuns) != 1 || repo.chatRuns[0].StatusCode != http.StatusServiceUnavailable {
 		t.Fatalf("chat runs = %#v, want recorded 503 probe", repo.chatRuns)
 	}
+}
+
+func modelRunTaskContext(t *testing.T, modelID, capability string) runner.TaskContext {
+	t.Helper()
+	payload, err := shared.MarshalModelRunPayload(shared.ModelRunPayload{
+		ModelID:    modelID,
+		Capability: capability,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return runner.TaskContext{Payload: payload}
 }

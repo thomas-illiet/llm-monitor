@@ -51,6 +51,12 @@ type ModelState struct {
 	LastProbeAt  *time.Time `json:"last_probe_at,omitempty"`
 }
 
+// RunnableModel identifies one active model that can receive scheduled probes.
+type RunnableModel struct {
+	ModelID    string `json:"model_id"`
+	Capability string `json:"capability"`
+}
+
 // CheckRecord stores one auth or target HTTP availability check.
 type CheckRecord struct {
 	At         time.Time  `json:"at"`

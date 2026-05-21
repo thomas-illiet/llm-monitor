@@ -3,8 +3,8 @@ package models
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
-	"sync"
 
 	"llmservicemonitor/internal/llm"
 	"llmservicemonitor/internal/schedule/runner"
@@ -12,61 +12,39 @@ import (
 	"llmservicemonitor/internal/store"
 )
 
-// NewModelRunsTask creates the scheduled model probe task.
-func NewModelRunsTask(deps shared.Dependencies) runner.Task {
+// NewModelRunTask creates the queued model probe task for one model.
+func NewModelRunTask(deps shared.Dependencies) runner.Task {
 	service := newService(deps)
 	return runner.Task{
-		Name:    shared.ModelRunsTaskName,
-		Handler: service.runModelTests,
+		Name:    shared.ModelRunTaskName,
+		Handler: service.runModelTest,
 	}
 }
 
-func (s *service) runModelTests(ctx context.Context, _ runner.TaskContext) error {
-	plan := s.modelPlan.Load()
-	if len(plan) == 0 {
-		s.logger.Debug("model run plan empty, skipping scheduled probes")
-		return nil
+func (s *service) runModelTest(ctx context.Context, taskCtx runner.TaskContext) error {
+	payload, err := shared.UnmarshalModelRunPayload(taskCtx.Payload)
+	if err != nil {
+		return fmt.Errorf("parse model run payload: %w", err)
 	}
-	s.logger.Debug("model run probes started", "models", len(plan), "concurrency", s.modelConcurrency())
-	embeddingText := s.loadEmbeddingFixture()
-	sem := make(chan struct{}, s.modelConcurrency())
-	var wg sync.WaitGroup
-	errs := make(chan error, len(plan))
-	for _, model := range plan {
-		model := model
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			select {
-			case sem <- struct{}{}:
-				defer func() { <-sem }()
-			case <-ctx.Done():
-				return
-			}
-			switch model.Capability {
-			case capabilityChat:
-				if err := s.runChatTests(ctx, model.ID); err != nil {
-					errs <- err
-				}
-			case capabilityEmbedding:
-				if err := s.runEmbeddingTest(ctx, model.ID, embeddingText); err != nil {
-					errs <- err
-				}
-			}
-		}()
+	s.logger.Debug("model run probe started", "model", payload.ModelID, "capability", payload.Capability, "reason", payload.Reason)
+	err = s.runOneModelTest(ctx, payload.ModelID, payload.Capability)
+	if err != nil {
+		s.logger.Warn("model run probe completed with errors", "model", payload.ModelID, "capability", payload.Capability, "error", err)
+		return err
 	}
-	wg.Wait()
-	close(errs)
-	var joined error
-	for err := range errs {
-		joined = errors.Join(joined, err)
+	s.logger.Debug("model run probe completed", "model", payload.ModelID, "capability", payload.Capability)
+	return nil
+}
+
+func (s *service) runOneModelTest(ctx context.Context, modelID, capability string) error {
+	switch capability {
+	case capabilityChat:
+		return s.runChatTests(ctx, modelID)
+	case capabilityEmbedding:
+		return s.runEmbeddingTest(ctx, modelID, s.loadEmbeddingFixture())
+	default:
+		return fmt.Errorf("unsupported model capability %q for model %s", capability, modelID)
 	}
-	if joined != nil {
-		s.logger.Warn("model run probes completed with errors", "models", len(plan), "error", joined)
-	} else {
-		s.logger.Debug("model run probes completed", "models", len(plan))
-	}
-	return joined
 }
 
 func (s *service) runChatTests(ctx context.Context, modelID string) error {

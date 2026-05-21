@@ -52,8 +52,7 @@ than the cutoff.
 ## Failure Behavior
 
 If retention is disabled or storage is unavailable, the task exits without work.
-Database errors abort the transaction and are returned to the local scheduler,
-which logs them and continues on the next tick.
+Database errors abort the transaction and are returned to the worker.
 
 ## Related Code
 

@@ -210,3 +210,33 @@ export interface CheckRecord {
   expires_at?: string
   error: string
 }
+
+/** One manual check task accepted by the queue. */
+export interface ManualCheckJob {
+  id: string
+  queue: string
+  type: string
+  model_id?: string
+  state: string
+}
+
+/** Response returned after requesting manual checks. */
+export interface ManualCheckRunResponse {
+  jobs: ManualCheckJob[]
+}
+
+/** Latest queue state for one manual check task. */
+export interface ManualCheckJobStatus {
+  id: string
+  queue: string
+  type?: string
+  model_id?: string
+  state: string
+  error?: string
+  completed_at?: string
+}
+
+/** Response returned while polling manual check tasks. */
+export interface ManualCheckJobsResponse {
+  jobs: ManualCheckJobStatus[]
+}
