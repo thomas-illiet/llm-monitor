@@ -34,7 +34,6 @@ const providerMetadataRows = computed<MetadataRow[]>(() => {
       value: formatMetadataValue(value)
     }))
 })
-const rawJson = computed(() => JSON.stringify(providerMetadata.value, null, 2))
 const summaryRows = computed<SummaryRow[]>(() => {
   const selected = model.value
   if (!selected) return []
@@ -150,15 +149,6 @@ function modelStatusLabel(selected: ModelState) {
               No provider metadata has been captured for this model yet
             </div>
           </section>
-
-          <VExpansionPanels class="technical-details-dialog__raw" variant="accordion">
-            <VExpansionPanel>
-              <VExpansionPanelTitle>Raw JSON</VExpansionPanelTitle>
-              <VExpansionPanelText>
-                <pre>{{ rawJson }}</pre>
-              </VExpansionPanelText>
-            </VExpansionPanel>
-          </VExpansionPanels>
         </template>
       </VCardText>
     </VCard>
