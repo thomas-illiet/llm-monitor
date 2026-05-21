@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"time"
 
+	"llmservicemonitor/internal/metadata"
+
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -18,6 +20,7 @@ func (s *Store) ProcessModelObservation(ctx context.Context, observed []Observed
 	}
 	defer tx.Rollback(ctx)
 
+	observed = sanitizeObservedModels(observed)
 	raw, err := json.Marshal(observed)
 	if err != nil {
 		return nil, err
@@ -31,10 +34,14 @@ func (s *Store) ProcessModelObservation(ctx context.Context, observed []Observed
 		if err != nil {
 			return nil, err
 		}
+		providerMetadata, err := json.Marshal(model.ProviderMetadata)
+		if err != nil {
+			return nil, err
+		}
 		if _, err := tx.Exec(ctx, `
-			INSERT INTO model_snapshot_items(snapshot_id, model_id, capability, excluded, skip_reason, probe_details)
-			VALUES($1, $2, $3, $4, $5, $6)
-		`, snapshotID, model.ID, model.Capability, model.Excluded, model.SkipReason, probeDetails); err != nil {
+			INSERT INTO model_snapshot_items(snapshot_id, model_id, capability, excluded, skip_reason, probe_details, provider_metadata)
+			VALUES($1, $2, $3, $4, $5, $6, $7)
+		`, snapshotID, model.ID, model.Capability, model.Excluded, model.SkipReason, probeDetails, providerMetadata); err != nil {
 			return nil, err
 		}
 	}
@@ -48,12 +55,16 @@ func (s *Store) ProcessModelObservation(ctx context.Context, observed []Observed
 	for _, model := range observed {
 		seen[model.ID] = model
 		state, exists := current[model.ID]
+		providerMetadata, err := json.Marshal(model.ProviderMetadata)
+		if err != nil {
+			return nil, err
+		}
 		switch {
 		case !exists:
 			if _, err := tx.Exec(ctx, `
-				INSERT INTO model_states(model_id, capability, excluded, status, first_seen_at, last_seen_at, missing_since, skip_reason, last_probe_at)
-				VALUES($1, $2, $3, $4, $5, $5, NULL, $6, $5)
-			`, model.ID, model.Capability, model.Excluded, ModelStatusActive, now, model.SkipReason); err != nil {
+				INSERT INTO model_states(model_id, capability, excluded, status, first_seen_at, last_seen_at, missing_since, skip_reason, last_probe_at, provider_metadata)
+				VALUES($1, $2, $3, $4, $5, $5, NULL, $6, $5, $7)
+			`, model.ID, model.Capability, model.Excluded, ModelStatusActive, now, model.SkipReason, providerMetadata); err != nil {
 				return nil, err
 			}
 			event, err := insertModelEvent(ctx, tx, ModelEventRecord{
@@ -82,9 +93,9 @@ func (s *Store) ProcessModelObservation(ctx context.Context, observed []Observed
 			missingDuration := now.Sub(*state.MissingSince)
 			if _, err := tx.Exec(ctx, `
 				UPDATE model_states
-				SET capability=$2, excluded=$3, status=$4, last_seen_at=$5, missing_since=NULL, skip_reason=$6, last_probe_at=$5
+				SET capability=$2, excluded=$3, status=$4, last_seen_at=$5, missing_since=NULL, skip_reason=$6, last_probe_at=$5, provider_metadata=$7
 				WHERE model_id=$1
-			`, model.ID, model.Capability, model.Excluded, ModelStatusActive, now, model.SkipReason); err != nil {
+			`, model.ID, model.Capability, model.Excluded, ModelStatusActive, now, model.SkipReason, providerMetadata); err != nil {
 				return nil, err
 			}
 			event, err := insertModelEvent(ctx, tx, ModelEventRecord{
@@ -113,9 +124,9 @@ func (s *Store) ProcessModelObservation(ctx context.Context, observed []Observed
 			events = append(events, event)
 		default:
 			if _, err := tx.Exec(ctx, `
-				UPDATE model_states SET capability=$2, excluded=$3, status=$4, last_seen_at=$5, skip_reason=$6, last_probe_at=$5
+				UPDATE model_states SET capability=$2, excluded=$3, status=$4, last_seen_at=$5, skip_reason=$6, last_probe_at=$5, provider_metadata=$7
 				WHERE model_id=$1
-			`, model.ID, model.Capability, model.Excluded, ModelStatusActive, now, model.SkipReason); err != nil {
+			`, model.ID, model.Capability, model.Excluded, ModelStatusActive, now, model.SkipReason, providerMetadata); err != nil {
 				return nil, err
 			}
 			if state.Capability != model.Capability || state.Excluded != model.Excluded || state.SkipReason != model.SkipReason {
@@ -184,6 +195,18 @@ func (s *Store) ProcessModelObservation(ctx context.Context, observed []Observed
 		return nil, err
 	}
 	return events, nil
+}
+
+func sanitizeObservedModels(observed []ObservedModel) []ObservedModel {
+	if len(observed) == 0 {
+		return observed
+	}
+	sanitized := make([]ObservedModel, len(observed))
+	for i, model := range observed {
+		sanitized[i] = model
+		sanitized[i].ProviderMetadata = metadata.RedactProviderMetadata(model.ProviderMetadata)
+	}
+	return sanitized
 }
 
 // MarkModelInactive transitions one runnable model to inactive when a probe proves it unavailable.
@@ -406,6 +429,37 @@ func (s *Store) ListModelStates(ctx context.Context) ([]ModelState, error) {
 		states = append(states, state)
 	}
 	return states, rows.Err()
+}
+
+// ModelDetails returns the current state and latest provider metadata for one model.
+func (s *Store) ModelDetails(ctx context.Context, modelID string) (*ModelDetails, error) {
+	var state ModelState
+	var missing pgtype.Timestamptz
+	var lastProbe pgtype.Timestamptz
+	var providerMetadataRaw []byte
+	if err := s.pool.QueryRow(ctx, `
+		SELECT model_id, capability, excluded, status, first_seen_at, last_seen_at, missing_since, skip_reason, last_probe_at, provider_metadata
+		FROM model_states
+		WHERE model_id=$1
+	`, modelID).Scan(&state.ModelID, &state.Capability, &state.Excluded, &state.Status, &state.FirstSeenAt, &state.LastSeenAt, &missing, &state.SkipReason, &lastProbe, &providerMetadataRaw); err != nil {
+		return nil, err
+	}
+	if missing.Valid {
+		state.MissingSince = &missing.Time
+	}
+	if lastProbe.Valid {
+		state.LastProbeAt = &lastProbe.Time
+	}
+	providerMetadata := map[string]any{}
+	if len(providerMetadataRaw) > 0 {
+		if err := json.Unmarshal(providerMetadataRaw, &providerMetadata); err != nil {
+			return nil, err
+		}
+	}
+	return &ModelDetails{
+		Model:            state,
+		ProviderMetadata: providerMetadata,
+	}, nil
 }
 
 // LastRunnableCapabilities returns the newest known chat/embedding capability per model.

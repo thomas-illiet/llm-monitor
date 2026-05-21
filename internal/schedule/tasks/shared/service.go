@@ -28,7 +28,7 @@ const (
 
 // LLMClient describes the OpenAI-compatible operations used by monitor tasks.
 type LLMClient interface {
-	ListModels(ctx context.Context) ([]string, error)
+	ListModels(ctx context.Context) ([]llm.ProviderModel, error)
 	HealthCheck(ctx context.Context) llm.HTTPCheckResult
 	RunChat(ctx context.Context, run llm.ChatRequest) llm.RunResult
 	RunChatStream(ctx context.Context, run llm.ChatRequest) llm.RunResult

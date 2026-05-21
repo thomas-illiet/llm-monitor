@@ -3,12 +3,15 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 	"time"
 
 	"llmservicemonitor/internal/schedule/queue"
 	"llmservicemonitor/internal/store"
+
+	"github.com/jackc/pgx/v5"
 )
 
 // healthz returns a lightweight process health response.
@@ -151,6 +154,29 @@ func (r *Router) modelDashboard(w http.ResponseWriter, req *http.Request) {
 		SLO:         slo,
 		Charts:      charts,
 		Runs:        runs,
+	})
+}
+
+// modelDetails returns provider metadata captured from the latest model inventory.
+func (r *Router) modelDetails(w http.ResponseWriter, req *http.Request) {
+	modelID := strings.TrimSpace(req.PathValue("model_id"))
+	if modelID == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "model_id is required"})
+		return
+	}
+	details, err := r.store.ModelDetails(req.Context(), modelID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "model not found"})
+			return
+		}
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, ModelDetailsResponse{
+		GeneratedAt:      time.Now().UTC(),
+		Model:            details.Model,
+		ProviderMetadata: details.ProviderMetadata,
 	})
 }
 

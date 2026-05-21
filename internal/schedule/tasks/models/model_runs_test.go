@@ -20,7 +20,7 @@ type modelRunClient struct {
 	results map[string]llm.RunResult
 }
 
-func (c *modelRunClient) ListModels(context.Context) ([]string, error) {
+func (c *modelRunClient) ListModels(context.Context) ([]llm.ProviderModel, error) {
 	return nil, nil
 }
 

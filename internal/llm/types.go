@@ -27,6 +27,12 @@ type Client struct {
 	logger             *slog.Logger
 }
 
+// ProviderModel is one model object returned by the configured inventory endpoint.
+type ProviderModel struct {
+	ID       string         `json:"id"`
+	Metadata map[string]any `json:"provider_metadata,omitempty"`
+}
+
 // ChatRequest describes one chat probe sent to the completions endpoint.
 type ChatRequest struct {
 	Model       string

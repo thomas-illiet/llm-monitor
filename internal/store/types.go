@@ -18,11 +18,12 @@ type Store struct {
 
 // ObservedModel is one model returned by the current inventory snapshot.
 type ObservedModel struct {
-	ID           string         `json:"id"`
-	Capability   string         `json:"capability"`
-	Excluded     bool           `json:"excluded"`
-	SkipReason   string         `json:"skip_reason,omitempty"`
-	ProbeDetails map[string]any `json:"probe_details,omitempty"`
+	ID               string         `json:"id"`
+	Capability       string         `json:"capability"`
+	Excluded         bool           `json:"excluded"`
+	SkipReason       string         `json:"skip_reason,omitempty"`
+	ProbeDetails     map[string]any `json:"probe_details,omitempty"`
+	ProviderMetadata map[string]any `json:"provider_metadata,omitempty"`
 }
 
 // ModelEvent is the lifecycle event data returned to alert orchestration.
@@ -50,6 +51,12 @@ type ModelState struct {
 	MissingSince *time.Time `json:"missing_since,omitempty"`
 	SkipReason   string     `json:"skip_reason,omitempty"`
 	LastProbeAt  *time.Time `json:"last_probe_at,omitempty"`
+}
+
+// ModelDetails combines current model state with the latest provider metadata.
+type ModelDetails struct {
+	Model            ModelState     `json:"model"`
+	ProviderMetadata map[string]any `json:"provider_metadata"`
 }
 
 // RunnableModel identifies one active model that can receive scheduled probes.

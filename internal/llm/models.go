@@ -7,10 +7,12 @@ import (
 	"io"
 	"net/http"
 	"time"
+
+	"llmservicemonitor/internal/metadata"
 )
 
-// ListModels fetches the current model identifiers from /v1/models.
-func (c *Client) ListModels(ctx context.Context) ([]string, error) {
+// ListModels fetches the current model inventory from /v1/models.
+func (c *Client) ListModels(ctx context.Context) ([]ProviderModel, error) {
 	start := time.Now()
 	endpointLabel := safeEndpointLabel(c.modelsEndpoint)
 	c.logger.Debug("llm list models request started", "endpoint", endpointLabel)
@@ -36,18 +38,20 @@ func (c *Client) ListModels(ctx context.Context) ([]string, error) {
 		return nil, err
 	}
 	var decoded struct {
-		Data []struct {
-			ID string `json:"id"`
-		} `json:"data"`
+		Data []map[string]any `json:"data"`
 	}
 	if err := json.Unmarshal(body, &decoded); err != nil {
 		c.logger.Warn("llm list models response decode failed", "endpoint", endpointLabel, "status", resp.StatusCode, "latency_ms", millisSince(start), "error", err)
 		return nil, err
 	}
-	models := make([]string, 0, len(decoded.Data))
+	models := make([]ProviderModel, 0, len(decoded.Data))
 	for _, model := range decoded.Data {
-		if model.ID != "" {
-			models = append(models, model.ID)
+		id, ok := model["id"].(string)
+		if ok && id != "" {
+			models = append(models, ProviderModel{
+				ID:       id,
+				Metadata: metadata.RedactProviderMetadata(model),
+			})
 		}
 	}
 	c.logger.Debug("llm list models request completed", "endpoint", endpointLabel, "status", resp.StatusCode, "latency_ms", millisSince(start), "models", len(models))

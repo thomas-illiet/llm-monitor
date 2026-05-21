@@ -25,6 +25,7 @@ type DashboardStore interface {
 	RecentRunsForModel(ctx context.Context, modelID string, since time.Time, limit int) ([]store.RecentRun, error)
 	LatestRunsByModel(ctx context.Context) ([]store.LatestRun, error)
 	RecentAlerts(ctx context.Context, limit int) ([]store.RecentAlert, error)
+	ModelDetails(ctx context.Context, modelID string) (*store.ModelDetails, error)
 	MetricSamples(ctx context.Context, metric, groupBy string, since time.Time) ([]store.MetricSample, error)
 	MetricSamplesForModel(ctx context.Context, metric, groupBy string, since time.Time, modelID string) ([]store.MetricSample, error)
 	ModelStatusSamples(ctx context.Context, since time.Time) ([]store.MetricSample, error)
@@ -72,6 +73,7 @@ func NewRouter(cfg config.Config, db DashboardStore, static fs.FS, logger *slog.
 	mux.HandleFunc("GET /api/dashboard", router.dashboard)
 	mux.HandleFunc("GET /api/model-dashboard", router.modelDashboard)
 	mux.HandleFunc("GET /api/model-events", router.modelEvents)
+	mux.HandleFunc("GET /api/models/{model_id}/details", router.modelDetails)
 	mux.HandleFunc("POST /api/checks/run", router.runChecks)
 	mux.HandleFunc("GET /api/checks/jobs", router.checkJobs)
 	if cfg.MCP.Enabled {

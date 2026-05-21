@@ -17,8 +17,10 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
+  openCompare: [modelId: string]
   openDashboard: [modelId: string]
   openEvents: [modelId: string]
+  openTechnicalDetails: [modelId: string]
   runCheck: [modelId: string]
 }>()
 
@@ -140,6 +142,12 @@ const checkingModels = computed(() => new Set(props.checkingModelIds ?? []))
             </VListItem>
             <VListItem prepend-icon="mdi-view-dashboard-outline" @click="emit('openDashboard', item.model_id)">
               <VListItemTitle>Dashboard</VListItemTitle>
+            </VListItem>
+            <VListItem prepend-icon="mdi-compare-horizontal" @click="emit('openCompare', item.model_id)">
+              <VListItemTitle>Compare</VListItemTitle>
+            </VListItem>
+            <VListItem prepend-icon="mdi-code-json" @click="emit('openTechnicalDetails', item.model_id)">
+              <VListItemTitle>Technical details</VListItemTitle>
             </VListItem>
             <VListItem prepend-icon="mdi-timeline-clock-outline" @click="emit('openEvents', item.model_id)">
               <VListItemTitle>Events</VListItemTitle>

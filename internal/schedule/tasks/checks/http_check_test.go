@@ -17,7 +17,7 @@ type httpCheckClient struct {
 	result llm.HTTPCheckResult
 }
 
-func (c httpCheckClient) ListModels(context.Context) ([]string, error) {
+func (c httpCheckClient) ListModels(context.Context) ([]llm.ProviderModel, error) {
 	return nil, nil
 }
 

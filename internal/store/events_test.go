@@ -16,6 +16,34 @@ func TestMigrationDefinesModelEventChangedFlag(t *testing.T) {
 	assertContains(t, migrationSQL, "CREATE INDEX IF NOT EXISTS model_events_changed_observed_idx ON model_events(observed_at DESC) WHERE changed")
 }
 
+func TestMigrationDefinesProviderMetadataColumns(t *testing.T) {
+	assertContains(t, migrationSQL, "provider_metadata JSONB NOT NULL DEFAULT '{}'::jsonb")
+	assertContains(t, migrationSQL, "ALTER TABLE IF EXISTS model_snapshot_items")
+	assertContains(t, migrationSQL, "ALTER TABLE IF EXISTS model_states")
+}
+
+func TestSanitizeObservedModelsRedactsProviderMetadata(t *testing.T) {
+	observed := []ObservedModel{{
+		ID: "model-a",
+		ProviderMetadata: map[string]any{
+			"api_key":  "secret",
+			"owned_by": "acme",
+		},
+	}}
+
+	got := sanitizeObservedModels(observed)
+
+	if got[0].ProviderMetadata["api_key"] != "[redacted]" {
+		t.Fatalf("api_key = %#v, want redacted", got[0].ProviderMetadata["api_key"])
+	}
+	if got[0].ProviderMetadata["owned_by"] != "acme" {
+		t.Fatalf("owned_by = %#v, want preserved", got[0].ProviderMetadata["owned_by"])
+	}
+	if observed[0].ProviderMetadata["api_key"] != "secret" {
+		t.Fatalf("original metadata mutated: %#v", observed[0].ProviderMetadata)
+	}
+}
+
 // TestModelEventSQLIncludesChangedColumn verifies event writes and dashboard reads use the changed flag.
 func TestModelEventSQLIncludesChangedColumn(t *testing.T) {
 	assertContains(t, insertModelEventSQL, "message, changed, details")

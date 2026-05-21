@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS model_snapshot_items (
   excluded BOOLEAN NOT NULL DEFAULT FALSE,
   skip_reason TEXT NOT NULL DEFAULT '',
   probe_details JSONB NOT NULL DEFAULT '{}'::jsonb,
+  provider_metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
   PRIMARY KEY (snapshot_id, model_id)
 );
 
@@ -28,8 +29,15 @@ CREATE TABLE IF NOT EXISTS model_states (
   last_seen_at TIMESTAMPTZ NOT NULL,
   missing_since TIMESTAMPTZ,
   skip_reason TEXT NOT NULL DEFAULT '',
-  last_probe_at TIMESTAMPTZ
+  last_probe_at TIMESTAMPTZ,
+  provider_metadata JSONB NOT NULL DEFAULT '{}'::jsonb
 );
+
+ALTER TABLE IF EXISTS model_snapshot_items
+  ADD COLUMN IF NOT EXISTS provider_metadata JSONB NOT NULL DEFAULT '{}'::jsonb;
+
+ALTER TABLE IF EXISTS model_states
+  ADD COLUMN IF NOT EXISTS provider_metadata JSONB NOT NULL DEFAULT '{}'::jsonb;
 
 CREATE TABLE IF NOT EXISTS model_events (
   id BIGSERIAL PRIMARY KEY,

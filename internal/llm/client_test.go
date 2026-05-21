@@ -41,9 +41,7 @@ func TestClientUsesTargetCustomCA(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(models) != 1 || models[0] != "gpt-test" {
-		t.Fatalf("unexpected models: %#v", models)
-	}
+	assertModelIDs(t, models, []string{"gpt-test"})
 }
 
 // TestClientCanSkipTargetTLSVerification verifies the global TLS escape hatch
@@ -69,9 +67,7 @@ func TestClientCanSkipTargetTLSVerification(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(models) != 1 || models[0] != "gpt-test" {
-		t.Fatalf("unexpected models: %#v", models)
-	}
+	assertModelIDs(t, models, []string{"gpt-test"})
 }
 
 // TestClientUsesCustomTargetEndpoints verifies model, chat, embedding, and
@@ -117,9 +113,7 @@ func TestClientUsesCustomTargetEndpoints(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(models) != 1 || models[0] != "gpt-test" {
-		t.Fatalf("unexpected models: %#v", models)
-	}
+	assertModelIDs(t, models, []string{"gpt-test"})
 	health := client.HealthCheck(context.Background())
 	if !health.OK {
 		t.Fatalf("health check failed: %#v", health)
@@ -178,9 +172,7 @@ func TestClientUsesAbsoluteEndpointURL(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(models) != 1 || models[0] != "absolute-model" {
-		t.Fatalf("unexpected models: %#v", models)
-	}
+	assertModelIDs(t, models, []string{"absolute-model"})
 	if absoluteCalls != 1 {
 		t.Fatalf("absolute endpoint calls = %d, want 1", absoluteCalls)
 	}
@@ -219,11 +211,68 @@ func TestClientRetriesTransientHTTPFailures(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(models) != 1 || models[0] != "gpt-test" {
-		t.Fatalf("unexpected models: %#v", models)
-	}
+	assertModelIDs(t, models, []string{"gpt-test"})
 	if calls != 3 {
 		t.Fatalf("calls = %d, want 3", calls)
+	}
+}
+
+func TestClientListModelsKeepsRedactedProviderMetadata(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"data": [{
+				"id": "provider/model",
+				"object": "model",
+				"owned_by": "acme",
+				"created": 1710000000,
+				"api_key": "secret-value",
+				"nested": {
+					"access_token": "token-value",
+					"safe": "visible"
+				},
+				"variants": [{
+					"name": "fast",
+					"password": "hidden"
+				}]
+			}]
+		}`))
+	}))
+	defer server.Close()
+
+	client, err := NewClient(config.TargetConfig{
+		BaseURL:       server.URL,
+		HTTPCheckPath: "/v1/models",
+		Timeout:       config.Duration{Duration: 2 * time.Second},
+	}, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	models, err := client.ListModels(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assertModelIDs(t, models, []string{"provider/model"})
+	metadata := models[0].Metadata
+	if metadata["owned_by"] != "acme" || metadata["id"] != "provider/model" {
+		t.Fatalf("metadata = %#v, want provider fields", metadata)
+	}
+	if metadata["api_key"] != "[redacted]" {
+		t.Fatalf("api_key = %#v, want redacted", metadata["api_key"])
+	}
+	nested, ok := metadata["nested"].(map[string]any)
+	if !ok || nested["access_token"] != "[redacted]" || nested["safe"] != "visible" {
+		t.Fatalf("nested metadata = %#v, want nested redaction", metadata["nested"])
+	}
+	variants, ok := metadata["variants"].([]any)
+	if !ok || len(variants) != 1 {
+		t.Fatalf("variants = %#v, want one variant", metadata["variants"])
+	}
+	variant, ok := variants[0].(map[string]any)
+	if !ok || variant["password"] != "[redacted]" || variant["name"] != "fast" {
+		t.Fatalf("variant = %#v, want array item redaction", variants[0])
 	}
 }
 
@@ -344,6 +393,18 @@ func TestRunChatStreamMeasuresStreamingMetrics(t *testing.T) {
 	}
 	if result.OutputTokensPerSecond == nil || *result.OutputTokensPerSecond <= 0 {
 		t.Fatalf("missing output token rate: %#v", result.OutputTokensPerSecond)
+	}
+}
+
+func assertModelIDs(t *testing.T, models []ProviderModel, want []string) {
+	t.Helper()
+	if len(models) != len(want) {
+		t.Fatalf("models len = %d, want %d: %#v", len(models), len(want), models)
+	}
+	for i := range want {
+		if models[i].ID != want[i] {
+			t.Fatalf("model ids = %#v, want %v", models, want)
+		}
 	}
 }
 

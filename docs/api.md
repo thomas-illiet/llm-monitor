@@ -77,6 +77,21 @@ Returns KPI, chart, and recent probe telemetry for one model. Query parameters:
 
 The response includes generated time, the current model state, model-scoped KPIs, SLOs, model-scoped charts, and recent runs in the selected window. Chart types are `line`, `bar`, or `stacked-bar`; dataset values can be `null` when a bucket has no sample. Missing `model_id` returns `400`; unknown models return `404`.
 
+## `GET /api/models/{model_id}/details`
+
+Returns the current model state and provider metadata captured from the latest
+`/v1/models` inventory snapshot. Encode model IDs as URL path segments, for
+example:
+
+```text
+/api/models/provider%2Fmodel/details
+```
+
+The response includes `generated_at`, `model`, and `provider_metadata`. Sensitive
+metadata keys such as API keys, tokens, secrets, passwords, authorization values,
+credentials, and bearer values are redacted before persistence. Unknown models
+return `404`.
+
 ## `GET /api/model-events`
 
 Returns a paginated model event timeline. Query parameters:

@@ -21,7 +21,7 @@ type capabilityProbeClient struct {
 	chatCalls       int
 }
 
-func (c *capabilityProbeClient) ListModels(context.Context) ([]string, error) {
+func (c *capabilityProbeClient) ListModels(context.Context) ([]llm.ProviderModel, error) {
 	return nil, nil
 }
 
@@ -156,7 +156,10 @@ func TestDetectModelsPreservesKnownCapabilityForGatewayBadRequest(t *testing.T) 
 	}
 	service := testTaskService(client)
 
-	got := service.detectModels(context.Background(), []string{"known-chat"}, map[string]string{"known-chat": capabilityChat})
+	got := service.detectModels(context.Background(), []llm.ProviderModel{{
+		ID:       "known-chat",
+		Metadata: map[string]any{"owned_by": "acme"},
+	}}, map[string]string{"known-chat": capabilityChat})
 
 	if len(got) != 1 {
 		t.Fatalf("observed models = %d, want 1", len(got))
@@ -169,6 +172,9 @@ func TestDetectModelsPreservesKnownCapabilityForGatewayBadRequest(t *testing.T) 
 	}
 	if got[0].ProbeDetails["preserved_capability"] != capabilityChat {
 		t.Fatalf("preserved capability detail = %#v, want %q", got[0].ProbeDetails["preserved_capability"], capabilityChat)
+	}
+	if got[0].ProviderMetadata["owned_by"] != "acme" {
+		t.Fatalf("provider metadata = %#v, want preserved metadata", got[0].ProviderMetadata)
 	}
 }
 

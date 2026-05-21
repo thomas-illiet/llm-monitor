@@ -127,6 +127,13 @@ export interface ModelState {
   last_probe_at?: string
 }
 
+/** Provider metadata details returned for one model. */
+export interface ModelTechnicalDetailsData {
+  generated_at: string
+  model: ModelState
+  provider_metadata: Record<string, unknown>
+}
+
 /** One model lifecycle or diagnostic timeline event. */
 export interface ModelEvent {
   id: number

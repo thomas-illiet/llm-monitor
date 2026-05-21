@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"testing"
 	"time"
@@ -557,6 +559,57 @@ func TestAttachModelNextChecksUsesQueueSchedule(t *testing.T) {
 	}
 	if models[1].NextCheckAt != nil {
 		t.Fatalf("inactive next_check_at = %v, want nil", models[1].NextCheckAt)
+	}
+}
+
+func TestModelDetailsRouteReturnsProviderMetadata(t *testing.T) {
+	modelID := "provider/model"
+	fake := &metricsFakeStore{
+		models: []store.ModelState{{
+			ModelID:    modelID,
+			Capability: "chat",
+			Status:     "active",
+		}},
+		modelDetails: map[string]map[string]any{
+			modelID: {
+				"owned_by": "acme",
+				"object":   "model",
+			},
+		},
+	}
+	handler, err := NewRouter(config.Config{}, fake, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/models/provider%2Fmodel/details", nil)
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	var got ModelDetailsResponse
+	if err := json.NewDecoder(rec.Body).Decode(&got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Model.ModelID != modelID || got.ProviderMetadata["owned_by"] != "acme" {
+		t.Fatalf("response = %#v, want model details metadata", got)
+	}
+}
+
+func TestModelDetailsRouteReturnsNotFound(t *testing.T) {
+	handler, err := NewRouter(config.Config{}, &metricsFakeStore{}, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/models/missing/details", nil)
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
 	}
 }
 

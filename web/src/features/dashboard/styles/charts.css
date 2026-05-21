@@ -92,6 +92,127 @@
   overflow-y: auto;
 }
 
+.technical-details-dialog {
+  max-height: 88vh;
+}
+
+.technical-details-dialog__title-actions,
+.technical-details-dialog__chips,
+.technical-details-dialog__section-header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.technical-details-dialog__body {
+  display: grid;
+  gap: 16px;
+}
+
+.technical-details-dialog__summary,
+.technical-details-dialog__metadata {
+  min-width: 0;
+}
+
+.technical-details-dialog__identity {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.technical-details-dialog__summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+
+.technical-details-dialog__summary-item {
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-card-elevated);
+}
+
+.technical-details-dialog__summary-item dt,
+.technical-details-dialog__summary-item dd {
+  overflow-wrap: anywhere;
+}
+
+.technical-details-dialog__summary-item dt {
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+}
+
+.technical-details-dialog__summary-item dd {
+  margin: 4px 0 0;
+  color: var(--text-primary);
+  font-size: 0.8125rem;
+}
+
+.technical-details-dialog__section-header {
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.technical-details-dialog__table {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-card);
+  overflow: hidden;
+}
+
+.technical-details-dialog__table th {
+  color: var(--text-secondary) !important;
+  background: var(--bg-table-header) !important;
+  white-space: nowrap;
+}
+
+.technical-details-dialog__table td {
+  max-width: 0;
+  color: var(--text-primary);
+  border-bottom-color: var(--border) !important;
+  vertical-align: top;
+}
+
+.technical-details-dialog__key {
+  width: 30%;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 0.8125rem;
+  overflow-wrap: anywhere;
+}
+
+.technical-details-dialog pre {
+  max-height: 360px;
+  margin: 0;
+  color: var(--text-primary);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.technical-details-dialog__empty {
+  display: grid;
+  min-height: 120px;
+  place-items: center;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.technical-details-dialog__raw {
+  color: var(--text-primary);
+}
+
 .model-dashboard-panel {
   min-width: 0;
   color: var(--text-primary);
@@ -135,6 +256,154 @@
 }
 
 .model-dashboard-panel__empty {
+  display: grid;
+  place-items: center;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.model-comparison-panel {
+  min-width: 0;
+  color: var(--text-primary);
+}
+
+.model-comparison-panel__header,
+.model-comparison-panel__actions,
+.model-comparison-panel__summary-chips {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.model-comparison-panel__header {
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.model-comparison-panel__actions {
+  justify-content: flex-end;
+}
+
+.model-comparison-panel__select {
+  width: min(320px, 72vw);
+}
+
+.model-comparison-panel__alerts {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.model-comparison-panel__summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.model-comparison-panel__summary {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-card-elevated);
+}
+
+.model-comparison-panel__summary strong,
+.model-comparison-panel__summary span {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.model-comparison-panel__summary strong {
+  margin-bottom: 8px;
+  color: var(--text-primary);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 0.875rem;
+}
+
+.model-comparison-panel__summary span {
+  margin-top: 6px;
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+}
+
+.model-comparison-panel__metric-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.model-comparison-panel__metric {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-card);
+}
+
+.model-comparison-panel__metric-header,
+.model-comparison-panel__metric-values {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.model-comparison-panel__metric-header p {
+  min-width: 0;
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  font-weight: 650;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.model-comparison-panel__metric-values {
+  align-items: flex-start;
+  margin-top: 12px;
+}
+
+.model-comparison-panel__metric-values span,
+.model-comparison-panel__delta {
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+}
+
+.model-comparison-panel__metric-values strong {
+  display: block;
+  color: var(--text-primary);
+  font-size: 1rem;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.model-comparison-panel__delta {
+  display: block;
+  margin-top: 10px;
+  overflow-wrap: anywhere;
+}
+
+.model-comparison-panel__delta--positive {
+  color: var(--color-status-ok);
+}
+
+.model-comparison-panel__delta--negative {
+  color: var(--color-error-text);
+}
+
+.model-comparison-panel__charts {
+  margin-top: 16px;
+}
+
+.model-comparison-panel__empty,
+.model-comparison-panel__loading {
+  min-height: 180px;
+}
+
+.model-comparison-panel__empty {
   display: grid;
   place-items: center;
   color: var(--text-secondary);

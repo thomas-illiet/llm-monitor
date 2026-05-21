@@ -10,6 +10,8 @@ import (
 
 	"llmservicemonitor/internal/config"
 	"llmservicemonitor/internal/store"
+
+	"github.com/jackc/pgx/v5"
 )
 
 func TestMetricsEndpointExposesPrometheusText(t *testing.T) {
@@ -114,10 +116,11 @@ func TestMetricsEndpointReportsDownWhenChecksAreMissing(t *testing.T) {
 }
 
 type metricsFakeStore struct {
-	models     []store.ModelState
-	httpCheck  *store.CheckRecord
-	authCheck  *store.CheckRecord
-	latestRuns []store.LatestRun
+	models       []store.ModelState
+	modelDetails map[string]map[string]any
+	httpCheck    *store.CheckRecord
+	authCheck    *store.CheckRecord
+	latestRuns   []store.LatestRun
 }
 
 func (f *metricsFakeStore) ListModelStates(context.Context) ([]store.ModelState, error) {
@@ -158,6 +161,18 @@ func (f *metricsFakeStore) RecentRunsForModel(context.Context, string, time.Time
 
 func (f *metricsFakeStore) RecentAlerts(context.Context, int) ([]store.RecentAlert, error) {
 	return nil, nil
+}
+
+func (f *metricsFakeStore) ModelDetails(_ context.Context, modelID string) (*store.ModelDetails, error) {
+	for _, model := range f.models {
+		if model.ModelID == modelID {
+			return &store.ModelDetails{
+				Model:            model,
+				ProviderMetadata: f.modelDetails[modelID],
+			}, nil
+		}
+	}
+	return nil, pgx.ErrNoRows
 }
 
 func (f *metricsFakeStore) MetricSamples(context.Context, string, string, time.Time) ([]store.MetricSample, error) {

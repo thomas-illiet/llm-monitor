@@ -5,6 +5,14 @@
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
+  .model-comparison-panel__metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .technical-details-dialog__summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .charts-grid {
     grid-template-columns: 1fr;
   }
@@ -37,6 +45,24 @@
   }
 
   .kpi-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .model-comparison-panel__actions,
+  .model-comparison-panel__select,
+  .model-comparison-panel__summary-grid,
+  .model-comparison-panel__metric-grid {
+    width: 100%;
+  }
+
+  .model-comparison-panel__actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .model-comparison-panel__summary-grid,
+  .model-comparison-panel__metric-grid,
+  .technical-details-dialog__summary-grid {
     grid-template-columns: 1fr;
   }
 

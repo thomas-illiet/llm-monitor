@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"llmservicemonitor/internal/llm"
 	"llmservicemonitor/internal/notify"
 	"llmservicemonitor/internal/schedule/runner"
 	"llmservicemonitor/internal/schedule/tasks/shared"
@@ -24,7 +25,7 @@ func NewModelSnapshotTask(deps shared.Dependencies) runner.Task {
 }
 
 func (s *service) refreshModels(ctx context.Context, _ runner.TaskContext) error {
-	modelIDs, err := s.client.ListModels(ctx)
+	providerModels, err := s.client.ListModels(ctx)
 	if err != nil {
 		s.logger.Error("list models", "error", err)
 		now := time.Now().UTC()
@@ -35,9 +36,9 @@ func (s *service) refreshModels(ctx context.Context, _ runner.TaskContext) error
 		s.sendInactiveModelAlerts(ctx, now)
 		return err
 	}
-	s.logger.Debug("model inventory loaded", "models", len(modelIDs))
+	s.logger.Debug("model inventory loaded", "models", len(providerModels))
 	knownCapabilities := s.lastKnownRunnableCapabilities(ctx)
-	observed := s.detectModels(ctx, modelIDs, knownCapabilities)
+	observed := s.detectModels(ctx, providerModels, knownCapabilities)
 	s.logger.Debug("model capability detection completed", "models", len(observed))
 	now := time.Now().UTC()
 	events, err := s.store.ProcessModelObservation(ctx, observed, now)
@@ -81,24 +82,30 @@ func (s *service) lastKnownRunnableCapabilities(ctx context.Context) map[string]
 	return capabilities
 }
 
-func (s *service) detectModels(ctx context.Context, modelIDs []string, knownCapabilities map[string]string) []store.ObservedModel {
-	observed := make([]store.ObservedModel, len(modelIDs))
-	if len(modelIDs) == 0 {
+func (s *service) detectModels(ctx context.Context, providerModels []llm.ProviderModel, knownCapabilities map[string]string) []store.ObservedModel {
+	observed := make([]store.ObservedModel, len(providerModels))
+	if len(providerModels) == 0 {
 		return observed
 	}
 	embeddingInput := s.embeddingProbeInput()
 	sem := make(chan struct{}, s.modelConcurrency())
 	var wg sync.WaitGroup
-	for i, modelID := range modelIDs {
-		i, modelID := i, modelID
+	for i, providerModel := range providerModels {
+		i, providerModel := i, providerModel
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+			modelID := providerModel.ID
 			select {
 			case sem <- struct{}{}:
 				defer func() { <-sem }()
 			case <-ctx.Done():
-				observed[i] = store.ObservedModel{ID: modelID, Capability: capabilitySkip, SkipReason: "context canceled before capability probes"}
+				observed[i] = store.ObservedModel{
+					ID:               modelID,
+					Capability:       capabilitySkip,
+					SkipReason:       "context canceled before capability probes",
+					ProviderMetadata: providerModel.Metadata,
+				}
 				s.recordModelEvent(ctx, store.ModelEventRecord{
 					ModelID:    modelID,
 					EventType:  "capability_probe",
@@ -121,10 +128,11 @@ func (s *service) detectModels(ctx context.Context, modelIDs []string, knownCapa
 				detection.ProbeDetails["preserved_capability"] = preserved
 			}
 			observed[i] = store.ObservedModel{
-				ID:           modelID,
-				Capability:   capability,
-				SkipReason:   skipReason,
-				ProbeDetails: detection.ProbeDetails,
+				ID:               modelID,
+				Capability:       capability,
+				SkipReason:       skipReason,
+				ProbeDetails:     detection.ProbeDetails,
+				ProviderMetadata: providerModel.Metadata,
 			}
 			s.recordCapabilityProbeEvent(ctx, modelID, detection)
 		}()

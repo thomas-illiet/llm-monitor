@@ -34,6 +34,13 @@ type ModelDashboardResponse struct {
 	Runs        []store.RecentRun   `json:"runs"`
 }
 
+// ModelDetailsResponse exposes current model state with provider metadata.
+type ModelDetailsResponse struct {
+	GeneratedAt      time.Time        `json:"generated_at"`
+	Model            store.ModelState `json:"model"`
+	ProviderMetadata map[string]any   `json:"provider_metadata"`
+}
+
 // StatusResponse is the compact health summary returned by status endpoints.
 type StatusResponse struct {
 	OK             bool      `json:"ok"`

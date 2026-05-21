@@ -27,8 +27,9 @@ capabilities, updates lifecycle state, and emits model lifecycle alerts.
 ## Execution
 
 The handler from `internal/schedule/tasks/models/model_snapshot.go` first calls
-the configured model inventory endpoint and extracts model IDs. Each model is
-classified by probing chat first, then embeddings:
+the configured model inventory endpoint and extracts model IDs plus redacted
+provider metadata. Each model is classified by probing chat first, then
+embeddings:
 
 - Chat probe: `POST target.endpoints.chat` with prompt `Reply with ok.`
 - Embedding probe: `POST target.endpoints.embeddings` with the configured embedding fixture or a fallback probe string.
@@ -48,8 +49,8 @@ state from PostgreSQL on each sync to add, remove, or retime per-model runs.
 The task writes or updates:
 
 - `model_snapshots`
-- `model_snapshot_items`
-- `model_states`
+- `model_snapshot_items`, including redacted provider metadata
+- `model_states`, including the latest redacted provider metadata
 - `model_events`
 - `email_alerts`, when lifecycle alert delivery is attempted.
 
