@@ -19,6 +19,11 @@ type dashboardChartConfig struct {
 	Models   []string
 }
 
+const (
+	authProviderLatencyLabel = "Auth provider"
+	targetHTTPLatencyLabel   = "Target HTTP"
+)
+
 var dashboardCharts = []dashboardChartConfig{
 	{
 		ID:      "ttft-by-model",
@@ -133,6 +138,9 @@ func (r *Router) buildChart(ctx context.Context, cfg dashboardChartConfig, since
 	if interval == 0 {
 		interval = dashboardChartInterval(window)
 	}
+	if cfg.Metric == "http_latency_ms" {
+		return r.buildHTTPCheckLatencyChart(ctx, cfg, since, now, interval)
+	}
 	response := ChartResponse{ID: cfg.ID, Title: cfg.Title, Type: cfg.Type, Metric: cfg.Metric}
 	samples, err := r.store.MetricSamples(ctx, cfg.Metric, cfg.GroupBy, since)
 	if err != nil {
@@ -141,6 +149,60 @@ func (r *Router) buildChart(ctx context.Context, cfg dashboardChartConfig, since
 	}
 	response.Labels, response.Datasets = bucketSamples(samples, cfg.Models, since, now, interval, isSummedMetric(cfg.Metric))
 	return response
+}
+
+// buildHTTPCheckLatencyChart adds OAuth provider latency to the target HTTP check chart when OAuth is enabled.
+func (r *Router) buildHTTPCheckLatencyChart(ctx context.Context, cfg dashboardChartConfig, since, now time.Time, interval time.Duration) ChartResponse {
+	response := ChartResponse{ID: cfg.ID, Title: cfg.Title, Type: cfg.Type, Metric: cfg.Metric}
+	samples, err := r.store.MetricSamples(ctx, "http_latency_ms", cfg.GroupBy, since)
+	if err != nil {
+		response.Error = err.Error()
+		return response
+	}
+	combined := chartSamplesWithGroup(samples, targetHTTPLatencyLabel)
+	if r.cfg.Auth.Enabled {
+		authSamples, err := r.store.MetricSamples(ctx, "auth_latency_ms", cfg.GroupBy, since)
+		if err != nil {
+			response.Error = err.Error()
+			return response
+		}
+		combined = append(combined, chartSamplesWithGroup(authSamples, authProviderLatencyLabel)...)
+	}
+	response.Labels, response.Datasets = bucketSamples(combined, cfg.Models, since, now, interval, isSummedMetric(cfg.Metric))
+	response.Datasets = orderChartDatasets(response.Datasets, []string{targetHTTPLatencyLabel, authProviderLatencyLabel})
+	return response
+}
+
+// chartSamplesWithGroup returns copies of metric samples labeled for chart display.
+func chartSamplesWithGroup(samples []store.MetricSample, group string) []store.MetricSample {
+	labeled := make([]store.MetricSample, len(samples))
+	for i, sample := range samples {
+		sample.Group = group
+		labeled[i] = sample
+	}
+	return labeled
+}
+
+// orderChartDatasets keeps important series in a stable visual order.
+func orderChartDatasets(datasets []ChartDataset, preferredLabels []string) []ChartDataset {
+	ordered := make([]ChartDataset, 0, len(datasets))
+	used := map[string]bool{}
+	byLabel := map[string]ChartDataset{}
+	for _, dataset := range datasets {
+		byLabel[dataset.Label] = dataset
+	}
+	for _, label := range preferredLabels {
+		if dataset, ok := byLabel[label]; ok {
+			ordered = append(ordered, dataset)
+			used[label] = true
+		}
+	}
+	for _, dataset := range datasets {
+		if !used[dataset.Label] {
+			ordered = append(ordered, dataset)
+		}
+	}
+	return ordered
 }
 
 // buildModelChart converts one static model chart into labels and datasets.

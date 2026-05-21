@@ -1,7 +1,9 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"net/url"
 	"testing"
 	"time"
@@ -205,6 +207,110 @@ func TestBucketSamplesSumsEmptyBucketsAsZero(t *testing.T) {
 		t.Fatalf("datasets len = %d, want 1", len(datasets))
 	}
 	assertChartData(t, datasets[0].Data, []*float64{chartValue(2), chartValue(0), chartValue(0)})
+}
+
+// TestHTTPCheckLatencyChartSkipsAuthWhenDisabled verifies static auth checks do not appear in the HTTP latency chart.
+func TestHTTPCheckLatencyChartSkipsAuthWhenDisabled(t *testing.T) {
+	since := time.Date(2026, 5, 16, 12, 0, 0, 0, time.UTC)
+	fake := &chartMetricStore{samples: map[string][]store.MetricSample{
+		"http_latency_ms|check": {
+			{At: since.Add(10 * time.Minute), Group: "http", Value: 120},
+		},
+		"auth_latency_ms|check": {
+			{At: since.Add(10 * time.Minute), Group: "auth", Value: 45},
+		},
+	}}
+	router := Router{store: fake}
+
+	chart := router.buildChart(context.Background(), dashboardChartConfig{
+		ID:      "http-latency",
+		Title:   "HTTP check latency",
+		Type:    "line",
+		Metric:  "http_latency_ms",
+		GroupBy: "check",
+	}, since, since.Add(time.Hour), time.Hour)
+
+	if chart.Error != "" {
+		t.Fatalf("chart error = %q, want none", chart.Error)
+	}
+	assertStrings(t, fake.requests, []string{"http_latency_ms|check"})
+	if len(chart.Datasets) != 1 {
+		t.Fatalf("datasets len = %d, want 1", len(chart.Datasets))
+	}
+	if chart.Datasets[0].Label != targetHTTPLatencyLabel {
+		t.Fatalf("dataset label = %q, want %q", chart.Datasets[0].Label, targetHTTPLatencyLabel)
+	}
+	assertChartData(t, chart.Datasets[0].Data, []*float64{chartValue(120), nil, nil})
+}
+
+// TestHTTPCheckLatencyChartAddsAuthWhenEnabled verifies OAuth provider latency shares the HTTP latency card.
+func TestHTTPCheckLatencyChartAddsAuthWhenEnabled(t *testing.T) {
+	since := time.Date(2026, 5, 16, 12, 0, 0, 0, time.UTC)
+	fake := &chartMetricStore{samples: map[string][]store.MetricSample{
+		"http_latency_ms|check": {
+			{At: since.Add(10 * time.Minute), Group: "http", Value: 120},
+		},
+		"auth_latency_ms|check": {
+			{At: since.Add(40 * time.Minute), Group: "auth", Value: 45},
+		},
+	}}
+	router := Router{
+		cfg:   config.Config{Auth: config.AuthConfig{Enabled: true}},
+		store: fake,
+	}
+
+	chart := router.buildChart(context.Background(), dashboardChartConfig{
+		ID:      "http-latency",
+		Title:   "HTTP check latency",
+		Type:    "line",
+		Metric:  "http_latency_ms",
+		GroupBy: "check",
+	}, since, since.Add(time.Hour), time.Hour)
+
+	if chart.Error != "" {
+		t.Fatalf("chart error = %q, want none", chart.Error)
+	}
+	assertStrings(t, fake.requests, []string{"http_latency_ms|check", "auth_latency_ms|check"})
+	if len(chart.Datasets) != 2 {
+		t.Fatalf("datasets len = %d, want 2", len(chart.Datasets))
+	}
+	if chart.Datasets[0].Label != targetHTTPLatencyLabel || chart.Datasets[1].Label != authProviderLatencyLabel {
+		t.Fatalf("dataset labels = %q, %q; want %q, %q", chart.Datasets[0].Label, chart.Datasets[1].Label, targetHTTPLatencyLabel, authProviderLatencyLabel)
+	}
+	assertChartData(t, chart.Datasets[0].Data, []*float64{chartValue(120), nil, nil})
+	assertChartData(t, chart.Datasets[1].Data, []*float64{nil, chartValue(45), nil})
+}
+
+// TestHTTPCheckLatencyChartReportsAuthQueryError verifies auth metric failures surface on the chart.
+func TestHTTPCheckLatencyChartReportsAuthQueryError(t *testing.T) {
+	since := time.Date(2026, 5, 16, 12, 0, 0, 0, time.UTC)
+	fake := &chartMetricStore{
+		samples: map[string][]store.MetricSample{
+			"http_latency_ms|check": {
+				{At: since.Add(10 * time.Minute), Group: "http", Value: 120},
+			},
+		},
+		errors: map[string]error{
+			"auth_latency_ms|check": errors.New("auth query failed"),
+		},
+	}
+	router := Router{
+		cfg:   config.Config{Auth: config.AuthConfig{Enabled: true}},
+		store: fake,
+	}
+
+	chart := router.buildChart(context.Background(), dashboardChartConfig{
+		ID:      "http-latency",
+		Title:   "HTTP check latency",
+		Type:    "line",
+		Metric:  "http_latency_ms",
+		GroupBy: "check",
+	}, since, since.Add(time.Hour), time.Hour)
+
+	if chart.Error != "auth query failed" {
+		t.Fatalf("chart error = %q, want auth query failed", chart.Error)
+	}
+	assertStrings(t, fake.requests, []string{"http_latency_ms|check", "auth_latency_ms|check"})
 }
 
 // TestParseModelEventsQueryDefaultsAndFilters verifies model event query normalization.
@@ -506,6 +612,22 @@ func TestModelDashboardResponseShape(t *testing.T) {
 	if got.Runs[0].Capability != "embedding" || got.Runs[0].FixturePath != fixturePath || got.Runs[0].FixtureBytes != fixtureBytes || got.Runs[0].VectorDimensions != vectorDimensions {
 		t.Fatalf("embedding run fields = %#v, want fixture and vector metadata", got.Runs[0])
 	}
+}
+
+type chartMetricStore struct {
+	metricsFakeStore
+	samples  map[string][]store.MetricSample
+	errors   map[string]error
+	requests []string
+}
+
+func (f *chartMetricStore) MetricSamples(_ context.Context, metric, groupBy string, _ time.Time) ([]store.MetricSample, error) {
+	key := metric + "|" + groupBy
+	f.requests = append(f.requests, key)
+	if err := f.errors[key]; err != nil {
+		return nil, err
+	}
+	return f.samples[key], nil
 }
 
 // assertStrings compares two string slices in order.
