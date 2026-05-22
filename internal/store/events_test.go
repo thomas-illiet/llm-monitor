@@ -22,6 +22,12 @@ func TestMigrationDefinesProviderMetadataColumns(t *testing.T) {
 	assertContains(t, migrationSQL, "ALTER TABLE IF EXISTS model_states")
 }
 
+func TestMigrationDefinesTaskSpacingState(t *testing.T) {
+	assertContains(t, migrationSQL, "CREATE TABLE IF NOT EXISTS task_spacing_state")
+	assertContains(t, migrationSQL, "key TEXT PRIMARY KEY")
+	assertContains(t, migrationSQL, "next_allowed_at TIMESTAMPTZ NOT NULL")
+}
+
 func TestSanitizeObservedModelsRedactsProviderMetadata(t *testing.T) {
 	observed := []ObservedModel{{
 		ID: "model-a",

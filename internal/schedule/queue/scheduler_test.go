@@ -45,6 +45,7 @@ func TestPeriodicConfigProviderBuildsModelSchedulesWithOverrides(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := map[string]string{}
+	gotOffset := map[string]time.Duration{}
 	for _, cfg := range configs {
 		if cfg.Task.Type() != shared.ModelRunTaskName {
 			continue
@@ -54,6 +55,7 @@ func TestPeriodicConfigProviderBuildsModelSchedulesWithOverrides(t *testing.T) {
 			t.Fatal(err)
 		}
 		got[payload.ModelID] = cfg.Cronspec
+		gotOffset[payload.ModelID] = processInDelay(cfg.Opts)
 	}
 	want := map[string]string{
 		"chat-a":     "@every 15m0s",
@@ -63,6 +65,16 @@ func TestPeriodicConfigProviderBuildsModelSchedulesWithOverrides(t *testing.T) {
 	for modelID, cronspec := range want {
 		if got[modelID] != cronspec {
 			t.Fatalf("model %s cronspec = %q, want %q (all: %#v)", modelID, got[modelID], cronspec, got)
+		}
+	}
+	wantOffsets := map[string]time.Duration{
+		"chat-a":     0,
+		"embed-a":    shared.ModelRunSpacing,
+		"embed-fast": 2 * shared.ModelRunSpacing,
+	}
+	for modelID, offset := range wantOffsets {
+		if gotOffset[modelID] != offset {
+			t.Fatalf("model %s offset = %s, want %s (all: %#v)", modelID, gotOffset[modelID], offset, gotOffset)
 		}
 	}
 }
@@ -86,6 +98,7 @@ func TestModelRunNextChecksFiltersSchedulerEntries(t *testing.T) {
 	chatNext := time.Date(2026, 5, 21, 10, 15, 0, 0, time.UTC)
 	chatLater := chatNext.Add(5 * time.Minute)
 	embedNext := time.Date(2026, 5, 21, 10, 30, 0, 0, time.UTC)
+	embedDelay := 2 * shared.ModelRunSpacing
 	chatPayload, err := shared.MarshalModelRunPayload(shared.ModelRunPayload{ModelID: "chat-a", Capability: "chat"})
 	if err != nil {
 		t.Fatal(err)
@@ -102,7 +115,7 @@ func TestModelRunNextChecksFiltersSchedulerEntries(t *testing.T) {
 		{Task: asynq.NewTask(shared.ModelRunTaskName, []byte(`{"model_id":""}`)), Next: chatNext},
 		{Task: asynq.NewTask(shared.ModelRunTaskName, chatPayload), Next: chatLater},
 		{Task: asynq.NewTask(shared.ModelRunTaskName, chatPayload), Next: chatNext},
-		{Task: asynq.NewTask(shared.ModelRunTaskName, embedPayload), Next: embedNext},
+		{Task: asynq.NewTask(shared.ModelRunTaskName, embedPayload), Opts: []asynq.Option{asynq.ProcessIn(embedDelay)}, Next: embedNext},
 	})
 
 	if len(got) != 2 {
@@ -111,7 +124,7 @@ func TestModelRunNextChecksFiltersSchedulerEntries(t *testing.T) {
 	if !got["chat-a"].Equal(chatNext) {
 		t.Fatalf("chat next = %s, want %s", got["chat-a"], chatNext)
 	}
-	if !got["embed-a"].Equal(embedNext) {
-		t.Fatalf("embed next = %s, want %s", got["embed-a"], embedNext)
+	if !got["embed-a"].Equal(embedNext.Add(embedDelay)) {
+		t.Fatalf("embed next = %s, want %s", got["embed-a"], embedNext.Add(embedDelay))
 	}
 }

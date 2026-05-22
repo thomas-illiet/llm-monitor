@@ -56,6 +56,23 @@ export function formatTime(value?: string) {
   }).format(new Date(value))
 }
 
+/** Formats the next scheduled check as a compact countdown label. */
+export function formatCountdown(value?: string, now: number | Date = Date.now()) {
+  const timestamp = timestampFor(value)
+  if (timestamp === null) return 'n/a'
+  const nowTimestamp = now instanceof Date ? now.getTime() : now
+  if (!Number.isFinite(nowTimestamp)) return 'n/a'
+  const remainingMs = timestamp - nowTimestamp
+  if (remainingMs <= 0) return 'executions.....'
+
+  const totalSeconds = Math.ceil(remainingMs / 1000)
+  const hours = Math.floor(totalSeconds / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
+  if (hours > 0) return `${padTime(hours)}h ${padTime(minutes)}m`
+  return `${padTime(minutes)}m ${padTime(seconds)}s`
+}
+
 /** Chooses the Vuetify color for a model status chip. */
 export function statusColor(model: ModelState) {
   if (model.capability === 'unknown') return 'warning'
@@ -68,6 +85,10 @@ function timestampFor(value?: string) {
   if (!value) return null
   const timestamp = Date.parse(value)
   return Number.isNaN(timestamp) ? null : timestamp
+}
+
+function padTime(value: number) {
+  return value.toString().padStart(2, '0')
 }
 
 /** Reports whether one recent run is newer than another. */

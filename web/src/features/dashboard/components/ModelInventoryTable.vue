@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, shallowRef } from 'vue'
+import { computed, onMounted, onUnmounted, shallowRef } from 'vue'
 import {
   compareNullableNumbers,
+  formatCountdown,
   formatTime,
   lastRunByModel as buildLastRunByModel,
   modelInventoryRows,
@@ -26,6 +27,8 @@ const emit = defineEmits<{
 
 const search = shallowRef('')
 const sortBy = shallowRef([{ key: 'status_label', order: 'asc' as const }])
+const now = shallowRef(Date.now())
+let countdownTimer: number | undefined
 
 const headers = [
   { title: 'Model', key: 'model_id', sortable: true },
@@ -56,6 +59,16 @@ const tableRows = computed<ModelInventoryRow[]>(() => {
 })
 
 const checkingModels = computed(() => new Set(props.checkingModelIds ?? []))
+
+onMounted(() => {
+  countdownTimer = window.setInterval(() => {
+    now.value = Date.now()
+  }, 1000)
+})
+
+onUnmounted(() => {
+  if (countdownTimer !== undefined) window.clearInterval(countdownTimer)
+})
 </script>
 
 <template>
@@ -111,7 +124,7 @@ const checkingModels = computed(() => new Set(props.checkingModelIds ?? []))
         </VChip>
       </template>
       <template #item.next_check_at="{ item }">
-        {{ formatTime(item.next_check_at) }}
+        {{ formatCountdown(item.next_check_at, now) }}
       </template>
       <template #item.last_seen_at="{ item }">
         {{ formatTime(item.last_seen_at) }}

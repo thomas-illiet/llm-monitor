@@ -11,6 +11,7 @@ import (
 	"github.com/hibiken/asynq"
 
 	"llmservicemonitor/internal/config"
+	"llmservicemonitor/internal/schedule/tasks/shared"
 	"llmservicemonitor/internal/store"
 )
 
@@ -51,7 +52,7 @@ func (p *PeriodicConfigProvider) GetConfigs() ([]*asynq.PeriodicTaskConfig, erro
 	if err != nil {
 		return nil, err
 	}
-	for _, model := range models {
+	for i, model := range models {
 		task, err := NewScheduledModelRunTask(model)
 		if err != nil {
 			return nil, err
@@ -59,7 +60,7 @@ func (p *PeriodicConfigProvider) GetConfigs() ([]*asynq.PeriodicTaskConfig, erro
 		configs = append(configs, &asynq.PeriodicTaskConfig{
 			Cronspec: every(p.modelInterval(model.ModelID)),
 			Task:     task,
-			Opts:     taskOptions(p.cfg),
+			Opts:     scheduledModelRunTaskOptions(p.cfg, i),
 		})
 	}
 	return configs, nil
@@ -85,6 +86,15 @@ func (p *PeriodicConfigProvider) modelInterval(modelID string) time.Duration {
 
 func every(interval time.Duration) string {
 	return fmt.Sprintf("@every %s", interval)
+}
+
+func scheduledModelRunTaskOptions(cfg config.Config, index int) []asynq.Option {
+	options := taskOptions(cfg)
+	if index < 0 {
+		index = 0
+	}
+	options = append(options, asynq.ProcessIn(time.Duration(index)*shared.ModelRunSpacing))
+	return options
 }
 
 // NewPeriodicTaskManager creates the Asynq dynamic scheduler manager.

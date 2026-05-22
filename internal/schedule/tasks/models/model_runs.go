@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"llmservicemonitor/internal/llm"
 	"llmservicemonitor/internal/schedule/runner"
@@ -26,6 +27,9 @@ func (s *service) runModelTest(ctx context.Context, taskCtx runner.TaskContext) 
 	if err != nil {
 		return fmt.Errorf("parse model run payload: %w", err)
 	}
+	if err := s.waitForScheduledModelSlot(ctx, payload); err != nil {
+		return err
+	}
 	s.logger.Debug("model run probe started", "model", payload.ModelID, "capability", payload.Capability, "reason", payload.Reason)
 	err = s.runOneModelTest(ctx, payload.ModelID, payload.Capability)
 	if err != nil {
@@ -34,6 +38,30 @@ func (s *service) runModelTest(ctx context.Context, taskCtx runner.TaskContext) 
 	}
 	s.logger.Debug("model run probe completed", "model", payload.ModelID, "capability", payload.Capability)
 	return nil
+}
+
+func (s *service) waitForScheduledModelSlot(ctx context.Context, payload shared.ModelRunPayload) error {
+	if payload.Reason != "scheduled" || s.store == nil {
+		return nil
+	}
+	earliest := time.Now().UTC()
+	reservedAt, err := s.store.ReserveTaskStart(ctx, shared.ModelRunTaskName, earliest, shared.ModelRunSpacing)
+	if err != nil {
+		return fmt.Errorf("reserve model run spacing: %w", err)
+	}
+	wait := time.Until(reservedAt)
+	if wait <= 0 {
+		return nil
+	}
+	s.logger.Debug("model run waiting for spacing slot", "model", payload.ModelID, "reserved_at", reservedAt, "wait", wait)
+	timer := time.NewTimer(wait)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
 
 func (s *service) runOneModelTest(ctx context.Context, modelID, capability string) error {

@@ -11,7 +11,7 @@ interface PendingGroup {
   modelId?: string
 }
 
-const TERMINAL_STATES = new Set(['completed', 'archived', 'not_found'])
+const TERMINAL_STATES = new Set(['completed', 'archived', 'expired', 'not_found'])
 
 /** Starts manual checks and polls queue state until matching jobs finish. */
 export function useManualChecks(options: UseManualChecksOptions = {}) {

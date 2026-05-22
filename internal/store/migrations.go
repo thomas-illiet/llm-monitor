@@ -121,6 +121,11 @@ CREATE TABLE IF NOT EXISTS embedding_runs (
 CREATE INDEX IF NOT EXISTS embedding_runs_started_at_idx ON embedding_runs(started_at DESC);
 CREATE INDEX IF NOT EXISTS embedding_runs_model_idx ON embedding_runs(model_id, started_at DESC);
 
+CREATE TABLE IF NOT EXISTS task_spacing_state (
+  key TEXT PRIMARY KEY,
+  next_allowed_at TIMESTAMPTZ NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS email_alerts (
   id BIGSERIAL PRIMARY KEY,
   alert_key TEXT NOT NULL UNIQUE,

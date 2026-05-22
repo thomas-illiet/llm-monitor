@@ -67,6 +67,23 @@ func (r *recordingRunRepository) RecordChatRun(_ context.Context, record store.C
 	return nil
 }
 
+type spacingRunRepository struct {
+	recordingRunRepository
+	reserveCalls []spacingReserveCall
+}
+
+type spacingReserveCall struct {
+	key     string
+	spacing time.Duration
+}
+
+func (r *spacingRunRepository) ReserveTaskStart(_ context.Context, key string, earliest time.Time, spacing time.Duration) (time.Time, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.reserveCalls = append(r.reserveCalls, spacingReserveCall{key: key, spacing: spacing})
+	return earliest, nil
+}
+
 func TestRunModelTestsRecordsHealthyModelWhenAnotherModelReturnsBadRequest(t *testing.T) {
 	plan := shared.NewMemoryModelPlanStore()
 	plan.Store([]shared.ModelPlanItem{
@@ -145,11 +162,47 @@ func TestRunModelTestsRemovesServiceUnavailableModelFromPlan(t *testing.T) {
 	}
 }
 
+func TestRunModelTestReservesSpacingForScheduledRunsOnly(t *testing.T) {
+	repo := &spacingRunRepository{}
+	service := newService(shared.Dependencies{
+		Config: config.Config{
+			Tests: config.TestsConfig{
+				ChatPrompts: []config.ChatPromptConfig{{ID: "smoke", Prompt: "Say ok.", MaxTokens: 4}},
+			},
+		},
+		Store:  repo,
+		Client: &modelRunClient{},
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+	})
+
+	if err := service.runModelTest(context.Background(), modelRunTaskContextWithReason(t, "scheduled-model", capabilityChat, "scheduled")); err != nil {
+		t.Fatalf("runModelTest(scheduled) error = %v", err)
+	}
+	if err := service.runModelTest(context.Background(), modelRunTaskContextWithReason(t, "manual-model", capabilityChat, "manual")); err != nil {
+		t.Fatalf("runModelTest(manual) error = %v", err)
+	}
+	if err := service.runModelTest(context.Background(), modelRunTaskContextWithReason(t, "recovery-model", capabilityChat, "recovery")); err != nil {
+		t.Fatalf("runModelTest(recovery) error = %v", err)
+	}
+
+	if len(repo.reserveCalls) != 1 {
+		t.Fatalf("reserve calls = %#v, want one scheduled reservation", repo.reserveCalls)
+	}
+	if repo.reserveCalls[0].key != shared.ModelRunTaskName || repo.reserveCalls[0].spacing != shared.ModelRunSpacing {
+		t.Fatalf("reserve call = %#v, want model run spacing", repo.reserveCalls[0])
+	}
+}
+
 func modelRunTaskContext(t *testing.T, modelID, capability string) runner.TaskContext {
+	return modelRunTaskContextWithReason(t, modelID, capability, "")
+}
+
+func modelRunTaskContextWithReason(t *testing.T, modelID, capability, reason string) runner.TaskContext {
 	t.Helper()
 	payload, err := shared.MarshalModelRunPayload(shared.ModelRunPayload{
 		ModelID:    modelID,
 		Capability: capability,
+		Reason:     reason,
 	})
 	if err != nil {
 		t.Fatal(err)

@@ -10,6 +10,7 @@ import (
 	"github.com/hibiken/asynq"
 
 	"llmservicemonitor/internal/schedule/runner"
+	"llmservicemonitor/internal/schedule/tasks/shared"
 )
 
 // NewServeMux maps Asynq task types to the registered monitor handlers.
@@ -51,6 +52,9 @@ func (h *registryHandler) process(ctx context.Context, task *asynq.Task) error {
 		Payload:     append([]byte(nil), task.Payload()...),
 	}
 	startedAt := time.Now()
+	if h.logger != nil {
+		h.logger.Info("queued task started", taskStartLogArgs(task, taskID, taskCtx.Attempt)...)
+	}
 	err := registered.Handler(ctx, taskCtx)
 	if err != nil {
 		if h.logger != nil {
@@ -68,4 +72,16 @@ func (h *registryHandler) process(ctx context.Context, task *asynq.Task) error {
 		h.logger.Debug("queued task completed", "task", task.Type(), "run", taskID, "attempt", taskCtx.Attempt, "latency_ms", float64(time.Since(startedAt).Microseconds())/1000)
 	}
 	return nil
+}
+
+func taskStartLogArgs(task *asynq.Task, taskID string, attempt int) []any {
+	args := []any{"task", task.Type(), "run", taskID, "attempt", attempt}
+	if task.Type() != shared.ModelRunTaskName {
+		return args
+	}
+	payload, err := shared.UnmarshalModelRunPayload(task.Payload())
+	if err != nil {
+		return args
+	}
+	return append(args, "model", payload.ModelID, "capability", payload.Capability, "reason", payload.Reason)
 }

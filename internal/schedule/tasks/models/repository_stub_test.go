@@ -64,3 +64,7 @@ func (r noopRepository) RecordModelEvent(context.Context, store.ModelEventRecord
 func (r noopRepository) PruneHistoryBefore(context.Context, time.Time) error {
 	return nil
 }
+
+func (r noopRepository) ReserveTaskStart(_ context.Context, _ string, earliest time.Time, _ time.Duration) (time.Time, error) {
+	return earliest, nil
+}

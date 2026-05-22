@@ -24,6 +24,7 @@ const (
 	HistoryRetentionTaskName = "monitor.history_retention"
 
 	HistoryRetentionInterval = 24 * time.Hour
+	ModelRunSpacing          = 30 * time.Second
 )
 
 // LLMClient describes the OpenAI-compatible operations used by monitor tasks.
@@ -51,6 +52,7 @@ type Repository interface {
 	RecordEmbeddingRun(ctx context.Context, record store.EmbeddingRunRecord) error
 	RecordModelEvent(ctx context.Context, record store.ModelEventRecord) error
 	PruneHistoryBefore(ctx context.Context, cutoff time.Time) error
+	ReserveTaskStart(ctx context.Context, key string, earliest time.Time, spacing time.Duration) (time.Time, error)
 }
 
 // ModelRecoveryTrigger starts model inventory and probe work after target recovery.

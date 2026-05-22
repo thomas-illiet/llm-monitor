@@ -5,11 +5,14 @@ import (
 	"log/slog"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/hibiken/asynq"
 
 	"llmservicemonitor/internal/config"
 )
+
+const taskTimeout = 60 * time.Second
 
 // RedisOpt converts app config into the Asynq Redis connection settings.
 func RedisOpt(cfg config.Config) asynq.RedisClientOpt {
@@ -25,12 +28,16 @@ func taskOptions(cfg config.Config) []asynq.Option {
 	return []asynq.Option{
 		asynq.Queue(cfg.Asynq.Queue),
 		asynq.MaxRetry(0),
+		asynq.Timeout(taskTimeout),
 	}
 }
 
 func manualTaskOptions(cfg config.Config) []asynq.Option {
 	options := taskOptions(cfg)
-	options = append(options, asynq.Retention(cfg.Asynq.ManualTaskRetention.Duration))
+	options = append(options,
+		asynq.Deadline(time.Now().UTC().Add(taskTimeout)),
+		asynq.Retention(cfg.Asynq.ManualTaskRetention.Duration),
+	)
 	return options
 }
 

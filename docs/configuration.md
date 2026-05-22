@@ -35,9 +35,11 @@ from mounted files.
 ## Logging
 
 `logging.level` controls stdout verbosity. Supported levels are `debug`, `info`,
-`warn`, and `error`; the default is `info`. Use `debug` when diagnosing provider
-integration issues because it includes task starts/completions and per-request
-endpoint/status/latency details without logging request bodies or secrets.
+`warn`, and `error`; the default is `info`. The `info` level includes a queued
+task start line from the worker for each job it begins processing. Use `debug`
+when diagnosing provider integration issues because it also includes task
+completions and per-request endpoint/status/latency details without logging
+request bodies or secrets.
 
 ## Queue
 
@@ -48,6 +50,10 @@ Redis and Asynq back task execution:
 - `asynq.worker_concurrency` controls how many tasks a worker processes at once.
 - `asynq.scheduler_sync_interval` controls how often the scheduler refreshes dynamic model schedules.
 - `asynq.manual_task_retention` keeps manually triggered job status long enough for dashboard polling.
+
+Queued tasks have a 60 second processing timeout. Manually triggered dashboard
+jobs also expire after 60 seconds if no worker starts them, so stale manual jobs
+are forgotten instead of running much later.
 
 ## Target Endpoints
 
