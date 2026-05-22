@@ -10,7 +10,13 @@ import {
   Tooltip
 } from 'chart.js'
 import { Bar, Line } from 'vue-chartjs'
-import { chartData, chartOptions, type DashboardChartTheme } from '@/features/dashboard/utils/chartHelpers'
+import {
+  barChartData,
+  barChartOptions,
+  lineChartData,
+  lineChartOptions,
+  type DashboardChartTheme
+} from '@/features/dashboard/utils/chartHelpers'
 import type { ConfiguredChart } from '@/types'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Tooltip, Legend)
@@ -42,13 +48,13 @@ defineProps<{
     <div v-else class="chart-frame">
       <Line
         v-if="chart.type === 'line'"
-        :data="chartData(chart)"
-        :options="chartOptions(chart, theme)"
+        :data="lineChartData(chart)"
+        :options="lineChartOptions(chart, theme)"
       />
       <Bar
         v-else
-        :data="chartData(chart)"
-        :options="chartOptions(chart, theme)"
+        :data="barChartData(chart)"
+        :options="barChartOptions(chart, theme)"
       />
     </div>
   </VCard>

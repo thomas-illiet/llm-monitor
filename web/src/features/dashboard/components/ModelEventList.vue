@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { formatPreciseDateTime } from '@/features/dashboard/utils/formatters'
 import type { ModelEvent } from '@/types'
 
 const page = defineModel<number>('page', { default: 1 })
@@ -36,14 +37,6 @@ const headers = computed<EventTableHeader[]>(() => {
   return columns
 })
 
-/** Formats event timestamps for dense timeline rows. */
-function formatTime(value: string) {
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: 'medium',
-    timeStyle: 'medium'
-  }).format(new Date(value))
-}
-
 /** Maps event severity/status to Vuetify table chip colors. */
 function eventColor(event: ModelEvent) {
   if (event.severity === 'error' || event.status === 'error') return 'error'
@@ -79,7 +72,7 @@ function detailSummary(event: ModelEvent) {
     :loading="loading"
   >
     <template #item.observed_at="{ item }">
-      {{ formatTime(item.observed_at) }}
+      {{ formatPreciseDateTime(item.observed_at) }}
     </template>
     <template #item.status="{ item }">
       <VChip size="x-small" :color="eventColor(item)" variant="tonal">

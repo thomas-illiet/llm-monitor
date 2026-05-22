@@ -1,4 +1,4 @@
-import { computed, onUnmounted, shallowRef } from 'vue'
+import { onUnmounted, shallowRef } from 'vue'
 import type { ManualCheckJobsResponse, ManualCheckRunResponse } from '@/types'
 
 interface UseManualChecksOptions {
@@ -21,8 +21,6 @@ export function useManualChecks(options: UseManualChecksOptions = {}) {
   const error = shallowRef<string | null>(null)
   const pendingGroups = new Map<string, PendingGroup>()
   let timer: number | undefined
-
-  const checkingModelSet = computed(() => new Set(checkingModelIds.value))
 
   async function runAllChecks() {
     error.value = null
@@ -153,7 +151,6 @@ export function useManualChecks(options: UseManualChecksOptions = {}) {
   return {
     globalChecking,
     checkingModelIds,
-    checkingModelSet,
     error,
     runAllChecks,
     runModelCheck

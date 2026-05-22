@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "vue-tsc --noEmit && vite build",
-    "preview": "vite preview --host 0.0.0.0"
+    "preview": "vite preview --host 0.0.0.0",
+    "unused": "knip --reporter compact"
   },
   "dependencies": {
     "@lucide/vue": "^1.16.0",
@@ -18,6 +19,7 @@
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.2.1",
+    "knip": "^6.14.1",
     "sass": "^1.83.0",
     "typescript": "^5.7.2",
     "vite": "^6.0.7",

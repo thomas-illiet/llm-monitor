@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"regexp"
 	"strings"
 	"time"
 
@@ -13,6 +12,7 @@ import (
 	"llmservicemonitor/internal/config"
 	"llmservicemonitor/internal/schedule/tasks/shared"
 	"llmservicemonitor/internal/store"
+	"llmservicemonitor/internal/wildcard"
 )
 
 // RunnableModelsStore reads active models for dynamic model-run schedules.
@@ -77,7 +77,7 @@ func (p *PeriodicConfigProvider) modelInterval(modelID string) time.Duration {
 		if pattern == "" || override.Interval.Duration <= 0 {
 			continue
 		}
-		if wildcardMatch(pattern, modelID) {
+		if wildcard.Match(pattern, modelID) {
 			return override.Interval.Duration
 		}
 	}
@@ -118,27 +118,4 @@ func NewPeriodicTaskManager(cfg config.Config, provider asynq.PeriodicTaskConfig
 		},
 		SyncInterval: cfg.Asynq.SchedulerSyncInterval.Duration,
 	})
-}
-
-func wildcardMatch(pattern, value string) bool {
-	regex := wildcardPatternRegexp(pattern)
-	matched, err := regexp.MatchString(regex, value)
-	return err == nil && matched
-}
-
-func wildcardPatternRegexp(pattern string) string {
-	var builder strings.Builder
-	builder.WriteString("^")
-	for _, r := range pattern {
-		switch r {
-		case '*':
-			builder.WriteString(".*")
-		case '?':
-			builder.WriteString(".")
-		default:
-			builder.WriteString(regexp.QuoteMeta(string(r)))
-		}
-	}
-	builder.WriteString("$")
-	return builder.String()
 }

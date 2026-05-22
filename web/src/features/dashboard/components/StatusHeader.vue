@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, shallowRef, onMounted, onUnmounted } from 'vue'
 import { Activity, PlayCircle, RefreshCw, Moon, Sun } from '@lucide/vue'
+import { formatPreciseDateTime } from '@/features/dashboard/utils/formatters'
 import type { StatusSummary } from '@/types'
 
 const props = defineProps<{
@@ -55,10 +56,7 @@ const label = computed(() => {
 
 const generatedLabel = computed(() => {
   if (!props.generatedAt) return 'No snapshot yet'
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: 'medium',
-    timeStyle: 'medium'
-  }).format(new Date(props.generatedAt))
+  return formatPreciseDateTime(props.generatedAt)
 })
 </script>
 

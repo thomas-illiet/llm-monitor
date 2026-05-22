@@ -2,24 +2,23 @@ package main
 
 import (
 	"context"
-	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
 
-	"llmservicemonitor/internal/config"
+	"llmservicemonitor/internal/app"
 	"llmservicemonitor/internal/schedule/queue"
 	"llmservicemonitor/internal/store"
 )
 
 func main() {
-	logger := newLogger("info")
-	cfg, err := loadConfig()
+	logger := app.NewLogger("info")
+	cfg, err := app.LoadConfig()
 	if err != nil {
 		logger.Error("load config", "error", err)
 		os.Exit(1)
 	}
-	logger = newLogger(cfg.Logging.Level)
+	logger = app.NewLogger(cfg.Logging.Level)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -69,27 +68,4 @@ func main() {
 	logger.Info("scheduler started", "queue", cfg.Asynq.Queue, "sync_interval", cfg.Asynq.SchedulerSyncInterval.Duration)
 	<-ctx.Done()
 	manager.Shutdown()
-}
-
-func loadConfig() (config.Config, error) {
-	configPath := os.Getenv("LLM_MONITOR_CONFIG")
-	if configPath == "" {
-		configPath = "config.yaml"
-	}
-	return config.Load(configPath)
-}
-
-func newLogger(level string) *slog.Logger {
-	var slogLevel slog.Level
-	switch level {
-	case "debug":
-		slogLevel = slog.LevelDebug
-	case "warn":
-		slogLevel = slog.LevelWarn
-	case "error":
-		slogLevel = slog.LevelError
-	default:
-		slogLevel = slog.LevelInfo
-	}
-	return slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slogLevel}))
 }

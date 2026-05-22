@@ -47,35 +47,3 @@ func NewRegistry(deps Dependencies) (*runner.Registry, error) {
 	}
 	return registry, nil
 }
-
-// LocalScheduleGroups returns the current in-process schedules for monitor tasks.
-func LocalScheduleGroups(deps Dependencies) []runner.Group {
-	cfg := deps.Config
-	groups := []runner.Group{
-		{
-			Name: "checks",
-			Recurring: []runner.ScheduledTask{
-				{TaskName: HTTPCheckTaskName, Interval: cfg.Schedules.HTTPCheck.Duration, RunImmediately: true},
-				{TaskName: AuthCheckTaskName, Interval: cfg.Schedules.AuthCheck.Duration, RunImmediately: true},
-			},
-		},
-		{
-			Name:    "models",
-			Startup: []runner.Invocation{{TaskName: ModelSnapshotTaskName}},
-			Recurring: []runner.ScheduledTask{
-				{TaskName: ModelSnapshotTaskName, Interval: cfg.Schedules.ModelSnapshot.Duration},
-			},
-		},
-	}
-	if cfg.Retention.History.Duration > 0 {
-		groups = append(groups, runner.Group{
-			Name: "retention",
-			Recurring: []runner.ScheduledTask{{
-				TaskName:       HistoryRetentionTaskName,
-				Interval:       HistoryRetentionInterval,
-				RunImmediately: true,
-			}},
-		})
-	}
-	return groups
-}

@@ -11,6 +11,7 @@ The Go service exposes JSON APIs for health and dashboard data, plus a static SP
 | `GET /metrics` | Prometheus metrics from persisted observations. |
 | `GET /api/dashboard` | Full dashboard payload. |
 | `GET /api/model-dashboard` | Model-specific KPIs, charts, and recent runs. |
+| `GET /api/models/{model_id}/details` | Current model state and redacted provider metadata. |
 | `GET /api/model-events` | Paginated model event timeline. |
 | `POST /api/checks/run` | Enqueue manual global or model-specific checks. |
 | `GET /api/checks/jobs` | Poll retained Asynq task status for manual checks. |

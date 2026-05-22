@@ -5,7 +5,6 @@ import (
 	"embed"
 	"errors"
 	"io/fs"
-	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -13,7 +12,7 @@ import (
 	"time"
 
 	"llmservicemonitor/internal/api"
-	"llmservicemonitor/internal/config"
+	"llmservicemonitor/internal/app"
 	"llmservicemonitor/internal/schedule/queue"
 	"llmservicemonitor/internal/store"
 )
@@ -23,19 +22,14 @@ var staticFiles embed.FS
 
 // main wires configuration, storage, monitoring, and the HTTP server.
 func main() {
-	logger := newLogger("info")
+	logger := app.NewLogger("info")
 
-	configPath := os.Getenv("LLM_MONITOR_CONFIG")
-	if configPath == "" {
-		configPath = "config.yaml"
-	}
-
-	cfg, err := config.Load(configPath)
+	cfg, err := app.LoadConfig()
 	if err != nil {
 		logger.Error("load config", "error", err)
 		os.Exit(1)
 	}
-	logger = newLogger(cfg.Logging.Level)
+	logger = app.NewLogger(cfg.Logging.Level)
 	logger.Info("config loaded",
 		"log_level", cfg.Logging.Level,
 		"target", cfg.Target.Name,
@@ -100,19 +94,4 @@ func main() {
 	if err := server.Shutdown(shutdownCtx); err != nil {
 		logger.Error("shutdown server", "error", err)
 	}
-}
-
-func newLogger(level string) *slog.Logger {
-	var slogLevel slog.Level
-	switch level {
-	case "debug":
-		slogLevel = slog.LevelDebug
-	case "warn":
-		slogLevel = slog.LevelWarn
-	case "error":
-		slogLevel = slog.LevelError
-	default:
-		slogLevel = slog.LevelInfo
-	}
-	return slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slogLevel}))
 }

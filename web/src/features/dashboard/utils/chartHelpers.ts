@@ -1,3 +1,4 @@
+import type { ChartData, ChartOptions, TooltipItem } from 'chart.js'
 import type { ConfiguredChart } from '@/types'
 
 /** Entry rendered in the configured chart grid. */
@@ -28,8 +29,10 @@ export function chartTheme(isDark: boolean): DashboardChartTheme {
   }
 }
 
+type DashboardChartType = 'bar' | 'line'
+
 /** Maps the API chart shape to the vue-chartjs dataset shape. */
-export function chartData(chart: ConfiguredChart): any {
+function buildChartData(chart: ConfiguredChart): ChartData<DashboardChartType, Array<number | null>, string> {
   const isLine = chart.type === 'line'
   return {
     labels: chart.labels,
@@ -44,11 +47,19 @@ export function chartData(chart: ConfiguredChart): any {
       spanGaps: isLine,
       pointRadius: isLine ? 1.5 : 0
     }))
-  }
+  } as ChartData<DashboardChartType, Array<number | null>, string>
+}
+
+export function lineChartData(chart: ConfiguredChart): ChartData<'line', Array<number | null>, string> {
+  return buildChartData(chart) as ChartData<'line', Array<number | null>, string>
+}
+
+export function barChartData(chart: ConfiguredChart): ChartData<'bar', Array<number | null>, string> {
+  return buildChartData(chart) as ChartData<'bar', Array<number | null>, string>
 }
 
 /** Creates consistent Chart.js options for line and bar dashboard charts. */
-export function chartOptions(chart: ConfiguredChart, colors: DashboardChartTheme): any {
+function buildChartOptions(chart: ConfiguredChart, colors: DashboardChartTheme): ChartOptions<DashboardChartType> {
   const stacked = chart.type === 'stacked-bar'
   return {
     responsive: true,
@@ -68,13 +79,16 @@ export function chartOptions(chart: ConfiguredChart, colors: DashboardChartTheme
         titleColor: colors.tooltipText,
         bodyColor: colors.tooltipText,
         callbacks: {
-          label(context: any) {
-            const parsedY = context.parsed?.y
+          label(context: TooltipItem<DashboardChartType>) {
+            const parsed = context.parsed as { y?: unknown }
+            const parsedY = parsed.y
+            const dataset = context.dataset as { label?: string }
+            const label = dataset.label ?? 'value'
             if (typeof parsedY !== 'number' || Number.isNaN(parsedY)) {
-              return `${context.dataset.label}: no sample`
+              return `${label}: no sample`
             }
             const value = Math.round(parsedY * 100) / 100
-            return `${context.dataset.label}: ${value}`
+            return `${label}: ${value}`
           }
         }
       }
@@ -92,11 +106,19 @@ export function chartOptions(chart: ConfiguredChart, colors: DashboardChartTheme
         ticks: { color: colors.axis }
       }
     }
-  }
+  } as ChartOptions<DashboardChartType>
+}
+
+export function lineChartOptions(chart: ConfiguredChart, colors: DashboardChartTheme): ChartOptions<'line'> {
+  return buildChartOptions(chart, colors) as ChartOptions<'line'>
+}
+
+export function barChartOptions(chart: ConfiguredChart, colors: DashboardChartTheme): ChartOptions<'bar'> {
+  return buildChartOptions(chart, colors) as ChartOptions<'bar'>
 }
 
 /** Reports whether a configured chart represents target HTTP latency. */
-export function isHttpLatencyChart(chart: ConfiguredChart) {
+function isHttpLatencyChart(chart: ConfiguredChart) {
   const id = chart.id.toLowerCase()
   const metric = chart.metric.toLowerCase()
   return metric === 'http_latency_ms' || id.includes('http-latency')

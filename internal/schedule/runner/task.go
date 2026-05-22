@@ -25,24 +25,3 @@ type TaskContext struct {
 	ScheduledAt time.Time       `json:"scheduled_at"`
 	Payload     json.RawMessage `json:"payload,omitempty"`
 }
-
-// Invocation identifies one task run and its payload.
-type Invocation struct {
-	TaskName string
-	Payload  json.RawMessage
-}
-
-// ScheduledTask describes one recurring local schedule.
-type ScheduledTask struct {
-	TaskName       string
-	Interval       time.Duration
-	Payload        json.RawMessage
-	RunImmediately bool
-}
-
-// Group runs startup invocations first, then starts recurring schedules.
-type Group struct {
-	Name      string
-	Startup   []Invocation
-	Recurring []ScheduledTask
-}

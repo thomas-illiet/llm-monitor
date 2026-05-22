@@ -35,14 +35,14 @@ export interface KpiRangePreset {
 }
 
 /** Non-secret runtime settings returned with dashboard data. */
-export interface RuntimeConfig {
+interface RuntimeConfig {
   retention: RetentionRuntimeConfig
   site_name: string
   site_url?: string
 }
 
 /** Effective history retention settings. */
-export interface RetentionRuntimeConfig {
+interface RetentionRuntimeConfig {
   history_seconds: number
 }
 
@@ -108,7 +108,7 @@ export interface ConfiguredChart {
 }
 
 /** One chart series with numeric samples. */
-export interface ChartDataset {
+interface ChartDataset {
   label: string
   data: Array<number | null>
 }
@@ -180,7 +180,7 @@ interface BaseRecentRun {
 }
 
 /** Recent chat probe result shown in the dashboard. */
-export interface ChatRecentRun extends BaseRecentRun {
+interface ChatRecentRun extends BaseRecentRun {
   capability: 'chat'
   prompt_id?: string
   output_tokens?: number
@@ -200,7 +200,7 @@ export interface EmbeddingRecentRun extends BaseRecentRun {
 export type RecentRun = ChatRecentRun | EmbeddingRecentRun
 
 /** Recent lifecycle alert email shown in the dashboard. */
-export interface RecentAlert {
+interface RecentAlert {
   model_id: string
   type: string
   sent_at: string
@@ -220,7 +220,7 @@ export interface CheckRecord {
 }
 
 /** One manual check task accepted by the queue. */
-export interface ManualCheckJob {
+interface ManualCheckJob {
   id: string
   queue: string
   type: string
@@ -234,7 +234,7 @@ export interface ManualCheckRunResponse {
 }
 
 /** Latest queue state for one manual check task. */
-export interface ManualCheckJobStatus {
+interface ManualCheckJobStatus {
   id: string
   queue: string
   type?: string

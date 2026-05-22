@@ -24,6 +24,7 @@ cd web
 npm install
 npm run dev
 npm run build
+npm run unused
 ```
 
 The Vite dev server proxies `/api` and `/healthz` to `http://localhost:8080`.
@@ -46,9 +47,12 @@ Run before shipping changes:
 
 ```bash
 go test ./...
+go vet ./...
 cd web && npm run build
+cd web && npm run unused
 diff -qr web/dist ../cmd/server/static
 docker compose config
+helm lint charts/llm-monitor
 ```
 
 ## Related Docs

@@ -1,7 +1,8 @@
 import type { ModelState, RecentRun } from '@/types'
+import { formatMediumDateTime } from '@/features/dashboard/utils/formatters'
 
 /** Vuetify chip colors used by last-check status cells. */
-export type CheckColor = 'secondary' | 'success' | 'error'
+type CheckColor = 'secondary' | 'success' | 'error'
 
 /** Model inventory row enriched with table-only fields. */
 export type ModelInventoryRow = ModelState & {
@@ -49,11 +50,7 @@ export function compareNullableNumbers(a: number | null, b: number | null) {
 
 /** Formats API timestamps for compact table display. */
 export function formatTime(value?: string) {
-  if (!value) return 'n/a'
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: 'medium',
-    timeStyle: 'short'
-  }).format(new Date(value))
+  return formatMediumDateTime(value)
 }
 
 /** Formats the next scheduled check as a compact countdown label. */
@@ -63,7 +60,7 @@ export function formatCountdown(value?: string, now: number | Date = Date.now())
   const nowTimestamp = now instanceof Date ? now.getTime() : now
   if (!Number.isFinite(nowTimestamp)) return 'n/a'
   const remainingMs = timestamp - nowTimestamp
-  if (remainingMs <= 0) return 'executions.....'
+  if (remainingMs <= 0) return 'due now'
 
   const totalSeconds = Math.ceil(remainingMs / 1000)
   const hours = Math.floor(totalSeconds / 3600)

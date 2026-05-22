@@ -1,6 +1,13 @@
 <script setup lang="ts">
 import { computed, type Component } from 'vue'
 import { Activity, AlertTriangle, Database, FileText, Gauge, Hash, Timer, TrendingUp, Zap } from '@lucide/vue'
+import {
+  formatBytes,
+  formatCompactNumber,
+  formatDurationMs,
+  formatPercent,
+  formatTokenRate
+} from '@/features/dashboard/utils/formatters'
 import type { EmbeddingRecentRun, KpiSummary, RecentRun, SloThresholds } from '@/types'
 
 const props = defineProps<{
@@ -16,39 +23,6 @@ interface KpiCard {
   detail: string
   accent: string
   icon: Component
-}
-
-/** Formats millisecond values for compact KPI cards, switching to seconds at 1s. */
-function duration(value: number) {
-  const milliseconds = Math.round(value)
-  if (milliseconds < 1000) return `${milliseconds} ms`
-
-  const seconds = Math.round(milliseconds / 100) / 10
-  return `${seconds} s`
-}
-
-/** Formats a ratio as a one-decimal percentage. */
-function percent(value: number) {
-  return `${Math.round(value * 1000) / 10}%`
-}
-
-/** Formats large counters using locale-aware compact notation. */
-function compact(value: number) {
-  return new Intl.NumberFormat(undefined, { notation: 'compact' }).format(value)
-}
-
-/** Formats generated-token throughput. */
-function rate(value: number) {
-  return `${Math.round(value * 10) / 10} tok/s`
-}
-
-/** Formats byte counts without implying precision we do not capture. */
-function bytes(value?: number) {
-  if (value === undefined) return 'Unknown'
-  return new Intl.NumberFormat(undefined, {
-    maximumFractionDigits: 1,
-    notation: value >= 100_000 ? 'compact' : 'standard'
-  }).format(value) + ' B'
 }
 
 /** Chooses the accent color for a threshold-backed KPI value. */
@@ -77,35 +51,35 @@ const cards = computed<KpiCard[]>(() => {
     return [
       {
         label: 'Request p99',
-        value: duration(props.kpis.request_latency_p99_ms),
-        detail: `SLO ${duration(props.slo.request_latency_p99_ms)} · p95 ${duration(props.kpis.request_latency_p95_ms)}`,
+        value: formatDurationMs(props.kpis.request_latency_p99_ms),
+        detail: `SLO ${formatDurationMs(props.slo.request_latency_p99_ms)} · p95 ${formatDurationMs(props.kpis.request_latency_p95_ms)}`,
         accent: thresholdAccent(props.kpis.request_latency_p99_ms, props.slo.request_latency_p99_ms),
         icon: Zap
       },
       {
         label: 'Success rate',
-        value: percent(props.kpis.success_rate),
+        value: formatPercent(props.kpis.success_rate),
         detail: `${props.kpis.total_runs} embedding runs`,
         accent: '#10a37f',
         icon: Gauge
       },
       {
         label: 'Input tokens',
-        value: compact(props.kpis.input_tokens),
+        value: formatCompactNumber(props.kpis.input_tokens),
         detail: 'Fixture tokens',
         accent: '#2563eb',
         icon: Database
       },
       {
         label: 'Vector dimensions',
-        value: latestDimensionsRun?.vector_dimensions === undefined ? 'Unknown' : compact(latestDimensionsRun.vector_dimensions),
+        value: latestDimensionsRun?.vector_dimensions === undefined ? 'Unknown' : formatCompactNumber(latestDimensionsRun.vector_dimensions),
         detail: 'Latest recorded vector',
         accent: '#6d5bd0',
         icon: Hash
       },
       {
         label: 'Fixture size',
-        value: bytes(latestRun?.fixture_bytes),
+        value: formatBytes(latestRun?.fixture_bytes),
         detail: 'Fixture bytes',
         accent: '#0f766e',
         icon: FileText
@@ -123,35 +97,35 @@ const cards = computed<KpiCard[]>(() => {
   return [
     {
       label: 'TTFT p99',
-      value: duration(props.kpis.ttft_p99_ms),
-      detail: `SLO ${duration(props.slo.ttft_p99_ms)} · p50 ${duration(props.kpis.ttft_p50_ms)}`,
+      value: formatDurationMs(props.kpis.ttft_p99_ms),
+      detail: `SLO ${formatDurationMs(props.slo.ttft_p99_ms)} · p50 ${formatDurationMs(props.kpis.ttft_p50_ms)}`,
       accent: thresholdAccent(props.kpis.ttft_p99_ms, props.slo.ttft_p99_ms),
       icon: Timer
     },
     {
       label: 'ITL p99',
-      value: duration(props.kpis.itl_p99_ms),
-      detail: `SLO ${duration(props.slo.itl_p99_ms)} · p50 ${duration(props.kpis.itl_p50_ms)}`,
+      value: formatDurationMs(props.kpis.itl_p99_ms),
+      detail: `SLO ${formatDurationMs(props.slo.itl_p99_ms)} · p50 ${formatDurationMs(props.kpis.itl_p50_ms)}`,
       accent: thresholdAccent(props.kpis.itl_p99_ms, props.slo.itl_p99_ms),
       icon: Activity
     },
     {
       label: 'Request p99',
-      value: duration(props.kpis.request_latency_p99_ms),
-      detail: `SLO ${duration(props.slo.request_latency_p99_ms)} · p95 ${duration(props.kpis.request_latency_p95_ms)}`,
+      value: formatDurationMs(props.kpis.request_latency_p99_ms),
+      detail: `SLO ${formatDurationMs(props.slo.request_latency_p99_ms)} · p95 ${formatDurationMs(props.kpis.request_latency_p95_ms)}`,
       accent: thresholdAccent(props.kpis.request_latency_p99_ms, props.slo.request_latency_p99_ms),
       icon: Zap
     },
     {
       label: 'Output rate',
-      value: rate(props.kpis.output_tokens_per_second),
-      detail: `${compact(props.kpis.output_tokens)} output tokens`,
+      value: formatTokenRate(props.kpis.output_tokens_per_second),
+      detail: `${formatCompactNumber(props.kpis.output_tokens)} output tokens`,
       accent: '#2563eb',
       icon: TrendingUp
     },
     {
       label: 'Success rate',
-      value: percent(props.kpis.success_rate),
+      value: formatPercent(props.kpis.success_rate),
       detail: `${props.kpis.total_runs} runs`,
       accent: '#10a37f',
       icon: Gauge

@@ -76,6 +76,10 @@ typecheck: web-typecheck ## Alias for web-typecheck.
 web-build: $(NODE_MODULES_STAMP) ## Build the Vue frontend.
 	$(NPM) run build
 
+.PHONY: web-unused
+web-unused: $(NODE_MODULES_STAMP) ## Check frontend files, exports, and dependencies for unused code.
+	$(NPM) run unused
+
 .PHONY: build
 build: web-build ## Build frontend assets and the Go server, worker, and scheduler binaries.
 	mkdir -p $(BIN_DIR)
@@ -114,4 +118,4 @@ static-check: web-build ## Compare freshly built frontend assets with embedded s
 	diff -qr $(WEB_DIR)/dist cmd/server/static
 
 .PHONY: check
-check: lint test web-build ## Run the main pre-ship verification suite.
+check: lint test web-build web-unused ## Run the main pre-ship verification suite.

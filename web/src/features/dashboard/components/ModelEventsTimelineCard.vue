@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { formatTimelineDateTime } from '@/features/dashboard/utils/formatters'
 import type { ModelEvent } from '@/types'
 
 const props = defineProps<{
@@ -11,16 +12,6 @@ const emit = defineEmits<{
 }>()
 
 const visibleEvents = computed(() => props.events.slice(0, 15))
-
-/** Formats timestamps for compact timeline entries. */
-function formatTime(value: string) {
-  return new Intl.DateTimeFormat(undefined, {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  }).format(new Date(value))
-}
 
 /** Maps event severity/status to Vuetify color tokens. */
 function eventColor(event: ModelEvent) {
@@ -63,7 +54,7 @@ function eventColor(event: ModelEvent) {
           </span>
           <span class="model-events-timeline-card__content">
             <span class="model-events-timeline-card__meta">
-              <time :datetime="event.observed_at">{{ formatTime(event.observed_at) }}</time>
+              <time :datetime="event.observed_at">{{ formatTimelineDateTime(event.observed_at) }}</time>
               <VChip size="x-small" :color="eventColor(event)" variant="tonal">
                 {{ event.event_type }}
               </VChip>

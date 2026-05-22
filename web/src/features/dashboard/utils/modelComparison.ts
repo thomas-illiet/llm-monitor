@@ -1,4 +1,11 @@
 import type { ConfiguredChart, KpiSummary } from '@/types'
+import {
+  formatCompactDecimal,
+  formatCompactNumber,
+  formatDecimal,
+  formatDurationMs,
+  normalizeZero
+} from '@/features/dashboard/utils/formatters'
 
 type ComparisonDirection = 'higher' | 'lower' | 'neutral'
 type KpiFormat = 'compact' | 'duration' | 'integer' | 'percent' | 'rate'
@@ -10,7 +17,7 @@ interface ComparisonMetricSpec {
   label: string
 }
 
-export interface ComparisonDelta {
+interface ComparisonDelta {
   label: string
   percentageLabel: string
   percentageValue: number | null
@@ -138,50 +145,33 @@ function mergedLabels(referenceLabels: string[], comparedLabels: string[]) {
 function formatValue(value: number, format: KpiFormat) {
   switch (format) {
     case 'duration':
-      return formatDuration(value)
+      return formatDurationMs(value)
     case 'percent':
-      return `${formatNumber(value * 100, 1)}%`
+      return `${formatDecimal(value * 100, 1)}%`
     case 'rate':
-      return `${formatNumber(value, 1)} tok/s`
+      return `${formatDecimal(value, 1)} tok/s`
     case 'integer':
-      return new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(Math.round(value))
+      return formatDecimal(Math.round(value), 0)
     case 'compact':
-      return new Intl.NumberFormat(undefined, { notation: 'compact' }).format(value)
+      return formatCompactNumber(value)
   }
 }
 
 function formatDelta(value: number, format: KpiFormat) {
   if (format === 'percent') return `${formatSignedNumber(value * 100, 1)} pp`
-  if (format === 'duration') return `${value > 0 ? '+' : value < 0 ? '-' : ''}${formatDuration(Math.abs(value))}`
+  if (format === 'duration') return `${value > 0 ? '+' : value < 0 ? '-' : ''}${formatDurationMs(Math.abs(value))}`
   if (format === 'rate') return `${formatSignedNumber(value, 1)} tok/s`
   if (format === 'integer') return formatSignedNumber(Math.round(value), 0)
   return formatSignedCompact(value)
 }
 
-function formatDuration(value: number) {
-  const milliseconds = Math.round(value)
-  if (milliseconds < 1000) return `${milliseconds} ms`
-  return `${formatNumber(milliseconds / 1000, 1)} s`
-}
-
 function formatSignedCompact(value: number) {
   const sign = value > 0 ? '+' : ''
-  return `${sign}${new Intl.NumberFormat(undefined, { notation: 'compact', maximumFractionDigits: 1 }).format(value)}`
+  return `${sign}${formatCompactDecimal(value)}`
 }
 
 function formatSignedNumber(value: number, maximumFractionDigits: number) {
   const normalized = normalizeZero(value)
   const sign = normalized > 0 ? '+' : ''
-  return `${sign}${formatNumber(normalized, maximumFractionDigits)}`
-}
-
-function formatNumber(value: number, maximumFractionDigits: number) {
-  return new Intl.NumberFormat(undefined, {
-    maximumFractionDigits,
-    minimumFractionDigits: maximumFractionDigits
-  }).format(normalizeZero(value))
-}
-
-function normalizeZero(value: number) {
-  return Math.abs(value) < 0.000001 ? 0 : value
+  return `${sign}${formatDecimal(normalized, maximumFractionDigits)}`
 }

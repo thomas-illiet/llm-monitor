@@ -6,6 +6,7 @@ import {
   Legend,
   Tooltip
 } from 'chart.js'
+import type { ChartData, ChartOptions, TooltipItem } from 'chart.js'
 import { Doughnut } from 'vue-chartjs'
 import type { DashboardChartTheme } from '@/features/dashboard/utils/chartHelpers'
 import type { ModelState } from '@/types'
@@ -40,7 +41,7 @@ const legendItems = computed(() => [
   { label: 'Embedding', value: capabilityCounts.value.embedding, color: capabilityPalette[1] }
 ])
 
-const doughnutData = computed(() => ({
+const doughnutData = computed<ChartData<'doughnut', number[], string>>(() => ({
   labels: ['Chat', 'Embedding'],
   datasets: [{
     data: [capabilityCounts.value.chat, capabilityCounts.value.embedding],
@@ -51,7 +52,7 @@ const doughnutData = computed(() => ({
   }]
 }))
 
-const doughnutOptions = computed(() => {
+const doughnutOptions = computed<ChartOptions<'doughnut'>>(() => {
   const currentTotal = total.value
 
   return {
@@ -65,7 +66,7 @@ const doughnutOptions = computed(() => {
         titleColor: props.theme.tooltipText,
         bodyColor: props.theme.tooltipText,
         callbacks: {
-          label(context: any) {
+          label(context: TooltipItem<'doughnut'>) {
             const value = Number(context.raw ?? 0)
             const percentage = currentTotal > 0 ? Math.round((value / currentTotal) * 100) : 0
             return `${context.label}: ${value} (${percentage}%)`

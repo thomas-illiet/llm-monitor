@@ -30,7 +30,7 @@ flowchart LR
 - `internal/auth`: static bearer tokens or OAuth2 client credentials with optional mTLS.
 - `internal/llm`: target HTTP client, model listing, health checks, chat probes, streaming metrics, and embedding probes.
 - `internal/store`: PostgreSQL connection, migrations, model inventory, events, checks, runs, alerts, and metrics.
-- `internal/schedule`: scheduling module that groups runner infrastructure and monitor task handlers.
+- `internal/schedule`: scheduling module that groups task registry infrastructure and monitor task handlers.
 - `internal/schedule/runner`: generic task registry and invocation context used by queue handlers.
 - `internal/schedule/queue`: Asynq task constructors, worker mux, dynamic scheduler provider, and manual enqueue/inspection helpers.
 - `internal/schedule/tasks`: monitor task facade, with handlers grouped under `checks`, `models`, `retention`, and shared task contracts in `shared`.
@@ -50,7 +50,9 @@ flowchart LR
 Workers process tasks from Asynq. Each task has a stable name and receives a
 serializable `TaskContext` containing `task_name`, `run_id`, `attempt`,
 `scheduled_at`, and optional JSON payload. Manual dashboard checks enqueue tasks
-with retained results so the frontend can poll until completion.
+with retained results so the frontend can poll until completion. The scheduler
+process owns recurring entries through Asynq periodic tasks; there is no
+in-process recurring scheduler in the production runtime.
 
 Task handlers are grouped by domain:
 

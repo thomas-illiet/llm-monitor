@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatBytes, formatPreciseDateTime } from '@/features/dashboard/utils/formatters'
 import type { EmbeddingRecentRun, RecentRun } from '@/types'
 
 defineProps<{
@@ -15,23 +16,6 @@ const headers = [
   { title: 'Error', key: 'error', sortable: false }
 ]
 
-/** Formats run timestamps for dense model telemetry rows. */
-function formatTime(value: string) {
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: 'medium',
-    timeStyle: 'medium'
-  }).format(new Date(value))
-}
-
-/** Formats fixture sizes for embedding workload rows. */
-function bytes(value?: number) {
-  if (value === undefined) return 'Size not recorded'
-  return new Intl.NumberFormat(undefined, {
-    maximumFractionDigits: 1,
-    notation: value >= 100_000 ? 'compact' : 'standard'
-  }).format(value) + ' B'
-}
-
 /** Narrows a recent run to embedding-specific metadata. */
 function isEmbeddingRun(run: RecentRun): run is EmbeddingRecentRun {
   return run.capability === 'embedding'
@@ -45,7 +29,7 @@ function workloadTitle(run: RecentRun) {
 
 /** Builds the workload detail without pretending unsupported metrics exist. */
 function workloadDetail(run: RecentRun) {
-  if (isEmbeddingRun(run)) return bytes(run.fixture_bytes)
+  if (isEmbeddingRun(run)) return formatBytes(run.fixture_bytes, 'Size not recorded')
   return run.prompt_id ? 'Configured chat test' : 'Prompt ID not recorded'
 }
 
@@ -81,7 +65,7 @@ function metricSummary(run: RecentRun) {
       :items-per-page-options="[10, 25, 50, { value: -1, title: 'All' }]"
     >
       <template #item.started_at="{ item }">
-        {{ formatTime(item.started_at) }}
+        {{ formatPreciseDateTime(item.started_at) }}
       </template>
       <template #item.capability="{ item }">
         <VChip size="x-small" variant="tonal">{{ item.capability }}</VChip>
