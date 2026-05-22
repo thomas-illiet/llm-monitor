@@ -14,13 +14,13 @@ func buildModelPlan(observed []store.ObservedModel) []shared.ModelPlanItem {
 		if model.Excluded || model.Capability == capabilitySkip || model.Capability == capabilityUnknown {
 			continue
 		}
-		next = append(next, shared.ModelPlanItem{ID: model.ID, Capability: model.Capability, Excluded: model.Excluded})
+		next = append(next, shared.ModelPlanItem{ProviderID: model.ProviderID, ID: model.ID, Capability: model.Capability, Excluded: model.Excluded})
 	}
 	return next
 }
 
-func modelAlertKey(alertType, modelID string, at time.Time) string {
-	return fmt.Sprintf("%s:%s:%d", alertType, modelID, at.Unix())
+func modelAlertKey(alertType, providerID, modelID string, at time.Time) string {
+	return fmt.Sprintf("%s:%s:%s:%d", alertType, providerID, modelID, at.Unix())
 }
 
 func shouldAlertReturned(missingDuration, threshold time.Duration) bool {

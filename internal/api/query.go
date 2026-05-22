@@ -11,8 +11,9 @@ import (
 )
 
 type modelDashboardQuery struct {
-	ModelID string
-	Window  time.Duration
+	ProviderID string
+	ModelID    string
+	Window     time.Duration
 }
 
 // parseDashboardWindow maps a range query parameter to a dashboard window.
@@ -40,12 +41,7 @@ func parseLimit(raw string, fallback int) int {
 
 // parseModelEventsQuery maps URL query parameters to store event filters.
 func parseModelEventsQuery(values url.Values) (store.ModelEventQuery, string) {
-	modelID := strings.TrimSpace(values.Get("model_id"))
-	if modelID == "" {
-		return store.ModelEventQuery{}, "model_id is required"
-	}
 	return store.ModelEventQuery{
-		ModelID:    modelID,
 		Limit:      parseBoundedPositiveInt(values.Get("limit"), 25, 100),
 		Offset:     parseOffset(values.Get("offset")),
 		Statuses:   cleanQueryValues(values["status"]),

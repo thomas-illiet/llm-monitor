@@ -10,7 +10,7 @@ import (
 	"llmservicemonitor/internal/store"
 )
 
-func (s *service) recordCapabilityProbeEvent(ctx context.Context, modelID string, detection capabilityDetection) {
+func (s *service) recordCapabilityProbeEvent(ctx context.Context, providerID, modelID string, detection capabilityDetection) {
 	status := "ok"
 	severity := "info"
 	title := "Capability probe succeeded"
@@ -28,6 +28,7 @@ func (s *service) recordCapabilityProbeEvent(ctx context.Context, modelID string
 		message = fmt.Sprintf("Model %s could not be classified yet: %s.", modelID, detection.SkipReason)
 	}
 	s.recordModelEvent(ctx, store.ModelEventRecord{
+		ProviderID: providerID,
 		ModelID:    modelID,
 		EventType:  "capability_probe",
 		Source:     "capability_probe",
@@ -43,7 +44,7 @@ func (s *service) recordCapabilityProbeEvent(ctx context.Context, modelID string
 	})
 }
 
-func (s *service) recordScheduledRunEvent(ctx context.Context, modelID, capability, promptID string, result llm.RunResult, details map[string]any) {
+func (s *service) recordScheduledRunEvent(ctx context.Context, providerID, modelID, capability, promptID string, result llm.RunResult, details map[string]any) {
 	if details == nil {
 		details = map[string]any{}
 	}
@@ -54,6 +55,7 @@ func (s *service) recordScheduledRunEvent(ctx context.Context, modelID, capabili
 		details["prompt_id"] = promptID
 	}
 	event := store.ModelEventRecord{
+		ProviderID: providerID,
 		ModelID:    modelID,
 		EventType:  "scheduled_run",
 		Source:     "scheduled_run",

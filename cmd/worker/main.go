@@ -38,14 +38,16 @@ func main() {
 		os.Exit(1)
 	}
 
-	tokenProvider, err := auth.NewProvider(cfg.Auth, cfg.Target, logger)
+	authProviders, err := auth.NewProviders(cfg.Providers, logger)
 	if err != nil {
-		logger.Error("build auth provider", "error", err)
+		logger.Error("build auth providers", "error", err)
 		os.Exit(1)
 	}
-	llmClient, err := llm.NewClient(cfg.Target, tokenProvider, logger)
+	llmClient, err := llm.NewProviderClients(cfg.Providers, func(providerID string) llm.TokenProvider {
+		return authProviders.ForProvider(providerID)
+	}, logger)
 	if err != nil {
-		logger.Error("build llm client", "error", err)
+		logger.Error("build llm clients", "error", err)
 		os.Exit(1)
 	}
 	notifier, err := notify.NewSMTPNotifier(cfg.SMTP, logger)
@@ -64,7 +66,7 @@ func main() {
 		Config:          cfg,
 		Store:           db,
 		Client:          llmClient,
-		Auth:            tokenProvider,
+		Auth:            authProviders,
 		Notifier:        notifier,
 		Logger:          logger,
 		RecoveryTrigger: queue.NewModelRecoveryTrigger(taskQueue, db, logger),

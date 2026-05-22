@@ -19,8 +19,8 @@ func (r *Router) status(w http.ResponseWriter, req *http.Request) {
 		writeError(w, err)
 		return
 	}
-	authCheck, _ := r.store.LatestAuthCheck(req.Context())
-	httpCheck, _ := r.store.LatestHTTPCheck(req.Context())
+	providers := r.providerStatuses(req.Context())
+	authCheck, httpCheck := aggregateLatestChecks(providers)
 	writeJSON(w, http.StatusOK, buildStatus(models, authCheck, httpCheck))
 }
 

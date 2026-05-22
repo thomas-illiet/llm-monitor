@@ -19,11 +19,7 @@ func (s *server) handleStatus(ctx context.Context, req *mcp.CallToolRequest) (*m
 	if err != nil {
 		return toolError("store_error", err.Error())
 	}
-	authCheck, err := s.store.LatestAuthCheck(ctx)
-	if err != nil {
-		return toolError("store_error", err.Error())
-	}
-	httpCheck, err := s.store.LatestHTTPCheck(ctx)
+	authCheck, httpCheck, err := s.latestChecks(ctx)
 	if err != nil {
 		return toolError("store_error", err.Error())
 	}
@@ -39,6 +35,40 @@ func (s *server) handleStatus(ctx context.Context, req *mcp.CallToolRequest) (*m
 		},
 	}
 	return toolSuccess(out)
+}
+
+func (s *server) latestChecks(ctx context.Context) (*store.CheckRecord, *store.CheckRecord, error) {
+	var authCheck *store.CheckRecord
+	var httpCheck *store.CheckRecord
+	for _, provider := range s.cfg.Providers {
+		nextAuth, err := s.store.LatestAuthCheck(ctx, provider.ID)
+		if err != nil {
+			return nil, nil, err
+		}
+		nextHTTP, err := s.store.LatestHTTPCheck(ctx, provider.ID)
+		if err != nil {
+			return nil, nil, err
+		}
+		authCheck = aggregateCheck(authCheck, nextAuth)
+		httpCheck = aggregateCheck(httpCheck, nextHTTP)
+	}
+	return authCheck, httpCheck, nil
+}
+
+func aggregateCheck(current, next *store.CheckRecord) *store.CheckRecord {
+	if next == nil {
+		return current
+	}
+	if current == nil {
+		return next
+	}
+	if !next.OK && current.OK {
+		return next
+	}
+	if next.At.After(current.At) {
+		return next
+	}
+	return current
 }
 
 func (s *server) handleKPIs(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {

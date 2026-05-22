@@ -18,6 +18,11 @@ func (r *Router) modelDashboard(w http.ResponseWriter, req *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": errMessage})
 		return
 	}
+	query.ProviderID = strings.TrimSpace(req.PathValue("provider_id"))
+	if query.ProviderID == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "provider_id is required"})
+		return
+	}
 	ctx := req.Context()
 	now := time.Now().UTC()
 	query.Window = capDashboardWindow(query.Window, r.cfg.Retention.History.Duration)
@@ -27,18 +32,18 @@ func (r *Router) modelDashboard(w http.ResponseWriter, req *http.Request) {
 		writeError(w, err)
 		return
 	}
-	model := findModelState(models, query.ModelID)
+	model := findModelState(models, query.ProviderID, query.ModelID)
 	if model == nil {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "model not found"})
 		return
 	}
 	slo := r.sloThresholds()
-	kpis, err := r.store.KPISummaryForModel(ctx, query.ModelID, since, slo)
+	kpis, err := r.store.KPISummaryForModel(ctx, query.ProviderID, query.ModelID, since, slo)
 	if err != nil {
 		writeError(w, err)
 		return
 	}
-	runs, err := r.store.RecentRunsForModel(ctx, query.ModelID, since, 30)
+	runs, err := r.store.RecentRunsForModel(ctx, query.ProviderID, query.ModelID, since, 30)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -46,7 +51,7 @@ func (r *Router) modelDashboard(w http.ResponseWriter, req *http.Request) {
 	chartConfigs := modelDashboardChartConfigs(model.Capability)
 	charts := make([]ChartResponse, 0, len(chartConfigs))
 	for _, chartCfg := range chartConfigs {
-		charts = append(charts, r.buildModelChart(ctx, chartCfg, query.ModelID, since, now, query.Window))
+		charts = append(charts, r.buildModelChart(ctx, chartCfg, query.ProviderID, query.ModelID, since, now, query.Window))
 	}
 	writeJSON(w, http.StatusOK, ModelDashboardResponse{
 		GeneratedAt: now,
@@ -60,12 +65,13 @@ func (r *Router) modelDashboard(w http.ResponseWriter, req *http.Request) {
 
 // modelDetails returns provider metadata captured from the latest model inventory.
 func (r *Router) modelDetails(w http.ResponseWriter, req *http.Request) {
-	modelID := strings.TrimSpace(req.PathValue("model_id"))
-	if modelID == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "model_id is required"})
+	providerID := strings.TrimSpace(req.PathValue("provider_id"))
+	modelID, err := modelIDFromPath(req)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
-	details, err := r.store.ModelDetails(req.Context(), modelID)
+	details, err := r.store.ModelDetails(req.Context(), providerID, modelID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			writeJSON(w, http.StatusNotFound, map[string]string{"error": "model not found"})
@@ -88,27 +94,43 @@ func (r *Router) modelEvents(w http.ResponseWriter, req *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": errMessage})
 		return
 	}
+	query.ProviderID = strings.TrimSpace(req.PathValue("provider_id"))
+	modelID, err := modelIDFromPath(req)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	query.ModelID = modelID
 	page, err := r.store.ListModelEvents(req.Context(), query)
 	if err != nil {
 		writeError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, ModelEventsResponse{
-		ModelID: query.ModelID,
-		Events:  page.Events,
-		Total:   page.Total,
-		Limit:   query.Limit,
-		Offset:  query.Offset,
-		Filters: page.Filters,
+		ProviderID: query.ProviderID,
+		ModelID:    query.ModelID,
+		Events:     page.Events,
+		Total:      page.Total,
+		Limit:      query.Limit,
+		Offset:     query.Offset,
+		Filters:    page.Filters,
 	})
 }
 
 // findModelState returns the current state for one model.
-func findModelState(models []store.ModelState, modelID string) *store.ModelState {
+func findModelState(models []store.ModelState, providerID, modelID string) *store.ModelState {
 	for i := range models {
-		if models[i].ModelID == modelID {
+		if models[i].ProviderID == providerID && models[i].ModelID == modelID {
 			return &models[i]
 		}
 	}
 	return nil
+}
+
+func modelIDFromPath(req *http.Request) (string, error) {
+	modelKey := strings.TrimSpace(req.PathValue("model_key"))
+	if modelKey == "" {
+		return "", errors.New("model_key is required")
+	}
+	return store.ModelIDFromKey(modelKey)
 }

@@ -27,7 +27,7 @@ func TestClientUsesTargetCustomCA(t *testing.T) {
 	defer server.Close()
 
 	caPath := writeServerCertificate(t, server)
-	client, err := NewClient(config.TargetConfig{
+	client, err := NewClient(config.ProviderConfig{
 		BaseURL:       server.URL,
 		HTTPCheckPath: "/v1/models",
 		Timeout:       config.Duration{Duration: 2 * time.Second},
@@ -53,7 +53,7 @@ func TestClientCanSkipTargetTLSVerification(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client, err := NewClient(config.TargetConfig{
+	client, err := NewClient(config.ProviderConfig{
 		BaseURL:            server.URL,
 		HTTPCheckPath:      "/v1/models",
 		Timeout:            config.Duration{Duration: 2 * time.Second},
@@ -96,10 +96,10 @@ func TestClientUsesCustomTargetEndpoints(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client, err := NewClient(config.TargetConfig{
+	client, err := NewClient(config.ProviderConfig{
 		BaseURL: server.URL,
 		Timeout: config.Duration{Duration: 2 * time.Second},
-		Endpoints: config.TargetEndpointsConfig{
+		Endpoints: config.ProviderEndpointsConfig{
 			Models:     "/vendor/models",
 			Chat:       "/vendor/chat",
 			Embeddings: "/vendor/embeddings",
@@ -157,10 +157,10 @@ func TestClientUsesAbsoluteEndpointURL(t *testing.T) {
 	}))
 	defer baseServer.Close()
 
-	client, err := NewClient(config.TargetConfig{
+	client, err := NewClient(config.ProviderConfig{
 		BaseURL: baseServer.URL,
 		Timeout: config.Duration{Duration: 2 * time.Second},
-		Endpoints: config.TargetEndpointsConfig{
+		Endpoints: config.ProviderEndpointsConfig{
 			Models: absoluteServer.URL + "/absolute/models",
 		},
 	}, nil, nil)
@@ -193,7 +193,7 @@ func TestClientRetriesTransientHTTPFailures(t *testing.T) {
 	defer server.Close()
 
 	retries := 2
-	client, err := NewClient(config.TargetConfig{
+	client, err := NewClient(config.ProviderConfig{
 		BaseURL:       server.URL,
 		HTTPCheckPath: "/v1/models",
 		Timeout:       config.Duration{Duration: 2 * time.Second},
@@ -240,7 +240,7 @@ func TestClientListModelsKeepsRedactedProviderMetadata(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client, err := NewClient(config.TargetConfig{
+	client, err := NewClient(config.ProviderConfig{
 		BaseURL:       server.URL,
 		HTTPCheckPath: "/v1/models",
 		Timeout:       config.Duration{Duration: 2 * time.Second},
@@ -286,7 +286,7 @@ func TestClientRetryCanBeDisabled(t *testing.T) {
 	defer server.Close()
 
 	retries := 0
-	client, err := NewClient(config.TargetConfig{
+	client, err := NewClient(config.ProviderConfig{
 		BaseURL:       server.URL,
 		HTTPCheckPath: "/v1/models",
 		Timeout:       config.Duration{Duration: 2 * time.Second},
@@ -315,7 +315,7 @@ func TestHealthCheckKeepsLastRetriedStatusCode(t *testing.T) {
 	defer server.Close()
 
 	retries := 2
-	client, err := NewClient(config.TargetConfig{
+	client, err := NewClient(config.ProviderConfig{
 		BaseURL:       server.URL,
 		HTTPCheckPath: "/v1/models",
 		Timeout:       config.Duration{Duration: 2 * time.Second},
@@ -363,7 +363,7 @@ func TestRunChatStreamMeasuresStreamingMetrics(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client, err := NewClient(config.TargetConfig{
+	client, err := NewClient(config.ProviderConfig{
 		BaseURL:       server.URL,
 		HTTPCheckPath: "/v1/models",
 		Timeout:       config.Duration{Duration: 2 * time.Second},

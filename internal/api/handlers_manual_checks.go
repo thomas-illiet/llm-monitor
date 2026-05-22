@@ -20,20 +20,35 @@ func (r *Router) runChecks(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	payload.Scope = strings.TrimSpace(strings.ToLower(payload.Scope))
+	payload.ProviderID = strings.TrimSpace(payload.ProviderID)
 	payload.ModelID = strings.TrimSpace(payload.ModelID)
 	var jobs []queue.EnqueuedTask
 	var err error
 	switch payload.Scope {
 	case "all":
 		jobs, err = r.enqueueAllChecks(req)
-	case "model":
-		if payload.ModelID == "" {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "model_id is required for model scope"})
+	case "provider":
+		if payload.ProviderID == "" {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "provider_id is required for provider scope"})
 			return
 		}
-		jobs, err = r.enqueueModelCheck(req, payload.ModelID)
+		if !r.providerConfigured(payload.ProviderID) {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "provider not found"})
+			return
+		}
+		jobs, err = r.enqueueProviderChecks(req, payload.ProviderID)
+	case "model":
+		if payload.ProviderID == "" || payload.ModelID == "" {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "provider_id and model_id are required for model scope"})
+			return
+		}
+		if !r.providerConfigured(payload.ProviderID) {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "provider not found"})
+			return
+		}
+		jobs, err = r.enqueueModelCheck(req, payload.ProviderID, payload.ModelID)
 	default:
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "scope must be all or model"})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "scope must be all, provider, or model"})
 		return
 	}
 	if err != nil {
@@ -54,17 +69,17 @@ func (r *Router) runChecks(w http.ResponseWriter, req *http.Request) {
 func (r *Router) enqueueAllChecks(req *http.Request) ([]queue.EnqueuedTask, error) {
 	ctx := req.Context()
 	jobs := make([]queue.EnqueuedTask, 0)
-	httpJob, err := r.taskQueue.EnqueueHTTPCheck(ctx)
+	httpJob, err := r.taskQueue.EnqueueHTTPCheck(ctx, "")
 	if err != nil {
 		return nil, err
 	}
 	jobs = append(jobs, httpJob)
-	authJob, err := r.taskQueue.EnqueueAuthCheck(ctx)
+	authJob, err := r.taskQueue.EnqueueAuthCheck(ctx, "")
 	if err != nil {
 		return nil, err
 	}
 	jobs = append(jobs, authJob)
-	snapshotJob, err := r.taskQueue.EnqueueModelSnapshot(ctx)
+	snapshotJob, err := r.taskQueue.EnqueueModelSnapshot(ctx, "")
 	if err != nil {
 		return nil, err
 	}
@@ -87,7 +102,46 @@ func (r *Router) enqueueAllChecks(req *http.Request) ([]queue.EnqueuedTask, erro
 	return jobs, nil
 }
 
-func (r *Router) enqueueModelCheck(req *http.Request, modelID string) ([]queue.EnqueuedTask, error) {
+func (r *Router) enqueueProviderChecks(req *http.Request, providerID string) ([]queue.EnqueuedTask, error) {
+	ctx := req.Context()
+	jobs := make([]queue.EnqueuedTask, 0)
+	httpJob, err := r.taskQueue.EnqueueHTTPCheck(ctx, providerID)
+	if err != nil {
+		return nil, err
+	}
+	jobs = append(jobs, httpJob)
+	authJob, err := r.taskQueue.EnqueueAuthCheck(ctx, providerID)
+	if err != nil {
+		return nil, err
+	}
+	jobs = append(jobs, authJob)
+	snapshotJob, err := r.taskQueue.EnqueueModelSnapshot(ctx, providerID)
+	if err != nil {
+		return nil, err
+	}
+	jobs = append(jobs, snapshotJob)
+	modelStore, ok := r.store.(runnableModelStore)
+	if !ok {
+		return jobs, nil
+	}
+	models, err := modelStore.RunnableModels(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, model := range models {
+		if model.ProviderID != providerID {
+			continue
+		}
+		job, err := r.taskQueue.EnqueueModelRun(ctx, model, "manual")
+		if err != nil {
+			return nil, err
+		}
+		jobs = append(jobs, job)
+	}
+	return jobs, nil
+}
+
+func (r *Router) enqueueModelCheck(req *http.Request, providerID, modelID string) ([]queue.EnqueuedTask, error) {
 	modelStore, ok := r.store.(runnableModelStore)
 	if !ok {
 		return nil, errRunnableModelsUnavailable{}
@@ -97,7 +151,7 @@ func (r *Router) enqueueModelCheck(req *http.Request, modelID string) ([]queue.E
 		return nil, err
 	}
 	for _, model := range models {
-		if model.ModelID == modelID {
+		if model.ProviderID == providerID && model.ModelID == modelID {
 			job, err := r.taskQueue.EnqueueModelRun(req.Context(), model, "manual")
 			if err != nil {
 				return nil, err
@@ -105,7 +159,7 @@ func (r *Router) enqueueModelCheck(req *http.Request, modelID string) ([]queue.E
 			return []queue.EnqueuedTask{job}, nil
 		}
 	}
-	return nil, errModelNotRunnable{modelID: modelID}
+	return nil, errModelNotRunnable{providerID: providerID, modelID: modelID}
 }
 
 // checkJobs returns manual queue status used by dashboard spinners.
@@ -134,11 +188,12 @@ func (errRunnableModelsUnavailable) Error() string {
 }
 
 type errModelNotRunnable struct {
-	modelID string
+	providerID string
+	modelID    string
 }
 
 func (e errModelNotRunnable) Error() string {
-	return "model " + e.modelID + " is not runnable"
+	return "model " + e.providerID + "/" + e.modelID + " is not runnable"
 }
 
 func parseJobIDs(values []string) []string {
@@ -158,4 +213,13 @@ func parseJobIDs(values []string) []string {
 		}
 	}
 	return ids
+}
+
+func (r *Router) providerConfigured(providerID string) bool {
+	for _, provider := range r.cfg.Providers {
+		if provider.ID == providerID {
+			return true
+		}
+	}
+	return false
 }

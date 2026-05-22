@@ -37,7 +37,7 @@ func TestClientCredentialsProviderFetchesAndCachesToken(t *testing.T) {
 		ClientSecret: "secret",
 		Timeout:      config.Duration{Duration: 2 * time.Second},
 		RefreshSkew:  config.Duration{Duration: time.Minute},
-	}, config.TargetConfig{}, nil)
+	}, config.ProviderConfig{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,7 +84,7 @@ func TestClientCredentialsProviderSupportsPostClientAuth(t *testing.T) {
 		ClientAuthMethod: "client_secret_post",
 		Timeout:          config.Duration{Duration: 2 * time.Second},
 		RefreshSkew:      config.Duration{Duration: time.Minute},
-	}, config.TargetConfig{}, nil)
+	}, config.ProviderConfig{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -114,7 +114,7 @@ func TestClientCredentialsProviderCanSkipTLSVerification(t *testing.T) {
 		},
 		Timeout:     config.Duration{Duration: 2 * time.Second},
 		RefreshSkew: config.Duration{Duration: time.Minute},
-	}, config.TargetConfig{}, nil)
+	}, config.ProviderConfig{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

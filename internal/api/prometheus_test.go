@@ -27,15 +27,16 @@ func TestMetricsEndpointExposesPrometheusText(t *testing.T) {
 	vectorDimensions := 1536
 	fake := &metricsFakeStore{
 		models: []store.ModelState{
-			{ModelID: "chat-a", Capability: "chat", Status: "active", LastSeenAt: now},
-			{ModelID: "embed-a", Capability: "embedding", Status: "inactive", LastSeenAt: now.Add(-3 * time.Hour), MissingSince: &missingSince},
-			{ModelID: "skip-a", Capability: "skip", Status: "active", Excluded: true, LastSeenAt: now},
+			{ProviderID: "openai", ModelID: "chat-a", Capability: "chat", Status: "active", LastSeenAt: now},
+			{ProviderID: "openai", ModelID: "embed-a", Capability: "embedding", Status: "inactive", LastSeenAt: now.Add(-3 * time.Hour), MissingSince: &missingSince},
+			{ProviderID: "openai", ModelID: "skip-a", Capability: "skip", Status: "active", Excluded: true, LastSeenAt: now},
 		},
 		httpCheck: &store.CheckRecord{At: now, OK: true, StatusCode: http.StatusOK, LatencyMS: 150},
 		authCheck: &store.CheckRecord{At: now.Add(-time.Minute), OK: false, StatusCode: http.StatusServiceUnavailable, LatencyMS: 250},
 		latestRuns: []store.LatestRun{
 			{
 				Capability:            "chat",
+				ProviderID:            "openai",
 				ModelID:               "chat-a",
 				StartedAt:             now,
 				OK:                    true,
@@ -51,6 +52,7 @@ func TestMetricsEndpointExposesPrometheusText(t *testing.T) {
 			},
 			{
 				Capability:       "embedding",
+				ProviderID:       "openai",
 				ModelID:          "embed-a",
 				StartedAt:        now.Add(-time.Hour),
 				OK:               false,
@@ -62,7 +64,7 @@ func TestMetricsEndpointExposesPrometheusText(t *testing.T) {
 			},
 		},
 	}
-	handler, err := NewRouter(config.Config{}, fake, nil, nil)
+	handler, err := NewRouter(metricsTestConfig(), fake, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,12 +78,13 @@ func TestMetricsEndpointExposesPrometheusText(t *testing.T) {
 	}
 	body := rec.Body.String()
 	assertContains(t, body, "# HELP llm_monitor_http_up")
-	assertContains(t, body, "llm_monitor_http_up 1")
-	assertContains(t, body, "llm_monitor_auth_up 0")
-	assertContains(t, body, `llm_monitor_models_total{status="active"} 2`)
-	assertContains(t, body, `llm_monitor_models_total{status="inactive"} 1`)
-	assertContains(t, body, "llm_monitor_models_skipped_total 1")
+	assertContains(t, body, `llm_monitor_http_up{provider="openai"} 1`)
+	assertContains(t, body, `llm_monitor_auth_up{provider="openai"} 0`)
+	assertContains(t, body, `llm_monitor_models_total{provider="openai",status="active"} 2`)
+	assertContains(t, body, `llm_monitor_models_total{provider="openai",status="inactive"} 1`)
+	assertContains(t, body, `llm_monitor_models_skipped_total{provider="openai"} 1`)
 	assertContains(t, body, "llm_monitor_model_info")
+	assertContains(t, body, `provider="openai"`)
 	assertContains(t, body, `model="chat-a"`)
 	assertContains(t, body, "llm_monitor_model_available")
 	assertContains(t, body, "llm_monitor_model_probe_success")
@@ -91,14 +94,13 @@ func TestMetricsEndpointExposesPrometheusText(t *testing.T) {
 	assertContains(t, body, "llm_monitor_model_probe_vector_dimensions")
 	assertContains(t, body, "go_goroutines")
 	assertContains(t, body, "process_start_time_seconds")
-	assertNotContains(t, body, "provider=")
 	assertNotContains(t, body, "error=")
 	assertNotContains(t, body, "kind=")
 }
 
 func TestMetricsEndpointReportsDownWhenChecksAreMissing(t *testing.T) {
 	fake := &metricsFakeStore{}
-	handler, err := NewRouter(config.Config{}, fake, nil, nil)
+	handler, err := NewRouter(metricsTestConfig(), fake, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -111,8 +113,8 @@ func TestMetricsEndpointReportsDownWhenChecksAreMissing(t *testing.T) {
 		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
 	}
 	body := rec.Body.String()
-	assertContains(t, body, "llm_monitor_http_up 0")
-	assertContains(t, body, "llm_monitor_auth_up 0")
+	assertContains(t, body, `llm_monitor_http_up{provider="openai"} 0`)
+	assertContains(t, body, `llm_monitor_auth_up{provider="openai"} 0`)
 }
 
 type metricsFakeStore struct {
@@ -127,11 +129,11 @@ func (f *metricsFakeStore) ListModelStates(context.Context) ([]store.ModelState,
 	return f.models, nil
 }
 
-func (f *metricsFakeStore) LatestAuthCheck(context.Context) (*store.CheckRecord, error) {
+func (f *metricsFakeStore) LatestAuthCheck(context.Context, string) (*store.CheckRecord, error) {
 	return f.authCheck, nil
 }
 
-func (f *metricsFakeStore) LatestHTTPCheck(context.Context) (*store.CheckRecord, error) {
+func (f *metricsFakeStore) LatestHTTPCheck(context.Context, string) (*store.CheckRecord, error) {
 	return f.httpCheck, nil
 }
 
@@ -143,7 +145,7 @@ func (f *metricsFakeStore) KPISummary(context.Context, time.Time, store.SLOThres
 	return store.KPISummary{}, nil
 }
 
-func (f *metricsFakeStore) KPISummaryForModel(context.Context, string, time.Time, store.SLOThresholds) (store.KPISummary, error) {
+func (f *metricsFakeStore) KPISummaryForModel(context.Context, string, string, time.Time, store.SLOThresholds) (store.KPISummary, error) {
 	return store.KPISummary{}, nil
 }
 
@@ -155,7 +157,7 @@ func (f *metricsFakeStore) RecentRuns(context.Context, int) ([]store.RecentRun, 
 	return nil, nil
 }
 
-func (f *metricsFakeStore) RecentRunsForModel(context.Context, string, time.Time, int) ([]store.RecentRun, error) {
+func (f *metricsFakeStore) RecentRunsForModel(context.Context, string, string, time.Time, int) ([]store.RecentRun, error) {
 	return nil, nil
 }
 
@@ -163,9 +165,9 @@ func (f *metricsFakeStore) RecentAlerts(context.Context, int) ([]store.RecentAle
 	return nil, nil
 }
 
-func (f *metricsFakeStore) ModelDetails(_ context.Context, modelID string) (*store.ModelDetails, error) {
+func (f *metricsFakeStore) ModelDetails(_ context.Context, providerID, modelID string) (*store.ModelDetails, error) {
 	for _, model := range f.models {
-		if model.ModelID == modelID {
+		if model.ProviderID == providerID && model.ModelID == modelID {
 			return &store.ModelDetails{
 				Model:            model,
 				ProviderMetadata: f.modelDetails[modelID],
@@ -179,7 +181,7 @@ func (f *metricsFakeStore) MetricSamples(context.Context, string, string, time.T
 	return nil, nil
 }
 
-func (f *metricsFakeStore) MetricSamplesForModel(context.Context, string, string, time.Time, string) ([]store.MetricSample, error) {
+func (f *metricsFakeStore) MetricSamplesForModel(context.Context, string, string, time.Time, string, string) ([]store.MetricSample, error) {
 	return nil, nil
 }
 
@@ -193,6 +195,12 @@ func (f *metricsFakeStore) ListModelEvents(context.Context, store.ModelEventQuer
 
 func (f *metricsFakeStore) ModelPerformance(context.Context, store.ModelPerformanceQuery) ([]store.ModelPerformanceRow, error) {
 	return nil, nil
+}
+
+func metricsTestConfig() config.Config {
+	return config.Config{
+		Providers: []config.ProviderConfig{{ID: "openai", Name: "OpenAI", BaseURL: "https://llm.example.test"}},
+	}
 }
 
 func assertContains(t *testing.T, haystack, needle string) {

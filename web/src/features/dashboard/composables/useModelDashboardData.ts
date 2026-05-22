@@ -5,6 +5,7 @@ import type { KpiRangeValue, ModelDashboardData } from '@/types'
 interface UseModelDashboardDataOptions {
   intervalMs?: number
   kpiRange?: MaybeRefOrGetter<KpiRangeValue>
+  providerId: MaybeRefOrGetter<string | null>
   modelId: MaybeRefOrGetter<string | null>
 }
 
@@ -20,11 +21,12 @@ export function useModelDashboardData(options: UseModelDashboardDataOptions) {
   /** Builds the model dashboard API path for the active model and KPI range. */
   function modelDashboardPath() {
     const modelId = toValue(options.modelId)
-    if (!modelId) return null
+    const providerId = toValue(options.providerId)
+    if (!providerId || !modelId) return null
     const params = new URLSearchParams({ model_id: modelId })
     const range = options.kpiRange ? toValue(options.kpiRange) : ''
     if (range) params.set('range', range)
-    return `/api/model-dashboard?${params}`
+    return `/api/providers/${encodeURIComponent(providerId)}/dashboard?${params}`
   }
 
   /** Refreshes the selected model dashboard payload. */
@@ -64,7 +66,7 @@ export function useModelDashboardData(options: UseModelDashboardDataOptions) {
   }
 
   watch(
-    () => [toValue(options.modelId), options.kpiRange ? toValue(options.kpiRange) : undefined] as const,
+    () => [toValue(options.providerId), toValue(options.modelId), options.kpiRange ? toValue(options.kpiRange) : undefined] as const,
     () => {
       void refresh()
     },

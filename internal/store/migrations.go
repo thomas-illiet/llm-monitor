@@ -3,25 +3,29 @@ package store
 const migrationSQL = `
 CREATE TABLE IF NOT EXISTS model_snapshots (
   id BIGSERIAL PRIMARY KEY,
+  provider_id TEXT NOT NULL,
   observed_at TIMESTAMPTZ NOT NULL,
   raw JSONB NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS model_snapshots_observed_at_idx ON model_snapshots(observed_at DESC);
+CREATE INDEX IF NOT EXISTS model_snapshots_provider_observed_idx ON model_snapshots(provider_id, observed_at DESC);
 
 CREATE TABLE IF NOT EXISTS model_snapshot_items (
   snapshot_id BIGINT NOT NULL REFERENCES model_snapshots(id) ON DELETE CASCADE,
+  provider_id TEXT NOT NULL,
   model_id TEXT NOT NULL,
   capability TEXT NOT NULL,
   excluded BOOLEAN NOT NULL DEFAULT FALSE,
   skip_reason TEXT NOT NULL DEFAULT '',
   probe_details JSONB NOT NULL DEFAULT '{}'::jsonb,
   provider_metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
-  PRIMARY KEY (snapshot_id, model_id)
+  PRIMARY KEY (snapshot_id, provider_id, model_id)
 );
 
 CREATE TABLE IF NOT EXISTS model_states (
-  model_id TEXT PRIMARY KEY,
+  provider_id TEXT NOT NULL,
+  model_id TEXT NOT NULL,
   capability TEXT NOT NULL,
   excluded BOOLEAN NOT NULL DEFAULT FALSE,
   status TEXT NOT NULL,
@@ -30,17 +34,13 @@ CREATE TABLE IF NOT EXISTS model_states (
   missing_since TIMESTAMPTZ,
   skip_reason TEXT NOT NULL DEFAULT '',
   last_probe_at TIMESTAMPTZ,
-  provider_metadata JSONB NOT NULL DEFAULT '{}'::jsonb
+  provider_metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  PRIMARY KEY (provider_id, model_id)
 );
-
-ALTER TABLE IF EXISTS model_snapshot_items
-  ADD COLUMN IF NOT EXISTS provider_metadata JSONB NOT NULL DEFAULT '{}'::jsonb;
-
-ALTER TABLE IF EXISTS model_states
-  ADD COLUMN IF NOT EXISTS provider_metadata JSONB NOT NULL DEFAULT '{}'::jsonb;
 
 CREATE TABLE IF NOT EXISTS model_events (
   id BIGSERIAL PRIMARY KEY,
+  provider_id TEXT NOT NULL,
   model_id TEXT NOT NULL,
   event_type TEXT NOT NULL,
   source TEXT NOT NULL,
@@ -55,11 +55,12 @@ CREATE TABLE IF NOT EXISTS model_events (
 );
 
 CREATE INDEX IF NOT EXISTS model_events_observed_at_idx ON model_events(observed_at DESC);
-CREATE INDEX IF NOT EXISTS model_events_model_observed_idx ON model_events(model_id, observed_at DESC);
+CREATE INDEX IF NOT EXISTS model_events_model_observed_idx ON model_events(provider_id, model_id, observed_at DESC);
 CREATE INDEX IF NOT EXISTS model_events_changed_observed_idx ON model_events(observed_at DESC) WHERE changed;
 
 CREATE TABLE IF NOT EXISTS http_checks (
   id BIGSERIAL PRIMARY KEY,
+  provider_id TEXT NOT NULL,
   checked_at TIMESTAMPTZ NOT NULL,
   ok BOOLEAN NOT NULL,
   status_code INTEGER NOT NULL DEFAULT 0,
@@ -68,9 +69,11 @@ CREATE TABLE IF NOT EXISTS http_checks (
 );
 
 CREATE INDEX IF NOT EXISTS http_checks_checked_at_idx ON http_checks(checked_at DESC);
+CREATE INDEX IF NOT EXISTS http_checks_provider_checked_at_idx ON http_checks(provider_id, checked_at DESC);
 
 CREATE TABLE IF NOT EXISTS auth_checks (
   id BIGSERIAL PRIMARY KEY,
+  provider_id TEXT NOT NULL,
   checked_at TIMESTAMPTZ NOT NULL,
   ok BOOLEAN NOT NULL,
   status_code INTEGER NOT NULL DEFAULT 0,
@@ -80,9 +83,11 @@ CREATE TABLE IF NOT EXISTS auth_checks (
 );
 
 CREATE INDEX IF NOT EXISTS auth_checks_checked_at_idx ON auth_checks(checked_at DESC);
+CREATE INDEX IF NOT EXISTS auth_checks_provider_checked_at_idx ON auth_checks(provider_id, checked_at DESC);
 
 CREATE TABLE IF NOT EXISTS chat_runs (
   id BIGSERIAL PRIMARY KEY,
+  provider_id TEXT NOT NULL,
   model_id TEXT NOT NULL,
   prompt_id TEXT NOT NULL,
   started_at TIMESTAMPTZ NOT NULL,
@@ -101,10 +106,11 @@ CREATE TABLE IF NOT EXISTS chat_runs (
 );
 
 CREATE INDEX IF NOT EXISTS chat_runs_started_at_idx ON chat_runs(started_at DESC);
-CREATE INDEX IF NOT EXISTS chat_runs_model_idx ON chat_runs(model_id, started_at DESC);
+CREATE INDEX IF NOT EXISTS chat_runs_model_idx ON chat_runs(provider_id, model_id, started_at DESC);
 
 CREATE TABLE IF NOT EXISTS embedding_runs (
   id BIGSERIAL PRIMARY KEY,
+  provider_id TEXT NOT NULL,
   model_id TEXT NOT NULL,
   fixture_path TEXT NOT NULL,
   fixture_bytes INTEGER NOT NULL DEFAULT 0,
@@ -119,7 +125,7 @@ CREATE TABLE IF NOT EXISTS embedding_runs (
 );
 
 CREATE INDEX IF NOT EXISTS embedding_runs_started_at_idx ON embedding_runs(started_at DESC);
-CREATE INDEX IF NOT EXISTS embedding_runs_model_idx ON embedding_runs(model_id, started_at DESC);
+CREATE INDEX IF NOT EXISTS embedding_runs_model_idx ON embedding_runs(provider_id, model_id, started_at DESC);
 
 CREATE TABLE IF NOT EXISTS task_spacing_state (
   key TEXT PRIMARY KEY,
@@ -129,6 +135,7 @@ CREATE TABLE IF NOT EXISTS task_spacing_state (
 CREATE TABLE IF NOT EXISTS email_alerts (
   id BIGSERIAL PRIMARY KEY,
   alert_key TEXT NOT NULL UNIQUE,
+  provider_id TEXT NOT NULL,
   model_id TEXT NOT NULL,
   alert_type TEXT NOT NULL,
   sent_at TIMESTAMPTZ NOT NULL,

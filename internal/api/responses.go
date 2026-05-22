@@ -9,19 +9,28 @@ import (
 
 // DashboardResponse is the aggregate payload consumed by the SPA dashboard.
 type DashboardResponse struct {
-	GeneratedAt        time.Time           `json:"generated_at"`
-	Status             StatusResponse      `json:"status"`
-	KPIs               store.KPISummary    `json:"kpis"`
-	SLO                store.SLOThresholds `json:"slo"`
-	Charts             []ChartResponse     `json:"charts"`
-	ModelStatusHistory ChartResponse       `json:"model_status_history"`
-	Models             []store.ModelState  `json:"models"`
-	Events             []store.RecentEvent `json:"events"`
-	Runs               []store.RecentRun   `json:"runs"`
-	Alerts             []store.RecentAlert `json:"alerts"`
-	Auth               *store.CheckRecord  `json:"auth,omitempty"`
-	HTTP               *store.CheckRecord  `json:"http,omitempty"`
-	Config             RuntimeConfig       `json:"config"`
+	GeneratedAt        time.Time                `json:"generated_at"`
+	Status             StatusResponse           `json:"status"`
+	KPIs               store.KPISummary         `json:"kpis"`
+	SLO                store.SLOThresholds      `json:"slo"`
+	Charts             []ChartResponse          `json:"charts"`
+	ModelStatusHistory ChartResponse            `json:"model_status_history"`
+	Providers          []ProviderStatusResponse `json:"providers"`
+	Models             []store.ModelState       `json:"models"`
+	Events             []store.RecentEvent      `json:"events"`
+	Runs               []store.RecentRun        `json:"runs"`
+	Alerts             []store.RecentAlert      `json:"alerts"`
+	Auth               *store.CheckRecord       `json:"auth,omitempty"`
+	HTTP               *store.CheckRecord       `json:"http,omitempty"`
+	Config             RuntimeConfig            `json:"config"`
+}
+
+// ProviderStatusResponse exposes non-secret provider config plus latest checks.
+type ProviderStatusResponse struct {
+	ID   string             `json:"id"`
+	Name string             `json:"name"`
+	Auth *store.CheckRecord `json:"auth,omitempty"`
+	HTTP *store.CheckRecord `json:"http,omitempty"`
 }
 
 // ModelDashboardResponse is the model-scoped payload consumed by the dashboard detail section.
@@ -55,9 +64,16 @@ type StatusResponse struct {
 
 // RuntimeConfig exposes non-secret runtime settings needed by the SPA.
 type RuntimeConfig struct {
-	Retention RetentionRuntimeConfig `json:"retention"`
-	SiteName  string                 `json:"site_name"`
-	SiteURL   string                 `json:"site_url,omitempty"`
+	Retention RetentionRuntimeConfig  `json:"retention"`
+	SiteName  string                  `json:"site_name"`
+	SiteURL   string                  `json:"site_url,omitempty"`
+	Providers []ProviderRuntimeConfig `json:"providers"`
+}
+
+// ProviderRuntimeConfig exposes non-secret provider labels to the SPA.
+type ProviderRuntimeConfig struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
 }
 
 // RetentionRuntimeConfig exposes the effective retention policy.
@@ -84,18 +100,20 @@ type ChartDataset struct {
 
 // ModelEventsResponse is the paginated event timeline returned for one model.
 type ModelEventsResponse struct {
-	ModelID string                        `json:"model_id"`
-	Events  []store.RecentEvent           `json:"events"`
-	Total   int64                         `json:"total"`
-	Limit   int                           `json:"limit"`
-	Offset  int                           `json:"offset"`
-	Filters store.ModelEventFilterOptions `json:"filters"`
+	ProviderID string                        `json:"provider_id"`
+	ModelID    string                        `json:"model_id"`
+	Events     []store.RecentEvent           `json:"events"`
+	Total      int64                         `json:"total"`
+	Limit      int                           `json:"limit"`
+	Offset     int                           `json:"offset"`
+	Filters    store.ModelEventFilterOptions `json:"filters"`
 }
 
 // RunChecksRequest starts one manual check group from the dashboard.
 type RunChecksRequest struct {
-	Scope   string `json:"scope"`
-	ModelID string `json:"model_id,omitempty"`
+	Scope      string `json:"scope"`
+	ProviderID string `json:"provider_id,omitempty"`
+	ModelID    string `json:"model_id,omitempty"`
 }
 
 // RunChecksResponse describes the tasks accepted for manual execution.

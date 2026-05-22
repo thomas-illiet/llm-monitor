@@ -35,9 +35,9 @@ func TestPeriodicConfigProviderBuildsModelSchedulesWithOverrides(t *testing.T) {
 		},
 	}
 	provider := NewPeriodicConfigProvider(cfg, periodicStore{models: []store.RunnableModel{
-		{ModelID: "chat-a", Capability: "chat"},
-		{ModelID: "embed-a", Capability: "embedding"},
-		{ModelID: "embed-fast", Capability: "embedding"},
+		{ProviderID: "openai", ModelID: "chat-a", Capability: "chat"},
+		{ProviderID: "openai", ModelID: "embed-a", Capability: "embedding"},
+		{ProviderID: "openai", ModelID: "embed-fast", Capability: "embedding"},
 	}})
 
 	configs, err := provider.GetConfigs()
@@ -54,33 +54,34 @@ func TestPeriodicConfigProviderBuildsModelSchedulesWithOverrides(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		got[payload.ModelID] = cfg.Cronspec
-		gotOffset[payload.ModelID] = processInDelay(cfg.Opts)
+		key := store.ModelIdentityKey(payload.ProviderID, payload.ModelID)
+		got[key] = cfg.Cronspec
+		gotOffset[key] = processInDelay(cfg.Opts)
 	}
 	want := map[string]string{
-		"chat-a":     "@every 15m0s",
-		"embed-a":    "@every 30m0s",
-		"embed-fast": "@every 2m0s",
+		store.ModelIdentityKey("openai", "chat-a"):     "@every 15m0s",
+		store.ModelIdentityKey("openai", "embed-a"):    "@every 30m0s",
+		store.ModelIdentityKey("openai", "embed-fast"): "@every 2m0s",
 	}
-	for modelID, cronspec := range want {
-		if got[modelID] != cronspec {
-			t.Fatalf("model %s cronspec = %q, want %q (all: %#v)", modelID, got[modelID], cronspec, got)
+	for key, cronspec := range want {
+		if got[key] != cronspec {
+			t.Fatalf("model %q cronspec = %q, want %q (all: %#v)", key, got[key], cronspec, got)
 		}
 	}
 	wantOffsets := map[string]time.Duration{
-		"chat-a":     0,
-		"embed-a":    shared.ModelRunSpacing,
-		"embed-fast": 2 * shared.ModelRunSpacing,
+		store.ModelIdentityKey("openai", "chat-a"):     0,
+		store.ModelIdentityKey("openai", "embed-a"):    shared.ModelRunSpacing,
+		store.ModelIdentityKey("openai", "embed-fast"): 2 * shared.ModelRunSpacing,
 	}
-	for modelID, offset := range wantOffsets {
-		if gotOffset[modelID] != offset {
-			t.Fatalf("model %s offset = %s, want %s (all: %#v)", modelID, gotOffset[modelID], offset, gotOffset)
+	for key, offset := range wantOffsets {
+		if gotOffset[key] != offset {
+			t.Fatalf("model %q offset = %s, want %s (all: %#v)", key, gotOffset[key], offset, gotOffset)
 		}
 	}
 }
 
 func TestScheduledModelRunPayloadIsStable(t *testing.T) {
-	model := store.RunnableModel{ModelID: "chat-a", Capability: "chat"}
+	model := store.RunnableModel{ProviderID: "openai", ModelID: "chat-a", Capability: "chat"}
 	first, err := NewScheduledModelRunTask(model)
 	if err != nil {
 		t.Fatal(err)
@@ -99,11 +100,11 @@ func TestModelRunNextChecksFiltersSchedulerEntries(t *testing.T) {
 	chatLater := chatNext.Add(5 * time.Minute)
 	embedNext := time.Date(2026, 5, 21, 10, 30, 0, 0, time.UTC)
 	embedDelay := 2 * shared.ModelRunSpacing
-	chatPayload, err := shared.MarshalModelRunPayload(shared.ModelRunPayload{ModelID: "chat-a", Capability: "chat"})
+	chatPayload, err := shared.MarshalModelRunPayload(shared.ModelRunPayload{ProviderID: "openai", ModelID: "chat-a", Capability: "chat"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	embedPayload, err := shared.MarshalModelRunPayload(shared.ModelRunPayload{ModelID: "embed-a", Capability: "embedding"})
+	embedPayload, err := shared.MarshalModelRunPayload(shared.ModelRunPayload{ProviderID: "openai", ModelID: "embed-a", Capability: "embedding"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -121,10 +122,12 @@ func TestModelRunNextChecksFiltersSchedulerEntries(t *testing.T) {
 	if len(got) != 2 {
 		t.Fatalf("next checks len = %d, want 2: %#v", len(got), got)
 	}
-	if !got["chat-a"].Equal(chatNext) {
-		t.Fatalf("chat next = %s, want %s", got["chat-a"], chatNext)
+	chatKey := store.ModelIdentityKey("openai", "chat-a")
+	embedKey := store.ModelIdentityKey("openai", "embed-a")
+	if !got[chatKey].Equal(chatNext) {
+		t.Fatalf("chat next = %s, want %s", got[chatKey], chatNext)
 	}
-	if !got["embed-a"].Equal(embedNext.Add(embedDelay)) {
-		t.Fatalf("embed next = %s, want %s", got["embed-a"], embedNext.Add(embedDelay))
+	if !got[embedKey].Equal(embedNext.Add(embedDelay)) {
+		t.Fatalf("embed next = %s, want %s", got[embedKey], embedNext.Add(embedDelay))
 	}
 }

@@ -9,6 +9,7 @@ import (
 
 	"llmservicemonitor/internal/config"
 	"llmservicemonitor/internal/schedule/tasks/shared"
+	"llmservicemonitor/internal/store"
 )
 
 // Client enqueues monitor tasks and inspects their queue state.
@@ -20,11 +21,12 @@ type Client struct {
 
 // EnqueuedTask describes one task accepted by Redis.
 type EnqueuedTask struct {
-	ID      string `json:"id"`
-	Queue   string `json:"queue"`
-	Type    string `json:"type"`
-	ModelID string `json:"model_id,omitempty"`
-	State   string `json:"state"`
+	ID         string `json:"id"`
+	Queue      string `json:"queue"`
+	Type       string `json:"type"`
+	ProviderID string `json:"provider_id,omitempty"`
+	ModelID    string `json:"model_id,omitempty"`
+	State      string `json:"state"`
 }
 
 // JobStatus describes the latest known state of one queued task.
@@ -32,6 +34,7 @@ type JobStatus struct {
 	ID          string     `json:"id"`
 	Queue       string     `json:"queue"`
 	Type        string     `json:"type,omitempty"`
+	ProviderID  string     `json:"provider_id,omitempty"`
 	ModelID     string     `json:"model_id,omitempty"`
 	State       string     `json:"state"`
 	Error       string     `json:"error,omitempty"`
@@ -68,17 +71,18 @@ func (c *Client) Close() error {
 	return err
 }
 
-func (c *Client) enqueue(ctx context.Context, task *asynq.Task, modelID string) (EnqueuedTask, error) {
+func (c *Client) enqueue(ctx context.Context, task *asynq.Task, providerID, modelID string) (EnqueuedTask, error) {
 	info, err := c.client.EnqueueContext(ctx, task, manualTaskOptions(c.cfg)...)
 	if err != nil {
 		return EnqueuedTask{}, err
 	}
 	return EnqueuedTask{
-		ID:      info.ID,
-		Queue:   info.Queue,
-		Type:    info.Type,
-		ModelID: modelID,
-		State:   info.State.String(),
+		ID:         info.ID,
+		Queue:      info.Queue,
+		Type:       info.Type,
+		ProviderID: providerID,
+		ModelID:    modelID,
+		State:      info.State.String(),
 	}, nil
 }
 
@@ -122,8 +126,11 @@ func jobStatusFromTaskInfo(info *asynq.TaskInfo) JobStatus {
 	}
 	if info.Type == shared.ModelRunTaskName {
 		if payload, err := shared.UnmarshalModelRunPayload(info.Payload); err == nil {
+			status.ProviderID = payload.ProviderID
 			status.ModelID = payload.ModelID
 		}
+	} else if payload, err := shared.UnmarshalProviderTaskPayload(info.Payload); err == nil {
+		status.ProviderID = payload.ProviderID
 	}
 	return status
 }
@@ -155,9 +162,10 @@ func modelRunNextChecks(entries []*asynq.SchedulerEntry) map[string]time.Time {
 			continue
 		}
 		next := entry.Next.Add(processInDelay(entry.Opts)).UTC()
-		current, exists := nextChecks[payload.ModelID]
+		key := store.ModelIdentityKey(payload.ProviderID, payload.ModelID)
+		current, exists := nextChecks[key]
 		if !exists || next.Before(current) {
-			nextChecks[payload.ModelID] = next
+			nextChecks[key] = next
 		}
 	}
 	return nextChecks

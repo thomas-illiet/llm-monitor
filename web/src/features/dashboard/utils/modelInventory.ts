@@ -6,6 +6,7 @@ type CheckColor = 'secondary' | 'success' | 'error'
 
 /** Model inventory row enriched with table-only fields. */
 export type ModelInventoryRow = ModelState & {
+  identity: string
   status_label: string
   last_check_label: string
   last_check_color: CheckColor
@@ -17,9 +18,10 @@ export type ModelInventoryRow = ModelState & {
 export function lastRunByModel(runs: RecentRun[] = []) {
   const map = new Map<string, RecentRun>()
   for (const run of runs) {
-    const previous = map.get(run.model_id)
+    const key = modelIdentity(run)
+    const previous = map.get(key)
     if (!previous || isRunNewer(run, previous)) {
-      map.set(run.model_id, run)
+      map.set(key, run)
     }
   }
   return map
@@ -28,9 +30,11 @@ export function lastRunByModel(runs: RecentRun[] = []) {
 /** Enriches raw model state with table-only display fields. */
 export function modelInventoryRows(models: ModelState[], runs: Map<string, RecentRun>): ModelInventoryRow[] {
   return models.map(model => {
-    const lastRun = runs.get(model.model_id)
+    const identity = modelIdentity(model)
+    const lastRun = runs.get(identity)
     return {
       ...model,
+      identity,
       status_label: statusLabel(model),
       last_check_label: checkLabel(lastRun),
       last_check_color: checkColor(lastRun),
@@ -38,6 +42,20 @@ export function modelInventoryRows(models: ModelState[], runs: Map<string, Recen
       next_check_timestamp: timestampFor(model.next_check_at)
     }
   })
+}
+
+export function modelIdentity(model: Pick<ModelState, 'provider_id' | 'model_key'> | Pick<RecentRun, 'provider_id' | 'model_key'>) {
+  return `${model.provider_id}/${model.model_key}`
+}
+
+export function parseModelIdentity(identity: string | null) {
+  if (!identity) return null
+  const slash = identity.indexOf('/')
+  if (slash <= 0 || slash === identity.length - 1) return null
+  return {
+    providerId: identity.slice(0, slash),
+    modelKey: identity.slice(slash + 1)
+  }
 }
 
 /** Compares nullable timestamps for Vuetify table sorting. */

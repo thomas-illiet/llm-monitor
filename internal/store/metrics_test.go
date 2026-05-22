@@ -25,11 +25,11 @@ func TestMetricQueryForModelScopesRunBackedMetrics(t *testing.T) {
 	if err != nil {
 		t.Fatalf("metricQueryForModel() error = %v", err)
 	}
-	if !strings.Contains(query, "c.model_id = $2") {
-		t.Fatalf("query = %q, want chat model filter", query)
+	if !strings.Contains(query, "c.provider_id = $2 AND c.model_id = $3") {
+		t.Fatalf("query = %q, want chat provider/model filter", query)
 	}
-	if !strings.Contains(query, "e.model_id = $2") {
-		t.Fatalf("query = %q, want embedding model filter", query)
+	if !strings.Contains(query, "e.provider_id = $2 AND e.model_id = $3") {
+		t.Fatalf("query = %q, want embedding provider/model filter", query)
 	}
 	if _, err := metricQueryForModel("http_latency_ms", "check"); err == nil {
 		t.Fatal("metricQueryForModel() accepted an HTTP check metric")

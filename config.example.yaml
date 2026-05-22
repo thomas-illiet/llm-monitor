@@ -22,38 +22,42 @@ asynq:
 # tls:
 #   insecure_skip_verify: true
 
-target:
-  name: "production-llm"
-  base_url: "https://llm.example.com"
-  # Optional legacy health-check override. Defaults to target.endpoints.models.
-  # http_check_path: "/v1/models"
-  endpoints:
-    models: "/v1/models"
-    chat: "/v1/chat/completions"
-    embeddings: "/v1/embeddings"
-  timeout: "30s"
-  ca_file: "/run/certs/llm-api-ca.crt"
-  api_key: "replace-me"
-  retry:
-    enabled: true
-    max_retries: 2
-    wait_min: "500ms"
-    wait_max: "5s"
-
-auth:
-  enabled: true
-  token_url: "https://auth.example.com/oauth2/token"
-  client_id: "llm-monitor"
-  client_secret: "replace-me"
-  client_auth_method: "client_secret_basic"
-  scopes: []
-  audience: ""
-  timeout: "10s"
-  refresh_skew: "30s"
-  mtls:
-    cert_file: "/run/certs/client.crt"
-    key_file: "/run/certs/client.key"
-    ca_file: "/run/certs/ca.crt"
+providers:
+  - id: "production"
+    name: "production-llm"
+    base_url: "https://llm.example.com"
+    # Optional health-check override. Defaults to endpoints.models.
+    # http_check_path: "/v1/models"
+    endpoints:
+      models: "/v1/models"
+      chat: "/v1/chat/completions"
+      embeddings: "/v1/embeddings"
+    timeout: "30s"
+    ca_file: "/run/certs/llm-api-ca.crt"
+    api_key: "replace-me"
+    retry:
+      enabled: true
+      max_retries: 2
+      wait_min: "500ms"
+      wait_max: "5s"
+    auth:
+      enabled: true
+      token_url: "https://auth.example.com/oauth2/token"
+      client_id: "llm-monitor"
+      client_secret: "replace-me"
+      client_auth_method: "client_secret_basic"
+      scopes: []
+      audience: ""
+      timeout: "10s"
+      refresh_skew: "30s"
+      mtls:
+        cert_file: "/run/certs/client.crt"
+        key_file: "/run/certs/client.key"
+        ca_file: "/run/certs/ca.crt"
+  - id: "staging"
+    name: "staging-llm"
+    base_url: "https://staging-llm.example.com"
+    api_key: "replace-me"
 
 smtp:
   enabled: false
@@ -76,9 +80,11 @@ schedules:
   model_snapshot: "5m"
   model_runs: "15m"
   model_run_overrides:
-    - model_id: "premium-chat-model"
+    - provider_id: "production"
+      model_id: "premium-chat-model"
       interval: "5m"
-    - pattern: "embedding-*"
+    - provider_id: "staging"
+      pattern: "embedding-*"
       interval: "30m"
 
 retention:

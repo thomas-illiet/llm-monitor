@@ -53,6 +53,7 @@ func TestRegistryHandlerLogsModelRunPayloadAtStart(t *testing.T) {
 		t.Fatal(err)
 	}
 	payload, err := shared.MarshalModelRunPayload(shared.ModelRunPayload{
+		ProviderID: "openai",
 		ModelID:    "chat-a",
 		Capability: "chat",
 		Reason:     "manual",
@@ -69,6 +70,7 @@ func TestRegistryHandlerLogsModelRunPayloadAtStart(t *testing.T) {
 	assertLogContains(t, logs.String(),
 		`msg="queued task started"`,
 		`task=monitor.model_run`,
+		`provider=openai`,
 		`model=chat-a`,
 		`capability=chat`,
 		`reason=manual`,

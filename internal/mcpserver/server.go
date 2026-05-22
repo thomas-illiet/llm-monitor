@@ -22,8 +22,8 @@ const (
 // Store describes the read-only persistence methods exposed through MCP tools.
 type Store interface {
 	ListModelStates(ctx context.Context) ([]store.ModelState, error)
-	LatestAuthCheck(ctx context.Context) (*store.CheckRecord, error)
-	LatestHTTPCheck(ctx context.Context) (*store.CheckRecord, error)
+	LatestAuthCheck(ctx context.Context, providerID string) (*store.CheckRecord, error)
+	LatestHTTPCheck(ctx context.Context, providerID string) (*store.CheckRecord, error)
 	KPISummary(ctx context.Context, since time.Time, slo store.SLOThresholds) (store.KPISummary, error)
 	ModelPerformance(ctx context.Context, query store.ModelPerformanceQuery) ([]store.ModelPerformanceRow, error)
 }

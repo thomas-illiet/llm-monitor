@@ -239,8 +239,8 @@ func TestHTTPCheckLatencyChartSkipsAuthWhenDisabled(t *testing.T) {
 	if len(chart.Datasets) != 1 {
 		t.Fatalf("datasets len = %d, want 1", len(chart.Datasets))
 	}
-	if chart.Datasets[0].Label != targetHTTPLatencyLabel {
-		t.Fatalf("dataset label = %q, want %q", chart.Datasets[0].Label, targetHTTPLatencyLabel)
+	if chart.Datasets[0].Label != providerHTTPLatencyLabel {
+		t.Fatalf("dataset label = %q, want %q", chart.Datasets[0].Label, providerHTTPLatencyLabel)
 	}
 	assertChartData(t, chart.Datasets[0].Data, []*float64{chartValue(120), nil, nil})
 }
@@ -257,7 +257,7 @@ func TestHTTPCheckLatencyChartAddsAuthWhenEnabled(t *testing.T) {
 		},
 	}}
 	router := Router{
-		cfg:   config.Config{Auth: config.AuthConfig{Enabled: true}},
+		cfg:   config.Config{Providers: []config.ProviderConfig{{ID: "openai", Auth: config.AuthConfig{Enabled: true}}}},
 		store: fake,
 	}
 
@@ -276,8 +276,8 @@ func TestHTTPCheckLatencyChartAddsAuthWhenEnabled(t *testing.T) {
 	if len(chart.Datasets) != 2 {
 		t.Fatalf("datasets len = %d, want 2", len(chart.Datasets))
 	}
-	if chart.Datasets[0].Label != targetHTTPLatencyLabel || chart.Datasets[1].Label != authProviderLatencyLabel {
-		t.Fatalf("dataset labels = %q, %q; want %q, %q", chart.Datasets[0].Label, chart.Datasets[1].Label, targetHTTPLatencyLabel, authProviderLatencyLabel)
+	if chart.Datasets[0].Label != providerHTTPLatencyLabel || chart.Datasets[1].Label != authProviderLatencyLabel {
+		t.Fatalf("dataset labels = %q, %q; want %q, %q", chart.Datasets[0].Label, chart.Datasets[1].Label, providerHTTPLatencyLabel, authProviderLatencyLabel)
 	}
 	assertChartData(t, chart.Datasets[0].Data, []*float64{chartValue(120), nil, nil})
 	assertChartData(t, chart.Datasets[1].Data, []*float64{nil, chartValue(45), nil})
@@ -297,7 +297,7 @@ func TestHTTPCheckLatencyChartReportsAuthQueryError(t *testing.T) {
 		},
 	}
 	router := Router{
-		cfg:   config.Config{Auth: config.AuthConfig{Enabled: true}},
+		cfg:   config.Config{Providers: []config.ProviderConfig{{ID: "openai", Auth: config.AuthConfig{Enabled: true}}}},
 		store: fake,
 	}
 
@@ -318,7 +318,6 @@ func TestHTTPCheckLatencyChartReportsAuthQueryError(t *testing.T) {
 // TestParseModelEventsQueryDefaultsAndFilters verifies model event query normalization.
 func TestParseModelEventsQueryDefaultsAndFilters(t *testing.T) {
 	values := url.Values{}
-	values.Set("model_id", " test-model ")
 	values.Add("status", "ok")
 	values.Add("status", "")
 	values.Add("status", "error")
@@ -330,9 +329,6 @@ func TestParseModelEventsQueryDefaultsAndFilters(t *testing.T) {
 	got, errMessage := parseModelEventsQuery(values)
 	if errMessage != "" {
 		t.Fatalf("parseModelEventsQuery returned error %q", errMessage)
-	}
-	if got.ModelID != "test-model" {
-		t.Fatalf("ModelID = %q, want test-model", got.ModelID)
 	}
 	if got.Limit != 25 {
 		t.Fatalf("Limit = %d, want 25", got.Limit)
@@ -374,14 +370,6 @@ func TestParseModelEventsQueryBounds(t *testing.T) {
 	}
 	if got.Offset != 0 {
 		t.Fatalf("Offset = %d, want fallback 0", got.Offset)
-	}
-}
-
-// TestParseModelEventsQueryRequiresModelID verifies model event queries are model-scoped.
-func TestParseModelEventsQueryRequiresModelID(t *testing.T) {
-	_, errMessage := parseModelEventsQuery(url.Values{})
-	if errMessage != "model_id is required" {
-		t.Fatalf("error = %q, want model_id is required", errMessage)
 	}
 }
 
@@ -467,6 +455,7 @@ func TestCapDashboardWindowAppliesRetention(t *testing.T) {
 // TestRuntimeConfigExposesRetentionHistory verifies non-secret retention config is serialized for the SPA.
 func TestRuntimeConfigExposesRetentionHistory(t *testing.T) {
 	router := Router{cfg: config.Config{
+		Providers: []config.ProviderConfig{{ID: "openai", Name: "OpenAI", BaseURL: "https://llm.example.test"}},
 		Dashboard: config.DashboardConfig{
 			SiteName: "Platform Monitor",
 			SiteURL:  "https://monitor.example.test",
@@ -482,6 +471,9 @@ func TestRuntimeConfigExposesRetentionHistory(t *testing.T) {
 	if got.SiteName != "Platform Monitor" || got.SiteURL != "https://monitor.example.test" {
 		t.Fatalf("runtime branding = %q %q, want configured site name and url", got.SiteName, got.SiteURL)
 	}
+	if len(got.Providers) != 1 || got.Providers[0].ID != "openai" || got.Providers[0].Name != "OpenAI" {
+		t.Fatalf("providers = %#v, want openai runtime provider", got.Providers)
+	}
 }
 
 // TestDashboardResponseShapeIncludesRuntimeConfig verifies the dashboard payload exposes runtime metadata.
@@ -490,7 +482,9 @@ func TestDashboardResponseShapeIncludesRuntimeConfig(t *testing.T) {
 	payload := DashboardResponse{
 		GeneratedAt: time.Date(2026, 5, 17, 10, 0, 0, 0, time.UTC),
 		Models: []store.ModelState{{
+			ProviderID:  "openai",
 			ModelID:     "chat-a",
+			ModelKey:    store.ModelKey("chat-a"),
 			Capability:  "chat",
 			Status:      "active",
 			NextCheckAt: &nextCheck,
@@ -515,14 +509,16 @@ func TestDashboardResponseShapeIncludesRuntimeConfig(t *testing.T) {
 			SiteURL  string `json:"site_url"`
 		} `json:"config"`
 		Models []struct {
+			ProviderID  string `json:"provider_id"`
 			ModelID     string `json:"model_id"`
+			ModelKey    string `json:"model_key"`
 			NextCheckAt string `json:"next_check_at"`
 		} `json:"models"`
 	}
 	if err := json.Unmarshal(raw, &got); err != nil {
 		t.Fatalf("Unmarshal() error = %v", err)
 	}
-	if len(got.Models) != 1 || got.Models[0].ModelID != "chat-a" || got.Models[0].NextCheckAt == "" {
+	if len(got.Models) != 1 || got.Models[0].ProviderID != "openai" || got.Models[0].ModelID != "chat-a" || got.Models[0].ModelKey == "" || got.Models[0].NextCheckAt == "" {
 		t.Fatalf("models = %#v, want serialized next_check_at", got.Models)
 	}
 	if got.Config.Retention.HistorySeconds != 42 {
@@ -546,12 +542,12 @@ func (q *scheduledManualQueue) ScheduledModelRuns(context.Context) (map[string]t
 func TestAttachModelNextChecksUsesQueueSchedule(t *testing.T) {
 	nextCheck := time.Date(2026, 5, 17, 10, 15, 0, 0, time.UTC)
 	router := Router{taskQueue: &scheduledManualQueue{
-		next: map[string]time.Time{"chat-a": nextCheck},
+		next: map[string]time.Time{store.ModelIdentityKey("openai", "chat-a"): nextCheck},
 	}}
 
 	models := router.attachModelNextChecks(context.Background(), []store.ModelState{
-		{ModelID: "chat-a", Capability: "chat", Status: "active"},
-		{ModelID: "inactive", Capability: "chat", Status: "inactive"},
+		{ProviderID: "openai", ModelID: "chat-a", Capability: "chat", Status: "active"},
+		{ProviderID: "openai", ModelID: "inactive", Capability: "chat", Status: "inactive"},
 	})
 
 	if models[0].NextCheckAt == nil || !models[0].NextCheckAt.Equal(nextCheck) {
@@ -566,7 +562,9 @@ func TestModelDetailsRouteReturnsProviderMetadata(t *testing.T) {
 	modelID := "provider/model"
 	fake := &metricsFakeStore{
 		models: []store.ModelState{{
+			ProviderID: "openai",
 			ModelID:    modelID,
+			ModelKey:   store.ModelKey(modelID),
 			Capability: "chat",
 			Status:     "active",
 		}},
@@ -577,13 +575,13 @@ func TestModelDetailsRouteReturnsProviderMetadata(t *testing.T) {
 			},
 		},
 	}
-	handler, err := NewRouter(config.Config{}, fake, nil, nil)
+	handler, err := NewRouter(metricsTestConfig(), fake, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/api/models/provider%2Fmodel/details", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/providers/openai/models/"+store.ModelKey(modelID)+"/details", nil)
 	handler.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
@@ -599,13 +597,13 @@ func TestModelDetailsRouteReturnsProviderMetadata(t *testing.T) {
 }
 
 func TestModelDetailsRouteReturnsNotFound(t *testing.T) {
-	handler, err := NewRouter(config.Config{}, &metricsFakeStore{}, nil, nil)
+	handler, err := NewRouter(metricsTestConfig(), &metricsFakeStore{}, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/api/models/missing/details", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/providers/openai/models/"+store.ModelKey("missing")+"/details", nil)
 	handler.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusNotFound {
@@ -616,11 +614,12 @@ func TestModelDetailsRouteReturnsNotFound(t *testing.T) {
 // TestModelEventsResponseShape verifies the JSON contract for model event pages.
 func TestModelEventsResponseShape(t *testing.T) {
 	payload := ModelEventsResponse{
-		ModelID: "test-model",
-		Events:  []store.RecentEvent{{ID: 1, ModelID: "test-model", EventType: "removed", Changed: true}},
-		Total:   42,
-		Limit:   25,
-		Offset:  50,
+		ProviderID: "openai",
+		ModelID:    "test-model",
+		Events:     []store.RecentEvent{{ID: 1, ProviderID: "openai", ModelID: "test-model", ModelKey: store.ModelKey("test-model"), EventType: "removed", Changed: true}},
+		Total:      42,
+		Limit:      25,
+		Offset:     50,
 		Filters: store.ModelEventFilterOptions{
 			Statuses:   []string{"ok"},
 			Sources:    []string{"scheduler"},
@@ -633,8 +632,9 @@ func TestModelEventsResponseShape(t *testing.T) {
 		t.Fatalf("Marshal() error = %v", err)
 	}
 	var got struct {
-		ModelID string `json:"model_id"`
-		Events  []struct {
+		ProviderID string `json:"provider_id"`
+		ModelID    string `json:"model_id"`
+		Events     []struct {
 			Changed bool `json:"changed"`
 		} `json:"events"`
 		Total   int64 `json:"total"`
@@ -649,7 +649,7 @@ func TestModelEventsResponseShape(t *testing.T) {
 	if err := json.Unmarshal(raw, &got); err != nil {
 		t.Fatalf("Unmarshal() error = %v", err)
 	}
-	if got.ModelID != payload.ModelID || got.Total != payload.Total || got.Limit != payload.Limit || got.Offset != payload.Offset {
+	if got.ProviderID != payload.ProviderID || got.ModelID != payload.ModelID || got.Total != payload.Total || got.Limit != payload.Limit || got.Offset != payload.Offset {
 		t.Fatalf("response metadata = %#v, want %#v", got, payload)
 	}
 	if len(got.Events) != 1 || !got.Events[0].Changed {
@@ -667,12 +667,13 @@ func TestModelDashboardResponseShape(t *testing.T) {
 	vectorDimensions := 1536
 	payload := ModelDashboardResponse{
 		GeneratedAt: time.Date(2026, 5, 17, 10, 0, 0, 0, time.UTC),
-		Model:       store.ModelState{ModelID: "test-model", Capability: "embedding", Status: "active"},
+		Model:       store.ModelState{ProviderID: "openai", ModelID: "test-model", ModelKey: store.ModelKey("test-model"), Capability: "embedding", Status: "active"},
 		KPIs:        store.KPISummary{TotalRuns: 2, SuccessRate: 1},
 		SLO:         store.SLOThresholds{TTFTP99MS: 1000},
 		Charts:      []ChartResponse{{ID: "model-vector-dimensions", Title: "Vector dimensions", Type: "bar", Metric: "vector_dimensions"}},
 		Runs: []store.RecentRun{{
 			Capability:       "embedding",
+			ProviderID:       "openai",
 			ModelID:          "test-model",
 			FixturePath:      &fixturePath,
 			FixtureBytes:     &fixtureBytes,
@@ -686,7 +687,8 @@ func TestModelDashboardResponseShape(t *testing.T) {
 	}
 	var got struct {
 		Model struct {
-			ModelID string `json:"model_id"`
+			ProviderID string `json:"provider_id"`
+			ModelID    string `json:"model_id"`
 		} `json:"model"`
 		KPIs struct {
 			TotalRuns int64 `json:"total_runs"`
@@ -702,7 +704,7 @@ func TestModelDashboardResponseShape(t *testing.T) {
 	if err := json.Unmarshal(raw, &got); err != nil {
 		t.Fatalf("Unmarshal() error = %v", err)
 	}
-	if got.Model.ModelID != "test-model" || got.KPIs.TotalRuns != 2 || len(got.Charts) != 1 || len(got.Runs) != 1 {
+	if got.Model.ProviderID != "openai" || got.Model.ModelID != "test-model" || got.KPIs.TotalRuns != 2 || len(got.Charts) != 1 || len(got.Runs) != 1 {
 		t.Fatalf("response shape = %#v, want model, kpis, charts, and runs", got)
 	}
 	if got.Runs[0].Capability != "embedding" || got.Runs[0].FixturePath != fixturePath || got.Runs[0].FixtureBytes != fixtureBytes || got.Runs[0].VectorDimensions != vectorDimensions {

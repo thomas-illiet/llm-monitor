@@ -7,7 +7,7 @@ the YAML fields that tune those schedules.
 ## Health Checks
 
 - `GET /healthz` reports process health.
-- `GET /api/status` reports target/auth/model health from persisted observations.
+- `GET /api/status` reports provider/auth/model health from persisted observations.
 - `GET /metrics` exposes Prometheus metrics from the latest persisted checks, model inventory, and model probes.
 
 Use `/healthz` for container liveness and `/api/status` for service-level monitoring.
@@ -36,10 +36,10 @@ Alert send attempts are recorded even when SMTP delivery fails, and failures als
 
 - No dashboard data: confirm PostgreSQL and Redis connectivity, that the scheduler and worker are running, and that `model_snapshot` has completed at least once.
 - Need more diagnostics: set `logging.level: debug` and restart the service to include task and outbound LLM request timing details.
-- Auth degraded: check OAuth URL, client secret, mTLS files, CA trust, and token endpoint status.
-- HTTP degraded: check `target.base_url`, `target.http_check_path` or `target.endpoints.models`, CA trust, and network routing.
-- Models inactive: inspect HTTP checks and model events; the target may be unreachable or the model may no longer be available.
-- Models skipped: inspect model event details; skipped models usually failed both embedding and chat capability probes. For non-standard providers, verify `target.endpoints.chat` and `target.endpoints.embeddings`.
+- Auth degraded: check the affected provider's OAuth URL, client secret, mTLS files, CA trust, and token endpoint status.
+- HTTP degraded: check the affected provider's `base_url`, `http_check_path` or `endpoints.models`, CA trust, and network routing.
+- Models inactive: inspect provider-scoped HTTP checks and model events; the provider may be unreachable or the model may no longer be available.
+- Models skipped: inspect model event details; skipped models usually failed both embedding and chat capability probes. For non-standard providers, verify `endpoints.chat` and `endpoints.embeddings`.
 - Empty embedding runs: confirm `tests.embedding_fixture.path` is mounted and readable.
 
 ## Routine Maintenance

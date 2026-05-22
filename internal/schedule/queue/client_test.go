@@ -25,6 +25,7 @@ func TestExpiredPendingJobOnlyMatchesPendingPastDeadline(t *testing.T) {
 
 func TestJobStatusFromTaskInfoIncludesModelRunPayload(t *testing.T) {
 	payload, err := shared.MarshalModelRunPayload(shared.ModelRunPayload{
+		ProviderID: "openai",
 		ModelID:    "chat-a",
 		Capability: "chat",
 		Reason:     "manual",
@@ -41,7 +42,7 @@ func TestJobStatusFromTaskInfoIncludesModelRunPayload(t *testing.T) {
 		State:   asynq.TaskStatePending,
 	})
 
-	if status.ModelID != "chat-a" {
-		t.Fatalf("model id = %q, want chat-a", status.ModelID)
+	if status.ProviderID != "openai" || status.ModelID != "chat-a" {
+		t.Fatalf("identity = %q/%q, want openai/chat-a", status.ProviderID, status.ModelID)
 	}
 }

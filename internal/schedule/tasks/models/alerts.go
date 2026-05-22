@@ -21,18 +21,18 @@ func (s *service) sendInactiveModelAlerts(ctx context.Context, now time.Time) {
 			continue
 		}
 		threshold := formatAlertDuration(s.cfg.Models.AbsenceAlertAfter.Duration)
-		body := fmt.Sprintf("Model %s has been inactive since %s, which is longer than %s.", model.ModelID, model.MissingSince.Format(time.RFC3339), threshold)
-		s.sendModelAlert(ctx, modelAlertKey("inactive", model.ModelID, *model.MissingSince), model.ModelID, "inactive", "LLM model inactive for more than 24h", body, s.modelAlertFields(model.ModelID,
+		body := fmt.Sprintf("Model %s/%s has been inactive since %s, which is longer than %s.", model.ProviderID, model.ModelID, model.MissingSince.Format(time.RFC3339), threshold)
+		s.sendModelAlert(ctx, modelAlertKey("inactive", model.ProviderID, model.ModelID, *model.MissingSince), model.ProviderID, model.ModelID, "inactive", "LLM model inactive for more than 24h", body, s.modelAlertFields(model.ProviderID, model.ModelID,
 			notify.AlertField{Label: "Inactive since", Value: model.MissingSince.Format(time.RFC3339)},
 			notify.AlertField{Label: "Alert threshold", Value: threshold},
 		))
 	}
 }
 
-func (s *service) modelAlertFields(modelID string, fields ...notify.AlertField) []notify.AlertField {
-	base := []notify.AlertField{{Label: "Model", Value: modelID}}
-	if s.cfg.Target.Name != "" {
-		base = append(base, notify.AlertField{Label: "Target", Value: s.cfg.Target.Name})
+func (s *service) modelAlertFields(providerID, modelID string, fields ...notify.AlertField) []notify.AlertField {
+	base := []notify.AlertField{
+		{Label: "Provider", Value: providerID},
+		{Label: "Model", Value: modelID},
 	}
 	return append(base, fields...)
 }
@@ -65,7 +65,7 @@ func formatAlertDuration(duration time.Duration) string {
 	return strings.Join(parts, " ")
 }
 
-func (s *service) sendModelAlert(ctx context.Context, key, modelID, alertType, subject, body string, fields []notify.AlertField) {
+func (s *service) sendModelAlert(ctx context.Context, key, providerID, modelID, alertType, subject, body string, fields []notify.AlertField) {
 	exists, err := s.store.EmailAlertExists(ctx, key)
 	if err != nil {
 		s.logger.Error("check email dedupe", "error", err, "key", key)
@@ -86,12 +86,13 @@ func (s *service) sendModelAlert(ctx context.Context, key, modelID, alertType, s
 		SiteURL:  s.cfg.Dashboard.SiteURL,
 	}))
 	record := store.EmailAlertRecord{
-		AlertKey: key,
-		ModelID:  modelID,
-		Type:     alertType,
-		SentAt:   sentAt,
-		Subject:  subject,
-		To:       s.cfg.SMTP.To,
+		AlertKey:   key,
+		ProviderID: providerID,
+		ModelID:    modelID,
+		Type:       alertType,
+		SentAt:     sentAt,
+		Subject:    subject,
+		To:         s.cfg.SMTP.To,
 	}
 	if err != nil {
 		record.Error = err.Error()
@@ -100,6 +101,7 @@ func (s *service) sendModelAlert(ctx context.Context, key, modelID, alertType, s
 			s.logger.Error("record email alert", "error", recordErr)
 		}
 		s.recordModelEvent(ctx, store.ModelEventRecord{
+			ProviderID: providerID,
 			ModelID:    modelID,
 			EventType:  "alert_failed",
 			Source:     "email_alert",
@@ -121,6 +123,7 @@ func (s *service) sendModelAlert(ctx context.Context, key, modelID, alertType, s
 		s.logger.Error("record email alert", "error", err)
 	}
 	s.recordModelEvent(ctx, store.ModelEventRecord{
+		ProviderID: providerID,
 		ModelID:    modelID,
 		EventType:  "alert_sent",
 		Source:     "email_alert",

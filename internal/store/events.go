@@ -11,15 +11,15 @@ import (
 )
 
 const (
-	modelEventSelectColumns = `id, model_id, event_type, source, severity, status, capability, observed_at, title, message, changed, details`
+	modelEventSelectColumns = `id, provider_id, model_id, event_type, source, severity, status, capability, observed_at, title, message, changed, details`
 	insertModelEventSQL     = `
-		INSERT INTO model_events(model_id, event_type, source, severity, status, capability, observed_at, title, message, changed, details)
-		VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-		RETURNING id, model_id, event_type, capability, observed_at, changed
+		INSERT INTO model_events(provider_id, model_id, event_type, source, severity, status, capability, observed_at, title, message, changed, details)
+		VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+		RETURNING id, provider_id, model_id, event_type, capability, observed_at, changed
 	`
 	recordModelEventSQL = `
-		INSERT INTO model_events(model_id, event_type, source, severity, status, capability, observed_at, title, message, changed, details)
-		VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+		INSERT INTO model_events(provider_id, model_id, event_type, source, severity, status, capability, observed_at, title, message, changed, details)
+		VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 	`
 	recentModelEventsSQL = `
 		SELECT ` + modelEventSelectColumns + `
@@ -38,7 +38,7 @@ func insertModelEvent(ctx context.Context, tx pgx.Tx, record ModelEventRecord) (
 		return ModelEvent{}, err
 	}
 	var event ModelEvent
-	err = tx.QueryRow(ctx, insertModelEventSQL, record.ModelID, record.EventType, record.Source, record.Severity, record.Status, record.Capability, record.ObservedAt, record.Title, record.Message, record.Changed, raw).Scan(&event.ID, &event.ModelID, &event.EventType, &event.Capability, &event.ObservedAt, &event.Changed)
+	err = tx.QueryRow(ctx, insertModelEventSQL, record.ProviderID, record.ModelID, record.EventType, record.Source, record.Severity, record.Status, record.Capability, record.ObservedAt, record.Title, record.Message, record.Changed, raw).Scan(&event.ID, &event.ProviderID, &event.ModelID, &event.EventType, &event.Capability, &event.ObservedAt, &event.Changed)
 	return event, err
 }
 
@@ -49,7 +49,7 @@ func (s *Store) RecordModelEvent(ctx context.Context, record ModelEventRecord) e
 	if err != nil {
 		return err
 	}
-	_, err = s.pool.Exec(ctx, recordModelEventSQL, record.ModelID, record.EventType, record.Source, record.Severity, record.Status, record.Capability, record.ObservedAt, record.Title, record.Message, record.Changed, raw)
+	_, err = s.pool.Exec(ctx, recordModelEventSQL, record.ProviderID, record.ModelID, record.EventType, record.Source, record.Severity, record.Status, record.Capability, record.ObservedAt, record.Title, record.Message, record.Changed, raw)
 	return err
 }
 
@@ -137,14 +137,14 @@ func (s *Store) ListModelEvents(ctx context.Context, query ModelEventQuery) (Mod
 	if err != nil {
 		return page, err
 	}
-	page.Filters, err = s.ModelEventFilterOptions(ctx, query.ModelID)
+	page.Filters, err = s.ModelEventFilterOptions(ctx, query.ProviderID, query.ModelID)
 	return page, err
 }
 
 // modelEventWhereClause builds the parameterized WHERE clause for event filters.
 func modelEventWhereClause(query ModelEventQuery) (string, []any) {
-	args := []any{query.ModelID}
-	clauses := []string{"model_id=$1"}
+	args := []any{query.ProviderID, query.ModelID}
+	clauses := []string{"provider_id=$1", "model_id=$2"}
 	if len(query.Statuses) > 0 {
 		args = append(args, query.Statuses)
 		clauses = append(clauses, fmt.Sprintf("status = ANY($%d)", len(args)))
@@ -161,27 +161,27 @@ func modelEventWhereClause(query ModelEventQuery) (string, []any) {
 }
 
 // ModelEventFilterOptions returns all available event filters for one model.
-func (s *Store) ModelEventFilterOptions(ctx context.Context, modelID string) (ModelEventFilterOptions, error) {
+func (s *Store) ModelEventFilterOptions(ctx context.Context, providerID, modelID string) (ModelEventFilterOptions, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT category, value
 		FROM (
 			SELECT 'status' AS category, status AS value
 			FROM model_events
-			WHERE model_id=$1 AND status <> ''
+			WHERE provider_id=$1 AND model_id=$2 AND status <> ''
 			GROUP BY status
 			UNION ALL
 			SELECT 'source' AS category, source AS value
 			FROM model_events
-			WHERE model_id=$1 AND source <> ''
+			WHERE provider_id=$1 AND model_id=$2 AND source <> ''
 			GROUP BY source
 			UNION ALL
 			SELECT 'event_type' AS category, event_type AS value
 			FROM model_events
-			WHERE model_id=$1 AND event_type <> ''
+			WHERE provider_id=$1 AND model_id=$2 AND event_type <> ''
 			GROUP BY event_type
 		) filters
 		ORDER BY category, value
-	`, modelID)
+	`, providerID, modelID)
 	if err != nil {
 		return ModelEventFilterOptions{}, err
 	}
@@ -216,9 +216,10 @@ func scanRecentEvents(rows pgx.Rows) ([]RecentEvent, error) {
 	for rows.Next() {
 		var event RecentEvent
 		var raw []byte
-		if err := rows.Scan(&event.ID, &event.ModelID, &event.EventType, &event.Source, &event.Severity, &event.Status, &event.Capability, &event.ObservedAt, &event.Title, &event.Message, &event.Changed, &raw); err != nil {
+		if err := rows.Scan(&event.ID, &event.ProviderID, &event.ModelID, &event.EventType, &event.Source, &event.Severity, &event.Status, &event.Capability, &event.ObservedAt, &event.Title, &event.Message, &event.Changed, &raw); err != nil {
 			return nil, err
 		}
+		event.ModelKey = ModelKey(event.ModelID)
 		if len(raw) > 0 {
 			if err := json.Unmarshal(raw, &event.Details); err != nil {
 				return nil, err

@@ -85,7 +85,7 @@ function detailSummary(event: ModelEvent) {
       </VChip>
     </template>
     <template #item.model_id="{ item }">
-      <span class="model-name">{{ item.model_id }}</span>
+      <span class="model-name">{{ item.provider_id }}/{{ item.model_id }}</span>
     </template>
     <template #item.details="{ item }">
       <div class="event-detail-cell">

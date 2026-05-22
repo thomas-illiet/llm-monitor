@@ -9,8 +9,28 @@ import (
 	"llmservicemonitor/internal/config"
 )
 
-// NewClient creates an OpenAI-compatible API client for the configured target.
-func NewClient(cfg config.TargetConfig, tokenProvider TokenProvider, logger *slog.Logger) (*Client, error) {
+// NewProviderClients creates OpenAI-compatible API clients for configured providers.
+func NewProviderClients(providerCfgs []config.ProviderConfig, tokenFor func(string) TokenProvider, logger *slog.Logger) (*ProviderClients, error) {
+	clients := &ProviderClients{
+		order:     make([]ProviderInfo, 0, len(providerCfgs)),
+		byID:      make(map[string]*Client, len(providerCfgs)),
+		providers: make(map[string]ProviderInfo, len(providerCfgs)),
+	}
+	for _, providerCfg := range providerCfgs {
+		client, err := NewClient(providerCfg, tokenFor(providerCfg.ID), logger)
+		if err != nil {
+			return nil, err
+		}
+		info := ProviderInfo{ID: providerCfg.ID, Name: providerCfg.Name}
+		clients.order = append(clients.order, info)
+		clients.providers[providerCfg.ID] = info
+		clients.byID[providerCfg.ID] = client
+	}
+	return clients, nil
+}
+
+// NewClient creates an OpenAI-compatible API client for the configured provider.
+func NewClient(cfg config.ProviderConfig, tokenProvider TokenProvider, logger *slog.Logger) (*Client, error) {
 	baseURL, err := url.Parse(cfg.BaseURL)
 	if err != nil {
 		return nil, err

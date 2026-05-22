@@ -30,13 +30,13 @@ func (s *service) runModelTest(ctx context.Context, taskCtx runner.TaskContext) 
 	if err := s.waitForScheduledModelSlot(ctx, payload); err != nil {
 		return err
 	}
-	s.logger.Debug("model run probe started", "model", payload.ModelID, "capability", payload.Capability, "reason", payload.Reason)
-	err = s.runOneModelTest(ctx, payload.ModelID, payload.Capability)
+	s.logger.Debug("model run probe started", "provider", payload.ProviderID, "model", payload.ModelID, "capability", payload.Capability, "reason", payload.Reason)
+	err = s.runOneModelTest(ctx, payload.ProviderID, payload.ModelID, payload.Capability)
 	if err != nil {
-		s.logger.Warn("model run probe completed with errors", "model", payload.ModelID, "capability", payload.Capability, "error", err)
+		s.logger.Warn("model run probe completed with errors", "provider", payload.ProviderID, "model", payload.ModelID, "capability", payload.Capability, "error", err)
 		return err
 	}
-	s.logger.Debug("model run probe completed", "model", payload.ModelID, "capability", payload.Capability)
+	s.logger.Debug("model run probe completed", "provider", payload.ProviderID, "model", payload.ModelID, "capability", payload.Capability)
 	return nil
 }
 
@@ -45,7 +45,8 @@ func (s *service) waitForScheduledModelSlot(ctx context.Context, payload shared.
 		return nil
 	}
 	earliest := time.Now().UTC()
-	reservedAt, err := s.store.ReserveTaskStart(ctx, shared.ModelRunTaskName, earliest, shared.ModelRunSpacing)
+	spacingKey := shared.ModelRunTaskName + ":" + payload.ProviderID
+	reservedAt, err := s.store.ReserveTaskStart(ctx, spacingKey, earliest, shared.ModelRunSpacing)
 	if err != nil {
 		return fmt.Errorf("reserve model run spacing: %w", err)
 	}
@@ -64,18 +65,18 @@ func (s *service) waitForScheduledModelSlot(ctx context.Context, payload shared.
 	}
 }
 
-func (s *service) runOneModelTest(ctx context.Context, modelID, capability string) error {
+func (s *service) runOneModelTest(ctx context.Context, providerID, modelID, capability string) error {
 	switch capability {
 	case capabilityChat:
-		return s.runChatTests(ctx, modelID)
+		return s.runChatTests(ctx, providerID, modelID)
 	case capabilityEmbedding:
-		return s.runEmbeddingTest(ctx, modelID, s.loadEmbeddingFixture())
+		return s.runEmbeddingTest(ctx, providerID, modelID, s.loadEmbeddingFixture())
 	default:
 		return fmt.Errorf("unsupported model capability %q for model %s", capability, modelID)
 	}
 }
 
-func (s *service) runChatTests(ctx context.Context, modelID string) error {
+func (s *service) runChatTests(ctx context.Context, providerID, modelID string) error {
 	ran := false
 	var joined error
 	for _, prompt := range s.cfg.Tests.ChatPrompts {
@@ -83,7 +84,7 @@ func (s *service) runChatTests(ctx context.Context, modelID string) error {
 			continue
 		}
 		ran = true
-		result := s.client.RunChatStream(ctx, llm.ChatRequest{
+		result := s.client.RunChatStream(ctx, providerID, llm.ChatRequest{
 			Model:       modelID,
 			PromptID:    prompt.ID,
 			Prompt:      prompt.Prompt,
@@ -91,6 +92,7 @@ func (s *service) runChatTests(ctx context.Context, modelID string) error {
 			Temperature: prompt.Temperature,
 		})
 		record := store.ChatRunRecord{
+			ProviderID:            providerID,
 			ModelID:               modelID,
 			PromptID:              prompt.ID,
 			StartedAt:             result.StartedAt,
@@ -116,13 +118,13 @@ func (s *service) runChatTests(ctx context.Context, modelID string) error {
 		} else {
 			s.logger.Debug("chat probe completed", "model", modelID, "prompt", prompt.ID, "status", result.StatusCode, "latency_ms", ms(result.Latency))
 		}
-		s.recordScheduledRunEvent(ctx, modelID, capabilityChat, prompt.ID, result, map[string]any{
+		s.recordScheduledRunEvent(ctx, providerID, modelID, capabilityChat, prompt.ID, result, map[string]any{
 			"prompt_id":   prompt.ID,
 			"max_tokens":  prompt.MaxTokens,
 			"temperature": prompt.Temperature,
 		})
 		if isModelUnavailableResult(result) {
-			if err := s.markModelInactive(ctx, modelID, result.StartedAt, "scheduled_run", "chat probe reported model unavailable: "+probeFailureSummary(result)); err != nil {
+			if err := s.markModelInactive(ctx, providerID, modelID, result.StartedAt, "scheduled_run", "chat probe reported model unavailable: "+probeFailureSummary(result)); err != nil {
 				joined = errors.Join(joined, err)
 			}
 			break
@@ -130,6 +132,7 @@ func (s *service) runChatTests(ctx context.Context, modelID string) error {
 	}
 	if !ran {
 		s.recordModelEvent(ctx, store.ModelEventRecord{
+			ProviderID: providerID,
 			ModelID:    modelID,
 			EventType:  "skipped",
 			Source:     "scheduled_run",
@@ -144,10 +147,11 @@ func (s *service) runChatTests(ctx context.Context, modelID string) error {
 	return joined
 }
 
-func (s *service) runEmbeddingTest(ctx context.Context, modelID, input string) error {
+func (s *service) runEmbeddingTest(ctx context.Context, providerID, modelID, input string) error {
 	if strings.TrimSpace(input) == "" {
 		s.logger.Warn("embedding probe skipped", "model", modelID, "fixture_path", s.cfg.Tests.EmbeddingFixture.Path, "reason", "empty embedding fixture")
 		s.recordModelEvent(ctx, store.ModelEventRecord{
+			ProviderID: providerID,
 			ModelID:    modelID,
 			EventType:  "skipped",
 			Source:     "scheduled_run",
@@ -163,8 +167,9 @@ func (s *service) runEmbeddingTest(ctx context.Context, modelID, input string) e
 		})
 		return nil
 	}
-	result := s.client.RunEmbedding(ctx, modelID, input)
+	result := s.client.RunEmbedding(ctx, providerID, modelID, input)
 	record := store.EmbeddingRunRecord{
+		ProviderID:       providerID,
 		ModelID:          modelID,
 		FixturePath:      s.cfg.Tests.EmbeddingFixture.Path,
 		FixtureBytes:     len([]byte(input)),
@@ -186,12 +191,12 @@ func (s *service) runEmbeddingTest(ctx context.Context, modelID, input string) e
 	} else {
 		s.logger.Debug("embedding probe completed", "model", modelID, "status", result.StatusCode, "latency_ms", ms(result.Latency))
 	}
-	s.recordScheduledRunEvent(ctx, modelID, capabilityEmbedding, "", result, map[string]any{
+	s.recordScheduledRunEvent(ctx, providerID, modelID, capabilityEmbedding, "", result, map[string]any{
 		"fixture_path":  s.cfg.Tests.EmbeddingFixture.Path,
 		"fixture_bytes": len([]byte(input)),
 	})
 	if isModelUnavailableResult(result) {
-		return s.markModelInactive(ctx, modelID, result.StartedAt, "scheduled_run", "embedding probe reported model unavailable: "+probeFailureSummary(result))
+		return s.markModelInactive(ctx, providerID, modelID, result.StartedAt, "scheduled_run", "embedding probe reported model unavailable: "+probeFailureSummary(result))
 	}
 	return nil
 }

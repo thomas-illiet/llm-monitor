@@ -1,5 +1,6 @@
 import { onUnmounted, shallowRef } from 'vue'
 import type { ManualCheckJobsResponse, ManualCheckRunResponse } from '@/types'
+import { parseModelIdentity } from '@/features/dashboard/utils/modelInventory'
 
 interface UseManualChecksOptions {
   onComplete?: () => void | Promise<void>
@@ -34,23 +35,28 @@ export function useManualChecks(options: UseManualChecksOptions = {}) {
     }
   }
 
-  async function runModelCheck(modelId: string) {
+  async function runModelCheck(identity: string) {
+    const parsed = parseModelIdentity(identity)
+    if (!parsed) {
+      error.value = 'Invalid model selection'
+      return
+    }
     error.value = null
-    setModelChecking(modelId, true)
+    setModelChecking(identity, true)
     try {
-      const response = await requestRun({ scope: 'model', model_id: modelId })
-      trackGroup(`model:${modelId}:${Date.now()}`, {
+      const response = await requestRun({ scope: 'model', provider_id: parsed.providerId, model_id: modelIdFromIdentity(identity) })
+      trackGroup(`model:${identity}:${Date.now()}`, {
         ids: response.jobs.map(job => job.id),
-        modelId
+        modelId: identity
       })
     } catch (err) {
-      setModelChecking(modelId, false)
+      setModelChecking(identity, false)
       error.value = messageForError(err, 'Unable to start model check')
     }
   }
 
-  async function requestRun(body: { scope: 'all' | 'model', model_id?: string }) {
-    const response = await fetch('/api/checks/run', {
+  async function requestRun(body: { scope: 'all' | 'model', provider_id?: string, model_id?: string }) {
+    const response = await fetch('/api/checks/runs', {
       method: 'POST',
       headers: {
         Accept: 'application/json',
@@ -159,4 +165,13 @@ export function useManualChecks(options: UseManualChecksOptions = {}) {
 
 function messageForError(err: unknown, fallback: string) {
   return err instanceof Error ? err.message : fallback
+}
+
+function modelIdFromIdentity(identity: string) {
+  const slash = identity.indexOf('/')
+  if (slash < 0) return identity
+  const raw = identity.slice(slash + 1)
+  const base64 = raw.replace(/-/g, '+').replace(/_/g, '/')
+  const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=')
+  return atob(padded)
 }

@@ -4,7 +4,7 @@ LLM Service Monitor is deployed as three Go processes backed by PostgreSQL and R
 
 - API server: configuration, persistence reads, HTTP API, metrics, and the embedded Vue dashboard.
 - Scheduler: Asynq periodic scheduling, including dynamic per-model probe schedules.
-- Worker: OAuth/static auth, target probes, persistence writes, alerting, and queued task execution.
+- Worker: OAuth/static auth, provider probes, persistence writes, alerting, and queued task execution.
 - PostgreSQL: model inventory snapshots, current state, probe runs, checks, events, and email alert records.
 - Redis: Asynq queues and retained manual task status.
 - Vue dashboard: a static SPA served by the Go binary.
@@ -28,7 +28,7 @@ flowchart LR
 
 - `internal/config`: YAML loading, defaults, validation, and mounted secret reads.
 - `internal/auth`: static bearer tokens or OAuth2 client credentials with optional mTLS.
-- `internal/llm`: target HTTP client, model listing, health checks, chat probes, streaming metrics, and embedding probes.
+- `internal/llm`: provider HTTP clients, model listing, health checks, chat probes, streaming metrics, and embedding probes.
 - `internal/store`: PostgreSQL connection, migrations, model inventory, events, checks, runs, alerts, and metrics.
 - `internal/schedule`: scheduling module that groups task registry infrastructure and monitor task handlers.
 - `internal/schedule/runner`: generic task registry and invocation context used by queue handlers.
@@ -38,9 +38,9 @@ flowchart LR
 
 ## Data Flow
 
-1. The scheduler enqueues `monitor.model_snapshot`, which lists the configured model endpoint and classifies each model with embedding and chat probes.
+1. The scheduler enqueues `monitor.model_snapshot`, which lists each configured provider's model endpoint and classifies each model with embedding and chat probes.
 2. The store writes a snapshot, updates current model state, and emits lifecycle events.
-3. The scheduler provider reads active runnable models from PostgreSQL and creates one `monitor.model_run` schedule per model.
+3. The scheduler provider reads active runnable models from PostgreSQL and creates one `monitor.model_run` schedule per `(provider_id, model_id)`.
 4. Check, run, token, latency, and event data are persisted.
 5. The API aggregates the latest state for the dashboard.
 6. Inactive, returned, and first-seen model events can emit deduplicated SMTP alerts.
@@ -56,7 +56,7 @@ in-process recurring scheduler in the production runtime.
 
 Task handlers are grouped by domain:
 
-- `internal/schedule/tasks/checks`: target HTTP reachability and auth/token checks.
+- `internal/schedule/tasks/checks`: provider HTTP reachability and auth/token checks.
 - `internal/schedule/tasks/models`: model snapshots, capability probes, scheduled model runs, lifecycle events, and alerts.
 - `internal/schedule/tasks/retention`: persisted history pruning.
 - `internal/schedule/tasks/shared`: stable task names, task dependencies, task repository/client contracts, and shared model-plan storage.

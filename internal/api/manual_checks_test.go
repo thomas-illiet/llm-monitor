@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"llmservicemonitor/internal/config"
 	"llmservicemonitor/internal/schedule/queue"
 	"llmservicemonitor/internal/store"
 )
@@ -26,20 +27,20 @@ type manualChecksQueue struct {
 	jobs []queue.EnqueuedTask
 }
 
-func (q *manualChecksQueue) EnqueueHTTPCheck(context.Context) (queue.EnqueuedTask, error) {
-	return q.add("monitor.http_check", ""), nil
+func (q *manualChecksQueue) EnqueueHTTPCheck(_ context.Context, providerID string) (queue.EnqueuedTask, error) {
+	return q.add("monitor.http_check", providerID, ""), nil
 }
 
-func (q *manualChecksQueue) EnqueueAuthCheck(context.Context) (queue.EnqueuedTask, error) {
-	return q.add("monitor.auth_check", ""), nil
+func (q *manualChecksQueue) EnqueueAuthCheck(_ context.Context, providerID string) (queue.EnqueuedTask, error) {
+	return q.add("monitor.auth_check", providerID, ""), nil
 }
 
-func (q *manualChecksQueue) EnqueueModelSnapshot(context.Context) (queue.EnqueuedTask, error) {
-	return q.add("monitor.model_snapshot", ""), nil
+func (q *manualChecksQueue) EnqueueModelSnapshot(_ context.Context, providerID string) (queue.EnqueuedTask, error) {
+	return q.add("monitor.model_snapshot", providerID, ""), nil
 }
 
 func (q *manualChecksQueue) EnqueueModelRun(_ context.Context, model store.RunnableModel, _ string) (queue.EnqueuedTask, error) {
-	return q.add("monitor.model_run", model.ModelID), nil
+	return q.add("monitor.model_run", model.ProviderID, model.ModelID), nil
 }
 
 func (q *manualChecksQueue) InspectJobs(_ context.Context, ids []string) ([]queue.JobStatus, error) {
@@ -50,13 +51,14 @@ func (q *manualChecksQueue) InspectJobs(_ context.Context, ids []string) ([]queu
 	return statuses, nil
 }
 
-func (q *manualChecksQueue) add(taskType, modelID string) queue.EnqueuedTask {
+func (q *manualChecksQueue) add(taskType, providerID, modelID string) queue.EnqueuedTask {
 	job := queue.EnqueuedTask{
-		ID:      fmt.Sprintf("job-%d", len(q.jobs)+1),
-		Queue:   "default",
-		Type:    taskType,
-		ModelID: modelID,
-		State:   "pending",
+		ID:         fmt.Sprintf("job-%d", len(q.jobs)+1),
+		Queue:      "default",
+		Type:       taskType,
+		ProviderID: providerID,
+		ModelID:    modelID,
+		State:      "pending",
 	}
 	q.jobs = append(q.jobs, job)
 	return job
@@ -64,14 +66,14 @@ func (q *manualChecksQueue) add(taskType, modelID string) queue.EnqueuedTask {
 
 func TestRunChecksAllEnqueuesStaticAndModelJobs(t *testing.T) {
 	db := &manualChecksStore{runnable: []store.RunnableModel{
-		{ModelID: "chat-a", Capability: "chat"},
-		{ModelID: "embed-a", Capability: "embedding"},
+		{ProviderID: "openai", ModelID: "chat-a", Capability: "chat"},
+		{ProviderID: "openai", ModelID: "embed-a", Capability: "embedding"},
 	}}
 	taskQueue := &manualChecksQueue{}
-	router := &Router{store: db, taskQueue: taskQueue}
+	router := &Router{cfg: manualChecksConfig(), store: db, taskQueue: taskQueue}
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/api/checks/run", strings.NewReader(`{"scope":"all"}`))
+	req := httptest.NewRequest(http.MethodPost, "/api/checks/runs", strings.NewReader(`{"scope":"all"}`))
 	router.runChecks(rec, req)
 
 	if rec.Code != http.StatusAccepted {
@@ -84,22 +86,26 @@ func TestRunChecksAllEnqueuesStaticAndModelJobs(t *testing.T) {
 	if len(response.Jobs) != 5 {
 		t.Fatalf("jobs len = %d, want 5: %#v", len(response.Jobs), response.Jobs)
 	}
-	if response.Jobs[3].ModelID != "chat-a" || response.Jobs[4].ModelID != "embed-a" {
+	if response.Jobs[3].ProviderID != "openai" || response.Jobs[3].ModelID != "chat-a" || response.Jobs[4].ModelID != "embed-a" {
 		t.Fatalf("model jobs = %#v, want runnable models", response.Jobs)
 	}
 }
 
 func TestRunChecksModelRejectsNonRunnableModel(t *testing.T) {
-	db := &manualChecksStore{runnable: []store.RunnableModel{{ModelID: "chat-a", Capability: "chat"}}}
-	router := &Router{store: db, taskQueue: &manualChecksQueue{}}
+	db := &manualChecksStore{runnable: []store.RunnableModel{{ProviderID: "openai", ModelID: "chat-a", Capability: "chat"}}}
+	router := &Router{cfg: manualChecksConfig(), store: db, taskQueue: &manualChecksQueue{}}
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/api/checks/run", strings.NewReader(`{"scope":"model","model_id":"missing"}`))
+	req := httptest.NewRequest(http.MethodPost, "/api/checks/runs", strings.NewReader(`{"scope":"model","provider_id":"openai","model_id":"missing"}`))
 	router.runChecks(rec, req)
 
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
 	}
+}
+
+func manualChecksConfig() config.Config {
+	return config.Config{Providers: []config.ProviderConfig{{ID: "openai", BaseURL: "https://llm.example.test"}}}
 }
 
 func TestCheckJobsReturnsQueueStatuses(t *testing.T) {

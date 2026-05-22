@@ -17,23 +17,27 @@ type httpCheckClient struct {
 	result llm.HTTPCheckResult
 }
 
-func (c httpCheckClient) ListModels(context.Context) ([]llm.ProviderModel, error) {
+func (c httpCheckClient) ProviderIDs() []string {
+	return []string{"openai"}
+}
+
+func (c httpCheckClient) ListModels(context.Context, string) ([]llm.ProviderModel, error) {
 	return nil, nil
 }
 
-func (c httpCheckClient) HealthCheck(context.Context) llm.HTTPCheckResult {
+func (c httpCheckClient) HealthCheck(context.Context, string) llm.HTTPCheckResult {
 	return c.result
 }
 
-func (c httpCheckClient) RunChat(context.Context, llm.ChatRequest) llm.RunResult {
+func (c httpCheckClient) RunChat(context.Context, string, llm.ChatRequest) llm.RunResult {
 	return llm.RunResult{}
 }
 
-func (c httpCheckClient) RunChatStream(context.Context, llm.ChatRequest) llm.RunResult {
+func (c httpCheckClient) RunChatStream(context.Context, string, llm.ChatRequest) llm.RunResult {
 	return llm.RunResult{}
 }
 
-func (c httpCheckClient) RunEmbedding(context.Context, string, string) llm.RunResult {
+func (c httpCheckClient) RunEmbedding(context.Context, string, string, string) llm.RunResult {
 	return llm.RunResult{}
 }
 
@@ -46,7 +50,7 @@ type httpCheckRepository struct {
 	latest    *store.CheckRecord
 }
 
-func (r *httpCheckRepository) LatestHTTPCheck(context.Context) (*store.CheckRecord, error) {
+func (r *httpCheckRepository) LatestHTTPCheck(context.Context, string) (*store.CheckRecord, error) {
 	return r.latest, nil
 }
 
@@ -55,7 +59,7 @@ func (r *httpCheckRepository) RecordHTTPCheck(_ context.Context, record store.Ch
 	return nil
 }
 
-func (r *httpCheckRepository) MarkAllModelsInactive(_ context.Context, _ time.Time, source, reason string) ([]store.ModelEvent, error) {
+func (r *httpCheckRepository) MarkAllModelsInactive(_ context.Context, _ string, _ time.Time, source, reason string) ([]store.ModelEvent, error) {
 	r.markCalls++
 	r.source = source
 	r.reason = reason
@@ -64,7 +68,7 @@ func (r *httpCheckRepository) MarkAllModelsInactive(_ context.Context, _ time.Ti
 
 func TestHTTPCheckFailureMarksModelsInactiveAndClearsPlan(t *testing.T) {
 	plan := shared.NewMemoryModelPlanStore()
-	plan.Store([]shared.ModelPlanItem{{ID: "gpt-test", Capability: "chat"}})
+	plan.Store([]shared.ModelPlanItem{{ProviderID: "openai", ID: "gpt-test", Capability: "chat"}})
 	repo := &httpCheckRepository{}
 	task := NewHTTPCheckTask(shared.Dependencies{
 		Store:          repo,
@@ -91,7 +95,7 @@ type recoveryTrigger struct {
 	err   error
 }
 
-func (t *recoveryTrigger) TriggerModelRecovery(context.Context) error {
+func (t *recoveryTrigger) TriggerModelRecovery(context.Context, string) error {
 	t.calls++
 	return t.err
 }

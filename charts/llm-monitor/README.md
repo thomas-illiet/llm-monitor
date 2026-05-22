@@ -29,23 +29,24 @@ The namespace SecurityContextConstraints must allow UID `1000`. A default restri
 
 The application config is generated from `values.config` and mounted at `/config/config.yaml`. The chart does not deploy PostgreSQL; set `config.postgres.dsn` to a reachable external database.
 
-Application secrets are rendered inline in the generated ConfigMap when set:
+Application secrets are rendered inline in the generated ConfigMap when set.
+Because `config.providers` is a YAML list, prefer a private values file for
+provider secrets, or override the full providers array with `--set-json`.
 
 ```bash
 helm upgrade --install llm-monitor ./charts/llm-monitor \
-  --set-string config.target.api_key="$TARGET_API_KEY" \
-  --set-string config.auth.client_secret="$CLIENT_SECRET" \
+  --set-json "config.providers=[{\"id\":\"production\",\"base_url\":\"https://llm.example.com\",\"api_key\":\"$TARGET_API_KEY\",\"auth\":{\"enabled\":false}}]" \
   --set-string config.smtp.password="$SMTP_PASSWORD" \
   --set-string config.mcp.bearer_token="$MCP_BEARER_TOKEN"
 ```
 
 OAuth client credentials are sent with `Authorization: Basic ...` by default
-(`config.auth.client_auth_method=client_secret_basic`). Set
-`config.auth.client_auth_method=client_secret_post` only for token endpoints
-that require credentials in the form body.
+(`config.providers[0].auth.client_auth_method=client_secret_basic`). Set
+`config.providers[0].auth.client_auth_method=client_secret_post` only for token
+endpoints that require credentials in the form body.
 
-To skip TLS certificate verification for outbound HTTP requests to the target
-API and OAuth token endpoint, set:
+To skip TLS certificate verification for outbound HTTP requests to provider
+APIs and OAuth token endpoints, set:
 
 ```bash
 helm upgrade --install llm-monitor ./charts/llm-monitor \
@@ -72,12 +73,12 @@ with Kubernetes `data` and mounts them at `/run/certs`:
 
 ```bash
 helm upgrade --install llm-monitor ./charts/llm-monitor \
-  --set-string config.auth.mtls.cert_file_data="$CERT_CRT_BASE64" \
-  --set-string config.auth.mtls.key_file_data="$CERT_KEY_BASE64"
+  --set-json "config.providers=[{\"id\":\"production\",\"base_url\":\"https://llm.example.com\",\"auth\":{\"enabled\":true,\"token_url\":\"https://auth.example.com/oauth2/token\",\"client_id\":\"llm-monitor\",\"client_secret\":\"$CLIENT_SECRET\",\"mtls\":{\"cert_file_data\":\"$CERT_CRT_BASE64\",\"key_file_data\":\"$CERT_KEY_BASE64\"}}}]"
 ```
 
-The generated Secret keys are derived from `config.auth.mtls.cert_file` and
-`config.auth.mtls.key_file`, which default to `client.crt` and `client.key`.
+The generated Secret keys are derived from `config.providers[*].auth.mtls.cert_file`
+and `config.providers[*].auth.mtls.key_file`, which default to `client.crt` and
+`client.key`.
 
 ## Gateway API
 

@@ -1,10 +1,11 @@
 import { computed, shallowRef, toValue, watch } from 'vue'
 import type { MaybeRefOrGetter } from 'vue'
 import type { ModelEvent, ModelEventFilterOptions, ModelEventsResponse } from '@/types'
+import { parseModelIdentity } from '@/features/dashboard/utils/modelInventory'
 
 interface UseModelEventsOptions {
   open: MaybeRefOrGetter<boolean>
-  modelId: MaybeRefOrGetter<string | null>
+  modelIdentity: MaybeRefOrGetter<string | null>
 }
 
 /** Creates the model event timeline state used by the events dialog. */
@@ -27,7 +28,7 @@ export function useModelEvents(options: UseModelEventsOptions) {
   const eventCountLabel = computed(() => total.value === 1 ? '1 event' : `${total.value} events`)
 
   watch(
-    () => toValue(options.modelId),
+    () => toValue(options.modelIdentity),
     () => {
       page.value = 1
       clearFilters()
@@ -52,15 +53,16 @@ export function useModelEvents(options: UseModelEventsOptions) {
   watch(
     () => [
       toValue(options.open),
-      toValue(options.modelId),
+      toValue(options.modelIdentity),
       page.value,
       itemsPerPage.value,
       selectedStatuses.value.join('\u0000'),
       selectedSources.value.join('\u0000'),
       selectedEventTypes.value.join('\u0000')
     ] as const,
-    async ([isOpen, modelId], _previous, onCleanup) => {
-      if (!isOpen || !modelId) {
+    async ([isOpen, identity], _previous, onCleanup) => {
+      const parsed = parseModelIdentity(identity)
+      if (!isOpen || !parsed) {
         loading.value = false
         return
       }
@@ -72,14 +74,13 @@ export function useModelEvents(options: UseModelEventsOptions) {
         const limit = Math.max(1, itemsPerPage.value)
         const offset = (Math.max(1, page.value) - 1) * limit
         const params = new URLSearchParams({
-          model_id: modelId,
           limit: String(limit),
           offset: String(offset)
         })
         appendFilterParams(params, 'status', selectedStatuses.value)
         appendFilterParams(params, 'source', selectedSources.value)
         appendFilterParams(params, 'event_type', selectedEventTypes.value)
-        const response = await fetch(`/api/model-events?${params}`, {
+        const response = await fetch(`/api/providers/${encodeURIComponent(parsed.providerId)}/models/${encodeURIComponent(parsed.modelKey)}/events?${params}`, {
           headers: { Accept: 'application/json' },
           signal: controller.signal
         })

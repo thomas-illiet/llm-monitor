@@ -10,21 +10,20 @@ type Duration struct {
 
 // Config is the complete runtime configuration loaded from YAML.
 type Config struct {
-	Server    ServerConfig    `yaml:"server"`
-	Logging   LoggingConfig   `yaml:"logging"`
-	Postgres  PostgresConfig  `yaml:"postgres"`
-	Redis     RedisConfig     `yaml:"redis"`
-	Asynq     AsynqConfig     `yaml:"asynq"`
-	TLS       TLSConfig       `yaml:"tls"`
-	Target    TargetConfig    `yaml:"target"`
-	Auth      AuthConfig      `yaml:"auth"`
-	SMTP      SMTPConfig      `yaml:"smtp"`
-	MCP       MCPConfig       `yaml:"mcp"`
-	Schedules ScheduleConfig  `yaml:"schedules"`
-	Models    ModelsConfig    `yaml:"models"`
-	Tests     TestsConfig     `yaml:"tests"`
-	Dashboard DashboardConfig `yaml:"dashboard"`
-	Retention RetentionConfig `yaml:"retention"`
+	Server    ServerConfig     `yaml:"server"`
+	Logging   LoggingConfig    `yaml:"logging"`
+	Postgres  PostgresConfig   `yaml:"postgres"`
+	Redis     RedisConfig      `yaml:"redis"`
+	Asynq     AsynqConfig      `yaml:"asynq"`
+	TLS       TLSConfig        `yaml:"tls"`
+	Providers []ProviderConfig `yaml:"providers"`
+	SMTP      SMTPConfig       `yaml:"smtp"`
+	MCP       MCPConfig        `yaml:"mcp"`
+	Schedules ScheduleConfig   `yaml:"schedules"`
+	Models    ModelsConfig     `yaml:"models"`
+	Tests     TestsConfig      `yaml:"tests"`
+	Dashboard DashboardConfig  `yaml:"dashboard"`
+	Retention RetentionConfig  `yaml:"retention"`
 }
 
 // ServerConfig controls the HTTP listener.
@@ -63,21 +62,23 @@ type TLSConfig struct {
 	InsecureSkipVerify bool `yaml:"insecure_skip_verify"`
 }
 
-// TargetConfig controls outbound calls to the OpenAI-compatible LLM API.
-type TargetConfig struct {
-	Name               string                `yaml:"name"`
-	BaseURL            string                `yaml:"base_url"`
-	HTTPCheckPath      string                `yaml:"http_check_path"`
-	Endpoints          TargetEndpointsConfig `yaml:"endpoints"`
-	Timeout            Duration              `yaml:"timeout"`
-	CAFile             string                `yaml:"ca_file"`
-	APIKey             string                `yaml:"api_key"`
-	InsecureSkipVerify bool                  `yaml:"insecure_skip_verify"`
-	Retry              RetryConfig           `yaml:"retry"`
+// ProviderConfig controls outbound calls to one OpenAI-compatible LLM API.
+type ProviderConfig struct {
+	ID                 string                  `yaml:"id"`
+	Name               string                  `yaml:"name"`
+	BaseURL            string                  `yaml:"base_url"`
+	HTTPCheckPath      string                  `yaml:"http_check_path"`
+	Endpoints          ProviderEndpointsConfig `yaml:"endpoints"`
+	Timeout            Duration                `yaml:"timeout"`
+	CAFile             string                  `yaml:"ca_file"`
+	APIKey             string                  `yaml:"api_key"`
+	InsecureSkipVerify bool                    `yaml:"insecure_skip_verify"`
+	Retry              RetryConfig             `yaml:"retry"`
+	Auth               AuthConfig              `yaml:"auth"`
 }
 
-// TargetEndpointsConfig controls the OpenAI-like endpoint URLs used by probes.
-type TargetEndpointsConfig struct {
+// ProviderEndpointsConfig controls the OpenAI-like endpoint URLs used by probes.
+type ProviderEndpointsConfig struct {
 	Models     string `yaml:"models"`
 	Chat       string `yaml:"chat"`
 	Embeddings string `yaml:"embeddings"`
@@ -144,9 +145,10 @@ type ScheduleConfig struct {
 
 // ModelRunScheduleOverride controls a model-specific probe interval.
 type ModelRunScheduleOverride struct {
-	ModelID  string   `yaml:"model_id"`
-	Pattern  string   `yaml:"pattern"`
-	Interval Duration `yaml:"interval"`
+	ProviderID string   `yaml:"provider_id"`
+	ModelID    string   `yaml:"model_id"`
+	Pattern    string   `yaml:"pattern"`
+	Interval   Duration `yaml:"interval"`
 }
 
 // ModelsConfig controls inventory alerting and probe concurrency.

@@ -27,11 +27,11 @@ func (f *fakeStore) ListModelStates(context.Context) ([]store.ModelState, error)
 	return f.models, nil
 }
 
-func (f *fakeStore) LatestAuthCheck(context.Context) (*store.CheckRecord, error) {
+func (f *fakeStore) LatestAuthCheck(context.Context, string) (*store.CheckRecord, error) {
 	return f.authCheck, nil
 }
 
-func (f *fakeStore) LatestHTTPCheck(context.Context) (*store.CheckRecord, error) {
+func (f *fakeStore) LatestHTTPCheck(context.Context, string) (*store.CheckRecord, error) {
 	return f.httpCheck, nil
 }
 
@@ -297,7 +297,9 @@ func decodeRPC(t *testing.T, raw []byte, target any) {
 func testConfig() config.Config {
 	cfg := config.Config{
 		Postgres: config.PostgresConfig{DSN: "postgres://user:pass@localhost:5432/monitor"},
-		Target:   config.TargetConfig{BaseURL: "https://llm.example.test"},
+		Providers: []config.ProviderConfig{
+			{ID: "openai", Name: "OpenAI", BaseURL: "https://llm.example.test"},
+		},
 		MCP: config.MCPConfig{
 			Enabled:     true,
 			BearerToken: "test-token",
@@ -314,9 +316,9 @@ func testStore() *fakeStore {
 	now := time.Date(2026, 5, 17, 16, 41, 49, 0, time.UTC)
 	return &fakeStore{
 		models: []store.ModelState{
-			{ModelID: "gpt-4o", Capability: "chat", Status: "active", FirstSeenAt: now.Add(-24 * time.Hour), LastSeenAt: now, LastProbeAt: &now},
-			{ModelID: "skipped", Capability: "skip", Status: "active", FirstSeenAt: now.Add(-24 * time.Hour), LastSeenAt: now},
-			{ModelID: "inactive", Capability: "chat", Status: "inactive", FirstSeenAt: now.Add(-24 * time.Hour), LastSeenAt: now.Add(-time.Hour), MissingSince: ptrTime(now.Add(-time.Hour))},
+			{ProviderID: "openai", ModelID: "gpt-4o", ModelKey: store.ModelKey("gpt-4o"), Capability: "chat", Status: "active", FirstSeenAt: now.Add(-24 * time.Hour), LastSeenAt: now, LastProbeAt: &now},
+			{ProviderID: "openai", ModelID: "skipped", ModelKey: store.ModelKey("skipped"), Capability: "skip", Status: "active", FirstSeenAt: now.Add(-24 * time.Hour), LastSeenAt: now},
+			{ProviderID: "openai", ModelID: "inactive", ModelKey: store.ModelKey("inactive"), Capability: "chat", Status: "inactive", FirstSeenAt: now.Add(-24 * time.Hour), LastSeenAt: now.Add(-time.Hour), MissingSince: ptrTime(now.Add(-time.Hour))},
 		},
 		authCheck: &store.CheckRecord{At: now, OK: true, StatusCode: 0, LatencyMS: 0},
 		httpCheck: &store.CheckRecord{At: now, OK: true, StatusCode: 200, LatencyMS: 15.704},
@@ -337,6 +339,7 @@ func testStore() *fakeStore {
 		},
 		performance: []store.ModelPerformanceRow{
 			{
+				ProviderID:   "openai",
 				ModelID:      "@cf/openai/gpt-oss-120b",
 				Runs:         13,
 				SuccessRate:  0,

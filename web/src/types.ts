@@ -6,6 +6,7 @@ export interface DashboardData {
   slo: SloThresholds
   charts: ConfiguredChart[]
   model_status_history: ConfiguredChart
+  providers: ProviderStatus[]
   models: ModelState[]
   events: ModelEvent[]
   runs: RecentRun[]
@@ -15,7 +16,7 @@ export interface DashboardData {
   config: RuntimeConfig
 }
 
-/** Model-scoped payload returned by `/api/model-dashboard`. */
+/** Model-scoped payload returned by `/api/providers/{provider_id}/dashboard`. */
 export interface ModelDashboardData {
   generated_at: string
   model: ModelState
@@ -39,6 +40,19 @@ interface RuntimeConfig {
   retention: RetentionRuntimeConfig
   site_name: string
   site_url?: string
+  providers: ProviderRuntimeConfig[]
+}
+
+export interface ProviderRuntimeConfig {
+  id: string
+  name: string
+}
+
+export interface ProviderStatus {
+  id: string
+  name: string
+  auth?: CheckRecord
+  http?: CheckRecord
 }
 
 /** Effective history retention settings. */
@@ -115,7 +129,9 @@ interface ChartDataset {
 
 /** Current state of one model in the monitored inventory. */
 export interface ModelState {
+  provider_id: string
   model_id: string
+  model_key: string
   capability: 'chat' | 'embedding' | 'skip' | string
   excluded: boolean
   status: 'active' | 'inactive' | string
@@ -137,7 +153,9 @@ export interface ModelTechnicalDetailsData {
 /** One model lifecycle or diagnostic timeline event. */
 export interface ModelEvent {
   id: number
+  provider_id: string
   model_id: string
+  model_key: string
   event_type: 'added' | 'removed' | 'returned' | 'capability_probe' | 'scheduled_run' | 'skipped' | string
   source: string
   severity: 'info' | 'warning' | 'error' | string
@@ -150,8 +168,9 @@ export interface ModelEvent {
   details?: Record<string, unknown>
 }
 
-/** Paginated response returned by `/api/model-events`. */
+/** Paginated response returned by `/api/providers/{provider_id}/models/{model_key}/events`. */
 export interface ModelEventsResponse {
+  provider_id?: string
   model_id: string
   events: ModelEvent[]
   total: number
@@ -169,7 +188,9 @@ export interface ModelEventFilterOptions {
 
 /** Shared scheduled probe fields shown in dashboard run timelines. */
 interface BaseRecentRun {
+  provider_id: string
   model_id: string
+  model_key: string
   started_at: string
   ok: boolean
   status_code: number
@@ -201,6 +222,7 @@ export type RecentRun = ChatRecentRun | EmbeddingRecentRun
 
 /** Recent lifecycle alert email shown in the dashboard. */
 interface RecentAlert {
+  provider_id: string
   model_id: string
   type: string
   sent_at: string
@@ -224,6 +246,7 @@ interface ManualCheckJob {
   id: string
   queue: string
   type: string
+  provider_id?: string
   model_id?: string
   state: string
 }
@@ -238,6 +261,7 @@ interface ManualCheckJobStatus {
   id: string
   queue: string
   type?: string
+  provider_id?: string
   model_id?: string
   state: string
   error?: string

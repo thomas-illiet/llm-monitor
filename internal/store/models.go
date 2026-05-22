@@ -12,21 +12,24 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-// ProcessModelObservation stores a snapshot and derives model lifecycle events.
-func (s *Store) ProcessModelObservation(ctx context.Context, observed []ObservedModel, now time.Time) ([]ModelEvent, error) {
+// ProcessModelObservation stores a provider snapshot and derives model lifecycle events.
+func (s *Store) ProcessModelObservation(ctx context.Context, providerID string, observed []ObservedModel, now time.Time) ([]ModelEvent, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return nil, err
 	}
 	defer tx.Rollback(ctx)
 
+	for i := range observed {
+		observed[i].ProviderID = providerID
+	}
 	observed = sanitizeObservedModels(observed)
 	raw, err := json.Marshal(observed)
 	if err != nil {
 		return nil, err
 	}
 	var snapshotID int64
-	if err := tx.QueryRow(ctx, `INSERT INTO model_snapshots(observed_at, raw) VALUES($1, $2) RETURNING id`, now, raw).Scan(&snapshotID); err != nil {
+	if err := tx.QueryRow(ctx, `INSERT INTO model_snapshots(provider_id, observed_at, raw) VALUES($1, $2, $3) RETURNING id`, providerID, now, raw).Scan(&snapshotID); err != nil {
 		return nil, err
 	}
 	for _, model := range observed {
@@ -39,14 +42,14 @@ func (s *Store) ProcessModelObservation(ctx context.Context, observed []Observed
 			return nil, err
 		}
 		if _, err := tx.Exec(ctx, `
-			INSERT INTO model_snapshot_items(snapshot_id, model_id, capability, excluded, skip_reason, probe_details, provider_metadata)
-			VALUES($1, $2, $3, $4, $5, $6, $7)
-		`, snapshotID, model.ID, model.Capability, model.Excluded, model.SkipReason, probeDetails, providerMetadata); err != nil {
+			INSERT INTO model_snapshot_items(snapshot_id, provider_id, model_id, capability, excluded, skip_reason, probe_details, provider_metadata)
+			VALUES($1, $2, $3, $4, $5, $6, $7, $8)
+		`, snapshotID, providerID, model.ID, model.Capability, model.Excluded, model.SkipReason, probeDetails, providerMetadata); err != nil {
 			return nil, err
 		}
 	}
 
-	current, err := loadModelStates(ctx, tx)
+	current, err := loadModelStates(ctx, tx, providerID)
 	if err != nil {
 		return nil, err
 	}
@@ -62,12 +65,13 @@ func (s *Store) ProcessModelObservation(ctx context.Context, observed []Observed
 		switch {
 		case !exists:
 			if _, err := tx.Exec(ctx, `
-				INSERT INTO model_states(model_id, capability, excluded, status, first_seen_at, last_seen_at, missing_since, skip_reason, last_probe_at, provider_metadata)
-				VALUES($1, $2, $3, $4, $5, $5, NULL, $6, $5, $7)
-			`, model.ID, model.Capability, model.Excluded, ModelStatusActive, now, model.SkipReason, providerMetadata); err != nil {
+				INSERT INTO model_states(provider_id, model_id, capability, excluded, status, first_seen_at, last_seen_at, missing_since, skip_reason, last_probe_at, provider_metadata)
+				VALUES($1, $2, $3, $4, $5, $6, $6, NULL, $7, $6, $8)
+			`, providerID, model.ID, model.Capability, model.Excluded, ModelStatusActive, now, model.SkipReason, providerMetadata); err != nil {
 				return nil, err
 			}
 			event, err := insertModelEvent(ctx, tx, ModelEventRecord{
+				ProviderID: providerID,
 				ModelID:    model.ID,
 				EventType:  "added",
 				Source:     "inventory",
@@ -94,11 +98,12 @@ func (s *Store) ProcessModelObservation(ctx context.Context, observed []Observed
 			if _, err := tx.Exec(ctx, `
 				UPDATE model_states
 				SET capability=$2, excluded=$3, status=$4, last_seen_at=$5, missing_since=NULL, skip_reason=$6, last_probe_at=$5, provider_metadata=$7
-				WHERE model_id=$1
-			`, model.ID, model.Capability, model.Excluded, ModelStatusActive, now, model.SkipReason, providerMetadata); err != nil {
+				WHERE provider_id=$8 AND model_id=$1
+			`, model.ID, model.Capability, model.Excluded, ModelStatusActive, now, model.SkipReason, providerMetadata, providerID); err != nil {
 				return nil, err
 			}
 			event, err := insertModelEvent(ctx, tx, ModelEventRecord{
+				ProviderID: providerID,
 				ModelID:    model.ID,
 				EventType:  "returned",
 				Source:     "inventory",
@@ -125,12 +130,13 @@ func (s *Store) ProcessModelObservation(ctx context.Context, observed []Observed
 		default:
 			if _, err := tx.Exec(ctx, `
 				UPDATE model_states SET capability=$2, excluded=$3, status=$4, last_seen_at=$5, skip_reason=$6, last_probe_at=$5, provider_metadata=$7
-				WHERE model_id=$1
-			`, model.ID, model.Capability, model.Excluded, ModelStatusActive, now, model.SkipReason, providerMetadata); err != nil {
+				WHERE provider_id=$8 AND model_id=$1
+			`, model.ID, model.Capability, model.Excluded, ModelStatusActive, now, model.SkipReason, providerMetadata, providerID); err != nil {
 				return nil, err
 			}
 			if state.Capability != model.Capability || state.Excluded != model.Excluded || state.SkipReason != model.SkipReason {
 				event, err := insertModelEvent(ctx, tx, ModelEventRecord{
+					ProviderID: providerID,
 					ModelID:    model.ID,
 					EventType:  "capability_changed",
 					Source:     "inventory",
@@ -164,11 +170,12 @@ func (s *Store) ProcessModelObservation(ctx context.Context, observed []Observed
 			continue
 		}
 		if _, err := tx.Exec(ctx, `
-			UPDATE model_states SET status=$2, missing_since=$3 WHERE model_id=$1
-		`, modelID, ModelStatusInactive, now); err != nil {
+			UPDATE model_states SET status=$2, missing_since=$3 WHERE provider_id=$4 AND model_id=$1
+		`, modelID, ModelStatusInactive, now, providerID); err != nil {
 			return nil, err
 		}
 		event, err := insertModelEvent(ctx, tx, ModelEventRecord{
+			ProviderID: providerID,
 			ModelID:    modelID,
 			EventType:  "inactive",
 			Source:     "inventory",
@@ -210,14 +217,14 @@ func sanitizeObservedModels(observed []ObservedModel) []ObservedModel {
 }
 
 // MarkModelInactive transitions one runnable model to inactive when a probe proves it unavailable.
-func (s *Store) MarkModelInactive(ctx context.Context, modelID string, now time.Time, source, reason string) (*ModelEvent, error) {
+func (s *Store) MarkModelInactive(ctx context.Context, providerID, modelID string, now time.Time, source, reason string) (*ModelEvent, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return nil, err
 	}
 	defer tx.Rollback(ctx)
 
-	state, err := loadModelStateForUpdate(ctx, tx, modelID)
+	state, err := loadModelStateForUpdate(ctx, tx, providerID, modelID)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, nil
@@ -238,7 +245,7 @@ func (s *Store) MarkModelInactive(ctx context.Context, modelID string, now time.
 }
 
 // MarkAllModelsInactive transitions all currently runnable models to inactive.
-func (s *Store) MarkAllModelsInactive(ctx context.Context, now time.Time, source, reason string) ([]ModelEvent, error) {
+func (s *Store) MarkAllModelsInactive(ctx context.Context, providerID string, now time.Time, source, reason string) ([]ModelEvent, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return nil, err
@@ -246,11 +253,11 @@ func (s *Store) MarkAllModelsInactive(ctx context.Context, now time.Time, source
 	defer tx.Rollback(ctx)
 
 	rows, err := tx.Query(ctx, `
-		SELECT model_id, capability, excluded, status, first_seen_at, last_seen_at, missing_since, skip_reason, last_probe_at
+		SELECT provider_id, model_id, capability, excluded, status, first_seen_at, last_seen_at, missing_since, skip_reason, last_probe_at
 		FROM model_states
-		WHERE status <> $1 AND NOT excluded AND capability <> 'skip'
+		WHERE provider_id=$2 AND status <> $1 AND NOT excluded AND capability <> 'skip'
 		FOR UPDATE
-	`, ModelStatusInactive)
+	`, ModelStatusInactive, providerID)
 	if err != nil {
 		return nil, err
 	}
@@ -275,12 +282,12 @@ func (s *Store) MarkAllModelsInactive(ctx context.Context, now time.Time, source
 // RunnableModels returns active non-excluded models that can be probed by workers.
 func (s *Store) RunnableModels(ctx context.Context) ([]RunnableModel, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT model_id, capability
+		SELECT provider_id, model_id, capability
 		FROM model_states
 		WHERE status=$1
 			AND NOT excluded
 			AND capability IN ('chat', 'embedding')
-		ORDER BY model_id ASC
+		ORDER BY provider_id ASC, model_id ASC
 	`, ModelStatusActive)
 	if err != nil {
 		return nil, err
@@ -289,21 +296,22 @@ func (s *Store) RunnableModels(ctx context.Context) ([]RunnableModel, error) {
 	var models []RunnableModel
 	for rows.Next() {
 		var model RunnableModel
-		if err := rows.Scan(&model.ModelID, &model.Capability); err != nil {
+		if err := rows.Scan(&model.ProviderID, &model.ModelID, &model.Capability); err != nil {
 			return nil, err
 		}
+		model.ModelKey = ModelKey(model.ModelID)
 		models = append(models, model)
 	}
 	return models, rows.Err()
 }
 
-func loadModelStateForUpdate(ctx context.Context, tx pgx.Tx, modelID string) (ModelState, error) {
+func loadModelStateForUpdate(ctx context.Context, tx pgx.Tx, providerID, modelID string) (ModelState, error) {
 	rows, err := tx.Query(ctx, `
-		SELECT model_id, capability, excluded, status, first_seen_at, last_seen_at, missing_since, skip_reason, last_probe_at
+		SELECT provider_id, model_id, capability, excluded, status, first_seen_at, last_seen_at, missing_since, skip_reason, last_probe_at
 		FROM model_states
-		WHERE model_id=$1
+		WHERE provider_id=$1 AND model_id=$2
 		FOR UPDATE
-	`, modelID)
+	`, providerID, modelID)
 	if err != nil {
 		return ModelState{}, err
 	}
@@ -331,11 +339,12 @@ func markModelStateInactive(ctx context.Context, tx pgx.Tx, state ModelState, no
 	if _, err := tx.Exec(ctx, `
 		UPDATE model_states
 		SET status=$2, missing_since=COALESCE(missing_since, $3), skip_reason=$4, last_probe_at=$3
-		WHERE model_id=$1
-	`, state.ModelID, ModelStatusInactive, now, reason); err != nil {
+		WHERE provider_id=$5 AND model_id=$1
+	`, state.ModelID, ModelStatusInactive, now, reason, state.ProviderID); err != nil {
 		return ModelEvent{}, err
 	}
 	event, err := insertModelEvent(ctx, tx, ModelEventRecord{
+		ProviderID: state.ProviderID,
 		ModelID:    state.ModelID,
 		EventType:  "inactive",
 		Source:     source,
@@ -361,11 +370,12 @@ func markModelStateInactive(ctx context.Context, tx pgx.Tx, state ModelState, no
 }
 
 // loadModelStates reads current model state inside an observation transaction.
-func loadModelStates(ctx context.Context, tx pgx.Tx) (map[string]ModelState, error) {
+func loadModelStates(ctx context.Context, tx pgx.Tx, providerID string) (map[string]ModelState, error) {
 	rows, err := tx.Query(ctx, `
-		SELECT model_id, capability, excluded, status, first_seen_at, last_seen_at, missing_since, skip_reason, last_probe_at
+		SELECT provider_id, model_id, capability, excluded, status, first_seen_at, last_seen_at, missing_since, skip_reason, last_probe_at
 		FROM model_states
-	`)
+		WHERE provider_id=$1
+	`, providerID)
 	if err != nil {
 		return nil, err
 	}
@@ -387,9 +397,10 @@ func scanModelStates(rows pgx.Rows) ([]ModelState, error) {
 		var state ModelState
 		var missing pgtype.Timestamptz
 		var lastProbe pgtype.Timestamptz
-		if err := rows.Scan(&state.ModelID, &state.Capability, &state.Excluded, &state.Status, &state.FirstSeenAt, &state.LastSeenAt, &missing, &state.SkipReason, &lastProbe); err != nil {
+		if err := rows.Scan(&state.ProviderID, &state.ModelID, &state.Capability, &state.Excluded, &state.Status, &state.FirstSeenAt, &state.LastSeenAt, &missing, &state.SkipReason, &lastProbe); err != nil {
 			return nil, err
 		}
+		state.ModelKey = ModelKey(state.ModelID)
 		if missing.Valid {
 			state.MissingSince = &missing.Time
 		}
@@ -404,9 +415,9 @@ func scanModelStates(rows pgx.Rows) ([]ModelState, error) {
 // ListModelStates returns the current inventory shown in the dashboard.
 func (s *Store) ListModelStates(ctx context.Context) ([]ModelState, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT model_id, capability, excluded, status, first_seen_at, last_seen_at, missing_since, skip_reason, last_probe_at
+		SELECT provider_id, model_id, capability, excluded, status, first_seen_at, last_seen_at, missing_since, skip_reason, last_probe_at
 		FROM model_states
-		ORDER BY status ASC, model_id ASC
+		ORDER BY provider_id ASC, status ASC, model_id ASC
 	`)
 	if err != nil {
 		return nil, err
@@ -417,9 +428,10 @@ func (s *Store) ListModelStates(ctx context.Context) ([]ModelState, error) {
 		var state ModelState
 		var missing pgtype.Timestamptz
 		var lastProbe pgtype.Timestamptz
-		if err := rows.Scan(&state.ModelID, &state.Capability, &state.Excluded, &state.Status, &state.FirstSeenAt, &state.LastSeenAt, &missing, &state.SkipReason, &lastProbe); err != nil {
+		if err := rows.Scan(&state.ProviderID, &state.ModelID, &state.Capability, &state.Excluded, &state.Status, &state.FirstSeenAt, &state.LastSeenAt, &missing, &state.SkipReason, &lastProbe); err != nil {
 			return nil, err
 		}
+		state.ModelKey = ModelKey(state.ModelID)
 		if missing.Valid {
 			state.MissingSince = &missing.Time
 		}
@@ -432,18 +444,19 @@ func (s *Store) ListModelStates(ctx context.Context) ([]ModelState, error) {
 }
 
 // ModelDetails returns the current state and latest provider metadata for one model.
-func (s *Store) ModelDetails(ctx context.Context, modelID string) (*ModelDetails, error) {
+func (s *Store) ModelDetails(ctx context.Context, providerID, modelID string) (*ModelDetails, error) {
 	var state ModelState
 	var missing pgtype.Timestamptz
 	var lastProbe pgtype.Timestamptz
 	var providerMetadataRaw []byte
 	if err := s.pool.QueryRow(ctx, `
-		SELECT model_id, capability, excluded, status, first_seen_at, last_seen_at, missing_since, skip_reason, last_probe_at, provider_metadata
+		SELECT provider_id, model_id, capability, excluded, status, first_seen_at, last_seen_at, missing_since, skip_reason, last_probe_at, provider_metadata
 		FROM model_states
-		WHERE model_id=$1
-	`, modelID).Scan(&state.ModelID, &state.Capability, &state.Excluded, &state.Status, &state.FirstSeenAt, &state.LastSeenAt, &missing, &state.SkipReason, &lastProbe, &providerMetadataRaw); err != nil {
+		WHERE provider_id=$1 AND model_id=$2
+	`, providerID, modelID).Scan(&state.ProviderID, &state.ModelID, &state.Capability, &state.Excluded, &state.Status, &state.FirstSeenAt, &state.LastSeenAt, &missing, &state.SkipReason, &lastProbe, &providerMetadataRaw); err != nil {
 		return nil, err
 	}
+	state.ModelKey = ModelKey(state.ModelID)
 	if missing.Valid {
 		state.MissingSince = &missing.Time
 	}
@@ -463,21 +476,21 @@ func (s *Store) ModelDetails(ctx context.Context, modelID string) (*ModelDetails
 }
 
 // LastRunnableCapabilities returns the newest known chat/embedding capability per model.
-func (s *Store) LastRunnableCapabilities(ctx context.Context) (map[string]string, error) {
+func (s *Store) LastRunnableCapabilities(ctx context.Context, providerID string) (map[string]string, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT DISTINCT ON (model_id) model_id, capability
 		FROM (
 			SELECT model_id, capability, last_seen_at AS observed_at
 			FROM model_states
-			WHERE capability IN ('chat', 'embedding')
+			WHERE provider_id=$1 AND capability IN ('chat', 'embedding')
 			UNION ALL
 			SELECT item.model_id, item.capability, snapshot.observed_at
 			FROM model_snapshot_items item
 			JOIN model_snapshots snapshot ON snapshot.id = item.snapshot_id
-			WHERE item.capability IN ('chat', 'embedding')
+			WHERE item.provider_id=$1 AND item.capability IN ('chat', 'embedding')
 		) known
 		ORDER BY model_id, observed_at DESC
-	`)
+	`, providerID)
 	if err != nil {
 		return nil, err
 	}

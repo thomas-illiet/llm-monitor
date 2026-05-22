@@ -21,25 +21,29 @@ type capabilityProbeClient struct {
 	chatCalls       int
 }
 
-func (c *capabilityProbeClient) ListModels(context.Context) ([]llm.ProviderModel, error) {
+func (c *capabilityProbeClient) ProviderIDs() []string {
+	return []string{"openai"}
+}
+
+func (c *capabilityProbeClient) ListModels(context.Context, string) ([]llm.ProviderModel, error) {
 	return nil, nil
 }
 
-func (c *capabilityProbeClient) HealthCheck(context.Context) llm.HTTPCheckResult {
+func (c *capabilityProbeClient) HealthCheck(context.Context, string) llm.HTTPCheckResult {
 	return llm.HTTPCheckResult{}
 }
 
-func (c *capabilityProbeClient) RunChat(context.Context, llm.ChatRequest) llm.RunResult {
+func (c *capabilityProbeClient) RunChat(context.Context, string, llm.ChatRequest) llm.RunResult {
 	c.chatCalls++
 	return c.chatResult
 }
 
-func (c *capabilityProbeClient) RunChatStream(context.Context, llm.ChatRequest) llm.RunResult {
+func (c *capabilityProbeClient) RunChatStream(context.Context, string, llm.ChatRequest) llm.RunResult {
 	c.chatCalls++
 	return c.chatResult
 }
 
-func (c *capabilityProbeClient) RunEmbedding(context.Context, string, string) llm.RunResult {
+func (c *capabilityProbeClient) RunEmbedding(context.Context, string, string, string) llm.RunResult {
 	c.embeddingCalls++
 	return c.embeddingResult
 }
@@ -52,7 +56,7 @@ func TestDetectModelCapabilityFallsBackToEmbedding(t *testing.T) {
 	}
 	service := testTaskService(client)
 
-	got := service.detectModelCapability(context.Background(), "embedding-test", "probe text")
+	got := service.detectModelCapability(context.Background(), "openai", "embedding-test", "probe text")
 
 	if got != capabilityEmbedding {
 		t.Fatalf("got %q, want %q", got, capabilityEmbedding)
@@ -73,7 +77,7 @@ func TestDetectModelCapabilityPrefersChatForGeneralModels(t *testing.T) {
 	}
 	service := testTaskService(client)
 
-	got := service.detectModelCapability(context.Background(), "smollm2:135m", "probe text")
+	got := service.detectModelCapability(context.Background(), "openai", "smollm2:135m", "probe text")
 
 	if got != capabilityChat {
 		t.Fatalf("got %q, want %q", got, capabilityChat)
@@ -93,7 +97,7 @@ func TestDetectModelCapabilitySkipsWhenBothProbesFail(t *testing.T) {
 	}
 	service := testTaskService(client)
 
-	got := service.detectModelCapability(context.Background(), "audio-test", "probe text")
+	got := service.detectModelCapability(context.Background(), "openai", "audio-test", "probe text")
 
 	if got != capabilitySkip {
 		t.Fatalf("got %q, want %q", got, capabilitySkip)
@@ -113,7 +117,7 @@ func TestDetectModelCapabilityDetailsIncludesSkipReason(t *testing.T) {
 	}
 	service := testTaskService(client)
 
-	got := service.detectModelCapabilityDetails(context.Background(), "audio-test", "probe text")
+	got := service.detectModelCapabilityDetails(context.Background(), "openai", "audio-test", "probe text")
 
 	if got.Capability != capabilitySkip {
 		t.Fatalf("capability = %q, want %q", got.Capability, capabilitySkip)
@@ -133,7 +137,7 @@ func TestDetectModelCapabilityUsesUnknownForTransientProbeFailure(t *testing.T) 
 	}
 	service := testTaskService(client)
 
-	got := service.detectModelCapabilityDetails(context.Background(), "rate-limited-model", "probe text")
+	got := service.detectModelCapabilityDetails(context.Background(), "openai", "rate-limited-model", "probe text")
 
 	if got.Capability != capabilityUnknown {
 		t.Fatalf("capability = %q, want %q", got.Capability, capabilityUnknown)
@@ -156,7 +160,7 @@ func TestDetectModelsPreservesKnownCapabilityForGatewayBadRequest(t *testing.T) 
 	}
 	service := testTaskService(client)
 
-	got := service.detectModels(context.Background(), []llm.ProviderModel{{
+	got := service.detectModels(context.Background(), "openai", []llm.ProviderModel{{
 		ID:       "known-chat",
 		Metadata: map[string]any{"owned_by": "acme"},
 	}}, map[string]string{"known-chat": capabilityChat})
@@ -175,6 +179,9 @@ func TestDetectModelsPreservesKnownCapabilityForGatewayBadRequest(t *testing.T) 
 	}
 	if got[0].ProviderMetadata["owned_by"] != "acme" {
 		t.Fatalf("provider metadata = %#v, want preserved metadata", got[0].ProviderMetadata)
+	}
+	if got[0].ProviderID != "openai" {
+		t.Fatalf("provider id = %q, want openai", got[0].ProviderID)
 	}
 }
 

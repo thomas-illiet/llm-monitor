@@ -32,47 +32,8 @@ func (c *Config) ApplyDefaults() {
 	if c.Asynq.ManualTaskRetention.Duration == 0 {
 		c.Asynq.ManualTaskRetention.Duration = 10 * time.Minute
 	}
-	if c.Target.Name == "" {
-		c.Target.Name = "default"
-	}
-	c.Target.BaseURL = strings.TrimSpace(c.Target.BaseURL)
-	c.Target.Endpoints.Models = strings.TrimSpace(c.Target.Endpoints.Models)
-	if c.Target.Endpoints.Models == "" {
-		c.Target.Endpoints.Models = "/v1/models"
-	}
-	c.Target.Endpoints.Chat = strings.TrimSpace(c.Target.Endpoints.Chat)
-	if c.Target.Endpoints.Chat == "" {
-		c.Target.Endpoints.Chat = "/v1/chat/completions"
-	}
-	c.Target.Endpoints.Embeddings = strings.TrimSpace(c.Target.Endpoints.Embeddings)
-	if c.Target.Endpoints.Embeddings == "" {
-		c.Target.Endpoints.Embeddings = "/v1/embeddings"
-	}
-	c.Target.HTTPCheckPath = strings.TrimSpace(c.Target.HTTPCheckPath)
-	if c.Target.HTTPCheckPath == "" {
-		c.Target.HTTPCheckPath = c.Target.Endpoints.Models
-	}
-	if c.Target.Timeout.Duration == 0 {
-		c.Target.Timeout.Duration = 30 * time.Second
-	}
-	if !c.Target.Retry.WaitMin.Set && c.Target.Retry.WaitMin.Duration == 0 {
-		c.Target.Retry.WaitMin.Duration = 500 * time.Millisecond
-	}
-	if !c.Target.Retry.WaitMax.Set && c.Target.Retry.WaitMax.Duration == 0 {
-		c.Target.Retry.WaitMax.Duration = 5 * time.Second
-	}
-	if c.TLS.InsecureSkipVerify {
-		c.Target.InsecureSkipVerify = true
-		c.Auth.MTLS.InsecureSkipVerify = true
-	}
-	if c.Auth.Timeout.Duration == 0 {
-		c.Auth.Timeout.Duration = 10 * time.Second
-	}
-	if c.Auth.ClientAuthMethod == "" {
-		c.Auth.ClientAuthMethod = "client_secret_basic"
-	}
-	if c.Auth.RefreshSkew.Duration == 0 {
-		c.Auth.RefreshSkew.Duration = 30 * time.Second
+	for i := range c.Providers {
+		applyProviderDefaults(&c.Providers[i], c.TLS)
 	}
 	if c.SMTP.Port == 0 {
 		c.SMTP.Port = 587
@@ -125,5 +86,52 @@ func (c *Config) ApplyDefaults() {
 	}
 	if !c.Retention.History.Set && c.Retention.History.Duration == 0 {
 		c.Retention.History.Duration = 90 * 24 * time.Hour
+	}
+}
+
+func applyProviderDefaults(provider *ProviderConfig, tls TLSConfig) {
+	provider.ID = strings.TrimSpace(provider.ID)
+	provider.Name = strings.TrimSpace(provider.Name)
+	if provider.Name == "" {
+		provider.Name = provider.ID
+	}
+	provider.BaseURL = strings.TrimSpace(provider.BaseURL)
+	provider.Endpoints.Models = strings.TrimSpace(provider.Endpoints.Models)
+	if provider.Endpoints.Models == "" {
+		provider.Endpoints.Models = "/v1/models"
+	}
+	provider.Endpoints.Chat = strings.TrimSpace(provider.Endpoints.Chat)
+	if provider.Endpoints.Chat == "" {
+		provider.Endpoints.Chat = "/v1/chat/completions"
+	}
+	provider.Endpoints.Embeddings = strings.TrimSpace(provider.Endpoints.Embeddings)
+	if provider.Endpoints.Embeddings == "" {
+		provider.Endpoints.Embeddings = "/v1/embeddings"
+	}
+	provider.HTTPCheckPath = strings.TrimSpace(provider.HTTPCheckPath)
+	if provider.HTTPCheckPath == "" {
+		provider.HTTPCheckPath = provider.Endpoints.Models
+	}
+	if provider.Timeout.Duration == 0 {
+		provider.Timeout.Duration = 30 * time.Second
+	}
+	if !provider.Retry.WaitMin.Set && provider.Retry.WaitMin.Duration == 0 {
+		provider.Retry.WaitMin.Duration = 500 * time.Millisecond
+	}
+	if !provider.Retry.WaitMax.Set && provider.Retry.WaitMax.Duration == 0 {
+		provider.Retry.WaitMax.Duration = 5 * time.Second
+	}
+	if tls.InsecureSkipVerify {
+		provider.InsecureSkipVerify = true
+		provider.Auth.MTLS.InsecureSkipVerify = true
+	}
+	if provider.Auth.Timeout.Duration == 0 {
+		provider.Auth.Timeout.Duration = 10 * time.Second
+	}
+	if provider.Auth.ClientAuthMethod == "" {
+		provider.Auth.ClientAuthMethod = "client_secret_basic"
+	}
+	if provider.Auth.RefreshSkew.Duration == 0 {
+		provider.Auth.RefreshSkew.Duration = 30 * time.Second
 	}
 }

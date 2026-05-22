@@ -83,5 +83,5 @@ func taskStartLogArgs(task *asynq.Task, taskID string, attempt int) []any {
 	if err != nil {
 		return args
 	}
-	return append(args, "model", payload.ModelID, "capability", payload.Capability, "reason", payload.Reason)
+	return append(args, "provider", payload.ProviderID, "model", payload.ModelID, "capability", payload.Capability, "reason", payload.Reason)
 }

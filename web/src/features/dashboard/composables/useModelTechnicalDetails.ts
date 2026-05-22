@@ -1,9 +1,10 @@
 import { onUnmounted, shallowRef, toValue, watch } from 'vue'
 import type { MaybeRefOrGetter } from 'vue'
 import type { ModelTechnicalDetailsData } from '@/types'
+import { parseModelIdentity } from '@/features/dashboard/utils/modelInventory'
 
 interface UseModelTechnicalDetailsOptions {
-  modelId: MaybeRefOrGetter<string | null>
+  modelIdentity: MaybeRefOrGetter<string | null>
   open: MaybeRefOrGetter<boolean>
 }
 
@@ -15,9 +16,9 @@ export function useModelTechnicalDetails(options: UseModelTechnicalDetailsOption
   let controller: AbortController | null = null
 
   function detailsPath() {
-    const modelId = toValue(options.modelId)
-    if (!toValue(options.open) || !modelId) return null
-    return `/api/models/${encodeURIComponent(modelId)}/details`
+    const parsed = parseModelIdentity(toValue(options.modelIdentity))
+    if (!toValue(options.open) || !parsed) return null
+    return `/api/providers/${encodeURIComponent(parsed.providerId)}/models/${encodeURIComponent(parsed.modelKey)}/details`
   }
 
   async function refresh() {
@@ -59,7 +60,7 @@ export function useModelTechnicalDetails(options: UseModelTechnicalDetailsOption
   }
 
   watch(
-    () => [toValue(options.open), toValue(options.modelId)] as const,
+    () => [toValue(options.open), toValue(options.modelIdentity)] as const,
     () => {
       void refresh()
     },

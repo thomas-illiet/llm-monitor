@@ -18,13 +18,13 @@ func NewModelRecoveryTrigger(client *Client, store RunnableModelsStore, logger *
 	return &ModelRecoveryTrigger{client: client, store: store, logger: logger}
 }
 
-// TriggerModelRecovery refreshes inventory and immediately probes currently runnable models.
-func (t *ModelRecoveryTrigger) TriggerModelRecovery(ctx context.Context) error {
+// TriggerModelRecovery refreshes provider inventory and immediately probes currently runnable models.
+func (t *ModelRecoveryTrigger) TriggerModelRecovery(ctx context.Context, providerID string) error {
 	if t == nil || t.client == nil {
 		return nil
 	}
 	var joined error
-	if _, err := t.client.EnqueueModelSnapshot(ctx); err != nil {
+	if _, err := t.client.EnqueueModelSnapshot(ctx, providerID); err != nil {
 		joined = errors.Join(joined, err)
 	}
 	if t.store == nil {
@@ -35,6 +35,9 @@ func (t *ModelRecoveryTrigger) TriggerModelRecovery(ctx context.Context) error {
 		return errors.Join(joined, err)
 	}
 	for _, model := range models {
+		if providerID != "" && model.ProviderID != providerID {
+			continue
+		}
 		if _, err := t.client.EnqueueModelRun(ctx, model, "recovery"); err != nil {
 			joined = errors.Join(joined, err)
 		}

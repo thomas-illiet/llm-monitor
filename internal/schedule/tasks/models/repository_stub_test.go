@@ -13,7 +13,7 @@ func (r noopRepository) RecordHTTPCheck(context.Context, store.CheckRecord) erro
 	return nil
 }
 
-func (r noopRepository) LatestHTTPCheck(context.Context) (*store.CheckRecord, error) {
+func (r noopRepository) LatestHTTPCheck(context.Context, string) (*store.CheckRecord, error) {
 	return nil, nil
 }
 
@@ -21,19 +21,19 @@ func (r noopRepository) RecordAuthCheck(context.Context, store.CheckRecord) erro
 	return nil
 }
 
-func (r noopRepository) ProcessModelObservation(context.Context, []store.ObservedModel, time.Time) ([]store.ModelEvent, error) {
+func (r noopRepository) ProcessModelObservation(context.Context, string, []store.ObservedModel, time.Time) ([]store.ModelEvent, error) {
 	return nil, nil
 }
 
-func (r noopRepository) MarkModelInactive(context.Context, string, time.Time, string, string) (*store.ModelEvent, error) {
+func (r noopRepository) MarkModelInactive(context.Context, string, string, time.Time, string, string) (*store.ModelEvent, error) {
 	return nil, nil
 }
 
-func (r noopRepository) MarkAllModelsInactive(context.Context, time.Time, string, string) ([]store.ModelEvent, error) {
+func (r noopRepository) MarkAllModelsInactive(context.Context, string, time.Time, string, string) ([]store.ModelEvent, error) {
 	return nil, nil
 }
 
-func (r noopRepository) LastRunnableCapabilities(context.Context) (map[string]string, error) {
+func (r noopRepository) LastRunnableCapabilities(context.Context, string) (map[string]string, error) {
 	return nil, nil
 }
 

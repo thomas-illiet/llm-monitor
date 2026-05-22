@@ -26,11 +26,13 @@ const emit = defineEmits<{
 }>()
 
 const search = shallowRef('')
+const providerFilter = shallowRef<string[]>([])
 const sortBy = shallowRef([{ key: 'status_label', order: 'asc' as const }])
 const now = shallowRef(Date.now())
 let countdownTimer: number | undefined
 
 const headers = [
+  { title: 'Provider', key: 'provider_id', sortable: true },
   { title: 'Model', key: 'model_id', sortable: true },
   { title: 'Capability', key: 'capability', sortable: true },
   { title: 'Status', key: 'status_label', sortable: true },
@@ -55,10 +57,17 @@ const lastRunByModel = computed(() => {
 })
 
 const tableRows = computed<ModelInventoryRow[]>(() => {
-  return modelInventoryRows(props.models, lastRunByModel.value)
+  const rows = modelInventoryRows(props.models, lastRunByModel.value)
+  if (providerFilter.value.length === 0) return rows
+  const selectedProviders = new Set(providerFilter.value)
+  return rows.filter(row => selectedProviders.has(row.provider_id))
 })
 
 const checkingModels = computed(() => new Set(props.checkingModelIds ?? []))
+
+const providerOptions = computed(() => {
+  return Array.from(new Set(props.models.map(model => model.provider_id))).sort()
+})
 
 onMounted(() => {
   countdownTimer = window.setInterval(() => {
@@ -88,6 +97,19 @@ onUnmounted(() => {
           hide-details
           clearable
         />
+        <VSelect
+          v-model="providerFilter"
+          class="provider-filter"
+          density="compact"
+          variant="outlined"
+          placeholder="Providers"
+          :items="providerOptions"
+          multiple
+          chips
+          closable-chips
+          clearable
+          hide-details
+        />
         <VChip size="small" variant="tonal">{{ models.length }}</VChip>
       </div>
     </div>
@@ -105,6 +127,9 @@ onUnmounted(() => {
     >
       <template #item.model_id="{ item }">
         <span class="model-name">{{ item.model_id }}</span>
+      </template>
+      <template #item.provider_id="{ item }">
+        <VChip size="x-small" variant="tonal">{{ item.provider_id }}</VChip>
       </template>
       <template #item.capability="{ item }">
         <VChip size="x-small" variant="tonal">{{ item.capability }}</VChip>
@@ -139,8 +164,8 @@ onUnmounted(() => {
               size="small"
               variant="tonal"
               density="compact"
-              :aria-label="`Actions for ${item.model_id}`"
-              :loading="checkingModels.has(item.model_id)"
+              :aria-label="`Actions for ${item.provider_id}/${item.model_id}`"
+              :loading="checkingModels.has(item.identity)"
             >
               Action
             </VBtn>
@@ -148,21 +173,21 @@ onUnmounted(() => {
           <VList density="compact" min-width="160">
             <VListItem
               prepend-icon="mdi-play-circle-outline"
-              :disabled="checkingModels.has(item.model_id)"
-              @click="emit('runCheck', item.model_id)"
+              :disabled="checkingModels.has(item.identity)"
+              @click="emit('runCheck', item.identity)"
             >
               <VListItemTitle>Run check</VListItemTitle>
             </VListItem>
-            <VListItem prepend-icon="mdi-view-dashboard-outline" @click="emit('openDashboard', item.model_id)">
+            <VListItem prepend-icon="mdi-view-dashboard-outline" @click="emit('openDashboard', item.identity)">
               <VListItemTitle>Dashboard</VListItemTitle>
             </VListItem>
-            <VListItem prepend-icon="mdi-compare-horizontal" @click="emit('openCompare', item.model_id)">
+            <VListItem prepend-icon="mdi-compare-horizontal" @click="emit('openCompare', item.identity)">
               <VListItemTitle>Compare</VListItemTitle>
             </VListItem>
-            <VListItem prepend-icon="mdi-code-json" @click="emit('openTechnicalDetails', item.model_id)">
+            <VListItem prepend-icon="mdi-code-json" @click="emit('openTechnicalDetails', item.identity)">
               <VListItemTitle>Technical details</VListItemTitle>
             </VListItem>
-            <VListItem prepend-icon="mdi-timeline-clock-outline" @click="emit('openEvents', item.model_id)">
+            <VListItem prepend-icon="mdi-timeline-clock-outline" @click="emit('openEvents', item.identity)">
               <VListItemTitle>Events</VListItemTitle>
             </VListItem>
           </VList>
@@ -174,3 +199,9 @@ onUnmounted(() => {
     </VDataTable>
   </VCard>
 </template>
+
+<style scoped>
+.provider-filter {
+  min-width: 190px;
+}
+</style>

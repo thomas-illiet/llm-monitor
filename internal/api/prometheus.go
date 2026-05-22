@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"time"
 
+	"llmservicemonitor/internal/config"
 	"llmservicemonitor/internal/store"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -18,8 +19,9 @@ import (
 const metricsCollectTimeout = 5 * time.Second
 
 type prometheusCollector struct {
-	store  DashboardStore
-	logger *slog.Logger
+	store     DashboardStore
+	logger    *slog.Logger
+	providers []config.ProviderConfig
 
 	httpUp                     *prometheus.Desc
 	httpLatencySeconds         *prometheus.Desc
@@ -54,43 +56,44 @@ func (r *Router) metricsHandler() http.Handler {
 	registry := prometheus.NewRegistry()
 	registry.MustRegister(collectors.NewGoCollector())
 	registry.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
-	registry.MustRegister(newPrometheusCollector(r.store, r.logger))
+	registry.MustRegister(newPrometheusCollector(r.store, r.logger, r.cfg.Providers))
 	return promhttp.HandlerFor(registry, promhttp.HandlerOpts{})
 }
 
-func newPrometheusCollector(db DashboardStore, logger *slog.Logger) *prometheusCollector {
+func newPrometheusCollector(db DashboardStore, logger *slog.Logger, providers []config.ProviderConfig) *prometheusCollector {
 	return &prometheusCollector{
-		store:  db,
-		logger: logger,
+		store:     db,
+		logger:    logger,
+		providers: providers,
 
-		httpUp:                 prometheus.NewDesc("llm_monitor_http_up", "Whether the latest target HTTP check succeeded.", nil, nil),
-		httpLatencySeconds:     prometheus.NewDesc("llm_monitor_http_latency_seconds", "Latency of the latest target HTTP check in seconds.", nil, nil),
-		httpStatusCode:         prometheus.NewDesc("llm_monitor_http_status_code", "Status code returned by the latest target HTTP check.", nil, nil),
-		httpLastCheckTimestamp: prometheus.NewDesc("llm_monitor_http_last_check_timestamp_seconds", "Unix timestamp of the latest target HTTP check.", nil, nil),
-		authUp:                 prometheus.NewDesc("llm_monitor_auth_up", "Whether the latest auth check succeeded.", nil, nil),
-		authLatencySeconds:     prometheus.NewDesc("llm_monitor_auth_latency_seconds", "Latency of the latest auth check in seconds.", nil, nil),
-		authStatusCode:         prometheus.NewDesc("llm_monitor_auth_status_code", "Status code returned by the latest auth check.", nil, nil),
-		authLastCheckTimestamp: prometheus.NewDesc("llm_monitor_auth_last_check_timestamp_seconds", "Unix timestamp of the latest auth check.", nil, nil),
+		httpUp:                 prometheus.NewDesc("llm_monitor_http_up", "Whether the latest provider HTTP check succeeded.", []string{"provider"}, nil),
+		httpLatencySeconds:     prometheus.NewDesc("llm_monitor_http_latency_seconds", "Latency of the latest provider HTTP check in seconds.", []string{"provider"}, nil),
+		httpStatusCode:         prometheus.NewDesc("llm_monitor_http_status_code", "Status code returned by the latest provider HTTP check.", []string{"provider"}, nil),
+		httpLastCheckTimestamp: prometheus.NewDesc("llm_monitor_http_last_check_timestamp_seconds", "Unix timestamp of the latest provider HTTP check.", []string{"provider"}, nil),
+		authUp:                 prometheus.NewDesc("llm_monitor_auth_up", "Whether the latest provider auth check succeeded.", []string{"provider"}, nil),
+		authLatencySeconds:     prometheus.NewDesc("llm_monitor_auth_latency_seconds", "Latency of the latest provider auth check in seconds.", []string{"provider"}, nil),
+		authStatusCode:         prometheus.NewDesc("llm_monitor_auth_status_code", "Status code returned by the latest provider auth check.", []string{"provider"}, nil),
+		authLastCheckTimestamp: prometheus.NewDesc("llm_monitor_auth_last_check_timestamp_seconds", "Unix timestamp of the latest provider auth check.", []string{"provider"}, nil),
 
-		modelsTotal:                prometheus.NewDesc("llm_monitor_models_total", "Current number of models grouped by inventory status.", []string{"status"}, nil),
-		modelsSkippedTotal:         prometheus.NewDesc("llm_monitor_models_skipped_total", "Current number of models excluded from scheduled probes.", nil, nil),
-		modelInfo:                  prometheus.NewDesc("llm_monitor_model_info", "Current model inventory metadata.", []string{"model", "capability", "status", "excluded"}, nil),
-		modelAvailable:             prometheus.NewDesc("llm_monitor_model_available", "Whether the model is currently available for scheduled probes.", []string{"model", "capability"}, nil),
-		modelLastSeenTimestamp:     prometheus.NewDesc("llm_monitor_model_last_seen_timestamp_seconds", "Unix timestamp when the model was last observed.", []string{"model", "capability"}, nil),
-		modelMissingSinceTimestamp: prometheus.NewDesc("llm_monitor_model_missing_since_timestamp_seconds", "Unix timestamp when the model became inactive. Metric name is kept for compatibility.", []string{"model", "capability"}, nil),
+		modelsTotal:                prometheus.NewDesc("llm_monitor_models_total", "Current number of models grouped by provider and inventory status.", []string{"provider", "status"}, nil),
+		modelsSkippedTotal:         prometheus.NewDesc("llm_monitor_models_skipped_total", "Current number of models excluded from scheduled probes by provider.", []string{"provider"}, nil),
+		modelInfo:                  prometheus.NewDesc("llm_monitor_model_info", "Current model inventory metadata.", []string{"provider", "model", "capability", "status", "excluded"}, nil),
+		modelAvailable:             prometheus.NewDesc("llm_monitor_model_available", "Whether the model is currently available for scheduled probes.", []string{"provider", "model", "capability"}, nil),
+		modelLastSeenTimestamp:     prometheus.NewDesc("llm_monitor_model_last_seen_timestamp_seconds", "Unix timestamp when the model was last observed.", []string{"provider", "model", "capability"}, nil),
+		modelMissingSinceTimestamp: prometheus.NewDesc("llm_monitor_model_missing_since_timestamp_seconds", "Unix timestamp when the model became inactive. Metric name is kept for compatibility.", []string{"provider", "model", "capability"}, nil),
 
-		probeSuccess:               prometheus.NewDesc("llm_monitor_model_probe_success", "Whether the latest model probe succeeded.", []string{"model", "capability"}, nil),
-		probeLatencySeconds:        prometheus.NewDesc("llm_monitor_model_probe_latency_seconds", "Request latency of the latest model probe in seconds.", []string{"model", "capability"}, nil),
-		probeStatusCode:            prometheus.NewDesc("llm_monitor_model_probe_status_code", "Status code returned by the latest model probe.", []string{"model", "capability"}, nil),
-		probeLastRunTimestamp:      prometheus.NewDesc("llm_monitor_model_probe_last_run_timestamp_seconds", "Unix timestamp of the latest model probe.", []string{"model", "capability"}, nil),
-		probeTTFTSeconds:           prometheus.NewDesc("llm_monitor_model_probe_ttft_seconds", "Time to first token for the latest chat probe in seconds.", []string{"model", "capability"}, nil),
-		probeITLSeconds:            prometheus.NewDesc("llm_monitor_model_probe_itl_seconds", "Inter-token latency for the latest chat probe in seconds.", []string{"model", "capability"}, nil),
-		probeTPOTSeconds:           prometheus.NewDesc("llm_monitor_model_probe_tpot_seconds", "Time per output token for the latest chat probe in seconds.", []string{"model", "capability"}, nil),
-		probeInputTokens:           prometheus.NewDesc("llm_monitor_model_probe_input_tokens", "Input tokens reported by the latest model probe.", []string{"model", "capability"}, nil),
-		probeOutputTokens:          prometheus.NewDesc("llm_monitor_model_probe_output_tokens", "Output tokens reported by the latest chat probe.", []string{"model", "capability"}, nil),
-		probeTotalTokens:           prometheus.NewDesc("llm_monitor_model_probe_total_tokens", "Total tokens reported by the latest model probe.", []string{"model", "capability"}, nil),
-		probeOutputTokensPerSecond: prometheus.NewDesc("llm_monitor_model_probe_output_tokens_per_second", "Output token throughput reported by the latest chat probe.", []string{"model", "capability"}, nil),
-		probeVectorDimensions:      prometheus.NewDesc("llm_monitor_model_probe_vector_dimensions", "Vector dimensions reported by the latest embedding probe.", []string{"model", "capability"}, nil),
+		probeSuccess:               prometheus.NewDesc("llm_monitor_model_probe_success", "Whether the latest model probe succeeded.", []string{"provider", "model", "capability"}, nil),
+		probeLatencySeconds:        prometheus.NewDesc("llm_monitor_model_probe_latency_seconds", "Request latency of the latest model probe in seconds.", []string{"provider", "model", "capability"}, nil),
+		probeStatusCode:            prometheus.NewDesc("llm_monitor_model_probe_status_code", "Status code returned by the latest model probe.", []string{"provider", "model", "capability"}, nil),
+		probeLastRunTimestamp:      prometheus.NewDesc("llm_monitor_model_probe_last_run_timestamp_seconds", "Unix timestamp of the latest model probe.", []string{"provider", "model", "capability"}, nil),
+		probeTTFTSeconds:           prometheus.NewDesc("llm_monitor_model_probe_ttft_seconds", "Time to first token for the latest chat probe in seconds.", []string{"provider", "model", "capability"}, nil),
+		probeITLSeconds:            prometheus.NewDesc("llm_monitor_model_probe_itl_seconds", "Inter-token latency for the latest chat probe.", []string{"provider", "model", "capability"}, nil),
+		probeTPOTSeconds:           prometheus.NewDesc("llm_monitor_model_probe_tpot_seconds", "Time per output token for the latest chat probe in seconds.", []string{"provider", "model", "capability"}, nil),
+		probeInputTokens:           prometheus.NewDesc("llm_monitor_model_probe_input_tokens", "Input tokens reported by the latest model probe.", []string{"provider", "model", "capability"}, nil),
+		probeOutputTokens:          prometheus.NewDesc("llm_monitor_model_probe_output_tokens", "Output tokens reported by the latest chat probe.", []string{"provider", "model", "capability"}, nil),
+		probeTotalTokens:           prometheus.NewDesc("llm_monitor_model_probe_total_tokens", "Total tokens reported by the latest model probe.", []string{"provider", "model", "capability"}, nil),
+		probeOutputTokensPerSecond: prometheus.NewDesc("llm_monitor_model_probe_output_tokens_per_second", "Output token throughput reported by the latest chat probe.", []string{"provider", "model", "capability"}, nil),
+		probeVectorDimensions:      prometheus.NewDesc("llm_monitor_model_probe_vector_dimensions", "Vector dimensions reported by the latest embedding probe.", []string{"provider", "model", "capability"}, nil),
 	}
 }
 
@@ -111,24 +114,26 @@ func (c *prometheusCollector) Collect(ch chan<- prometheus.Metric) {
 		c.collectInvalid(ch, err)
 		return
 	}
-	httpCheck, err := c.store.LatestHTTPCheck(ctx)
-	if err != nil {
-		c.collectInvalid(ch, err)
-		return
-	}
-	authCheck, err := c.store.LatestAuthCheck(ctx)
-	if err != nil {
-		c.collectInvalid(ch, err)
-		return
-	}
 	latestRuns, err := c.store.LatestRunsByModel(ctx)
 	if err != nil {
 		c.collectInvalid(ch, err)
 		return
 	}
 
-	c.collectCheck(ch, httpCheck, c.httpUp, c.httpLatencySeconds, c.httpStatusCode, c.httpLastCheckTimestamp)
-	c.collectCheck(ch, authCheck, c.authUp, c.authLatencySeconds, c.authStatusCode, c.authLastCheckTimestamp)
+	for _, provider := range c.providers {
+		httpCheck, err := c.store.LatestHTTPCheck(ctx, provider.ID)
+		if err != nil {
+			c.collectInvalid(ch, err)
+			return
+		}
+		authCheck, err := c.store.LatestAuthCheck(ctx, provider.ID)
+		if err != nil {
+			c.collectInvalid(ch, err)
+			return
+		}
+		c.collectCheck(ch, provider.ID, httpCheck, c.httpUp, c.httpLatencySeconds, c.httpStatusCode, c.httpLastCheckTimestamp)
+		c.collectCheck(ch, provider.ID, authCheck, c.authUp, c.authLatencySeconds, c.authStatusCode, c.authLastCheckTimestamp)
+	}
 	c.collectModels(ch, models)
 	c.collectRuns(ch, latestRuns)
 }
@@ -171,58 +176,71 @@ func (c *prometheusCollector) collectInvalid(ch chan<- prometheus.Metric, err er
 	ch <- prometheus.NewInvalidMetric(c.httpUp, err)
 }
 
-func (c *prometheusCollector) collectCheck(ch chan<- prometheus.Metric, check *store.CheckRecord, upDesc, latencyDesc, statusDesc, timestampDesc *prometheus.Desc) {
+func (c *prometheusCollector) collectCheck(ch chan<- prometheus.Metric, providerID string, check *store.CheckRecord, upDesc, latencyDesc, statusDesc, timestampDesc *prometheus.Desc) {
 	if check == nil {
-		emitGauge(ch, upDesc, 0)
+		emitGauge(ch, upDesc, 0, providerID)
 		return
 	}
-	emitGauge(ch, upDesc, boolGauge(check.OK))
-	emitGauge(ch, latencyDesc, millisecondsToSeconds(check.LatencyMS))
-	emitGauge(ch, statusDesc, float64(check.StatusCode))
-	emitGauge(ch, timestampDesc, timestampSeconds(check.At))
+	emitGauge(ch, upDesc, boolGauge(check.OK), providerID)
+	emitGauge(ch, latencyDesc, millisecondsToSeconds(check.LatencyMS), providerID)
+	emitGauge(ch, statusDesc, float64(check.StatusCode), providerID)
+	emitGauge(ch, timestampDesc, timestampSeconds(check.At), providerID)
 }
 
 func (c *prometheusCollector) collectModels(ch chan<- prometheus.Metric, models []store.ModelState) {
-	statusCounts := map[string]float64{}
-	var skipped float64
+	statusCounts := map[string]map[string]float64{}
+	skippedCounts := map[string]float64{}
 	for _, model := range models {
+		providerID := normalizedLabel(model.ProviderID, "unknown")
 		status := normalizedLabel(model.Status, "unknown")
-		statusCounts[status]++
+		if statusCounts[providerID] == nil {
+			statusCounts[providerID] = map[string]float64{}
+		}
+		statusCounts[providerID][status]++
 		if modelSkipped(model) {
-			skipped++
+			skippedCounts[providerID]++
 		}
 	}
-	statuses := make([]string, 0, len(statusCounts))
-	for status := range statusCounts {
-		statuses = append(statuses, status)
+	providers := make([]string, 0, len(statusCounts))
+	for providerID := range statusCounts {
+		providers = append(providers, providerID)
 	}
-	sort.Strings(statuses)
-	for _, status := range statuses {
-		emitGauge(ch, c.modelsTotal, statusCounts[status], status)
+	sort.Strings(providers)
+	for _, providerID := range providers {
+		statuses := make([]string, 0, len(statusCounts[providerID]))
+		for status := range statusCounts[providerID] {
+			statuses = append(statuses, status)
+		}
+		sort.Strings(statuses)
+		for _, status := range statuses {
+			emitGauge(ch, c.modelsTotal, statusCounts[providerID][status], providerID, status)
+		}
+		emitGauge(ch, c.modelsSkippedTotal, skippedCounts[providerID], providerID)
 	}
-	emitGauge(ch, c.modelsSkippedTotal, skipped)
 
 	for _, model := range models {
+		providerID := normalizedLabel(model.ProviderID, "unknown")
 		modelID := normalizedLabel(model.ModelID, "unknown")
 		capability := normalizedLabel(model.Capability, "unknown")
 		status := normalizedLabel(model.Status, "unknown")
 		excluded := strconv.FormatBool(model.Excluded)
-		emitGauge(ch, c.modelInfo, 1, modelID, capability, status, excluded)
-		emitGauge(ch, c.modelAvailable, boolGauge(modelAvailable(model)), modelID, capability)
+		emitGauge(ch, c.modelInfo, 1, providerID, modelID, capability, status, excluded)
+		emitGauge(ch, c.modelAvailable, boolGauge(modelAvailable(model)), providerID, modelID, capability)
 		if !model.LastSeenAt.IsZero() {
-			emitGauge(ch, c.modelLastSeenTimestamp, timestampSeconds(model.LastSeenAt), modelID, capability)
+			emitGauge(ch, c.modelLastSeenTimestamp, timestampSeconds(model.LastSeenAt), providerID, modelID, capability)
 		}
 		if model.MissingSince != nil && !model.MissingSince.IsZero() {
-			emitGauge(ch, c.modelMissingSinceTimestamp, timestampSeconds(*model.MissingSince), modelID, capability)
+			emitGauge(ch, c.modelMissingSinceTimestamp, timestampSeconds(*model.MissingSince), providerID, modelID, capability)
 		}
 	}
 }
 
 func (c *prometheusCollector) collectRuns(ch chan<- prometheus.Metric, runs []store.LatestRun) {
 	for _, run := range runs {
+		providerID := normalizedLabel(run.ProviderID, "unknown")
 		modelID := normalizedLabel(run.ModelID, "unknown")
 		capability := normalizedLabel(run.Capability, "unknown")
-		labels := []string{modelID, capability}
+		labels := []string{providerID, modelID, capability}
 
 		emitGauge(ch, c.probeSuccess, boolGauge(run.OK), labels...)
 		emitGauge(ch, c.probeLatencySeconds, millisecondsToSeconds(run.LatencyMS), labels...)

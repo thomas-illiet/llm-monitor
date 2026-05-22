@@ -1,5 +1,10 @@
-{{- $mtls := .Values.config.auth.mtls | default dict -}}
-{{- $hasMTLSData := or ($mtls.cert_file_data | default "") ($mtls.key_file_data | default "") -}}
+{{- $hasMTLSData := false -}}
+{{- range (.Values.config.providers | default list) -}}
+{{- $mtls := .auth.mtls | default dict -}}
+{{- if or ($mtls.cert_file_data | default "") ($mtls.key_file_data | default "") -}}
+{{- $hasMTLSData = true -}}
+{{- end -}}
+{{- end -}}
 {{- $hasCertFiles := or .Values.certFiles.data $hasMTLSData -}}
 apiVersion: apps/v1
 kind: Deployment

@@ -9,7 +9,7 @@ The service runs the same image as separate API, scheduler, and worker container
 - Worker container: queued monitor task execution.
 - PostgreSQL: persisted checks, runs, model inventory, events, alerts, and dashboard history.
 - Redis: Asynq queues and retained manual task status.
-- Optional SMTP target: model lifecycle alert delivery.
+- Optional SMTP relay: model lifecycle alert delivery.
 
 ## Docker Compose
 

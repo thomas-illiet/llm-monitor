@@ -1,14 +1,17 @@
 {{- $postgresDsn := required "config.postgres.dsn is required" .Values.config.postgres.dsn -}}
-{{- $targetBaseURL := required "config.target.base_url is required" .Values.config.target.base_url -}}
+{{- $providers := required "config.providers is required" .Values.config.providers -}}
+{{- range $index, $provider := $providers }}
+{{- $_ := required (printf "config.providers[%d].base_url is required" $index) $provider.base_url -}}
+{{- end }}
 {{- $config := deepCopy .Values.config -}}
-{{- with $config.target }}
+{{- range $config.providers }}
 {{- $_ := unset . "api_key_file" -}}
-{{- end -}}
-{{- with $config.auth }}
+{{- with .auth }}
 {{- $_ := unset . "client_secret_file" -}}
 {{- with .mtls }}
 {{- $_ := unset . "cert_file_data" -}}
 {{- $_ := unset . "key_file_data" -}}
+{{- end -}}
 {{- end -}}
 {{- end -}}
 {{- with $config.smtp }}

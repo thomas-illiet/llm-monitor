@@ -14,8 +14,10 @@ Configuration is loaded from `LLM_MONITOR_CONFIG`, defaulting to `config.yaml`. 
 
 - `postgres.dsn`: PostgreSQL connection string.
 - `redis.addr`: Redis host/port used by Asynq. Defaults to `localhost:6379`.
-- `target.base_url`: OpenAI-compatible API base URL.
-- `auth.token_url`: required only when `auth.enabled` is `true`.
+- `providers`: at least one OpenAI-compatible provider definition.
+- `providers[].id`: unique URL-safe provider slug.
+- `providers[].base_url`: OpenAI-compatible API base URL.
+- `providers[].auth.token_url`: required only when that provider's `auth.enabled` is `true`.
 - `smtp.host`, `smtp.from`, and `smtp.to`: required only when `smtp.enabled` is `true`.
 - `mcp.bearer_token`: required only when `mcp.enabled` is `true`.
 
@@ -23,8 +25,8 @@ Configuration is loaded from `LLM_MONITOR_CONFIG`, defaulting to `config.yaml`. 
 
 Secret values are supplied inline in the config file:
 
-- `target.api_key`
-- `auth.client_secret`
+- `providers[].api_key`
+- `providers[].auth.client_secret`
 - `smtp.password`
 - `mcp.bearer_token`
 
@@ -55,28 +57,50 @@ Queued tasks have a 60 second processing timeout. Manually triggered dashboard
 jobs also expire after 60 seconds if no worker starts them, so stale manual jobs
 are forgotten instead of running much later.
 
-## Target Endpoints
+## Providers
 
-`target.endpoints` customizes the OpenAI-like routes used by the monitor:
+`providers` is the required monitored LLM list. The previous top-level
+`target` and `auth` blocks are no longer accepted. This release stores models by
+`(provider_id, model_id)`, so reset or recreate the PostgreSQL schema before
+deploying it over an older installation.
 
-- `target.endpoints.models`: model inventory endpoint. Defaults to `/v1/models`.
-- `target.endpoints.chat`: chat completions endpoint. Defaults to `/v1/chat/completions`.
-- `target.endpoints.embeddings`: embedding endpoint. Defaults to `/v1/embeddings`.
+```yaml
+providers:
+  - id: "production"
+    name: "Production LLM"
+    base_url: "https://llm.example.com"
+    api_key: "replace-me"
+    endpoints:
+      models: "/v1/models"
+      chat: "/v1/chat/completions"
+      embeddings: "/v1/embeddings"
+    auth:
+      enabled: false
+```
+
+Provider IDs must be unique URL-safe slugs. `name` is optional and is used for
+dashboard display; when omitted, the dashboard falls back to `id`.
+
+`providers[].endpoints` customizes the OpenAI-like routes used by the monitor:
+
+- `providers[].endpoints.models`: model inventory endpoint. Defaults to `/v1/models`.
+- `providers[].endpoints.chat`: chat completions endpoint. Defaults to `/v1/chat/completions`.
+- `providers[].endpoints.embeddings`: embedding endpoint. Defaults to `/v1/embeddings`.
 
 Each endpoint can be either a path beginning with `/`, resolved against
-`target.base_url`, or an absolute `http`/`https` URL. `target.http_check_path` is
-still supported for existing configs; when omitted, HTTP checks use
-`target.endpoints.models`.
+`providers[].base_url`, or an absolute `http`/`https` URL. When
+`providers[].http_check_path` is omitted, HTTP checks use
+`providers[].endpoints.models`.
 
 OAuth client credentials are sent with HTTP Basic authentication by default
-(`auth.client_auth_method: client_secret_basic`). Set
-`auth.client_auth_method: client_secret_post` only for token endpoints that
-expect `client_id` and `client_secret` in the form body.
+(`providers[].auth.client_auth_method: client_secret_basic`). Set
+`providers[].auth.client_auth_method: client_secret_post` only for token
+endpoints that expect `client_id` and `client_secret` in the form body.
 
 Set `tls.insecure_skip_verify: true` to skip certificate verification for
-outbound HTTP requests to the target API and OAuth token endpoint. Keep it off
+outbound HTTP requests to provider APIs and OAuth token endpoints. Keep it off
 unless the upstream endpoints use certificates that cannot be trusted through
-`target.ca_file` or `auth.mtls.ca_file`.
+`providers[].ca_file` or `providers[].auth.mtls.ca_file`.
 
 ## MCP Endpoint
 
@@ -86,25 +110,27 @@ The optional MCP Streamable HTTP endpoint is disabled by default. Enable it with
 
 The `schedules` block controls independent Asynq schedules:
 
-- `http_check`: target reachability.
+- `http_check`: provider reachability.
 - `auth_check`: token endpoint health.
 - `model_snapshot`: model inventory and capability detection.
 - `model_runs`: default interval for one-model probe tasks.
-- `model_run_overrides`: optional exact `model_id` or wildcard `pattern` intervals.
+- `model_run_overrides`: optional exact `model_id` or wildcard `pattern` intervals, optionally scoped by `provider_id`.
 
 Exact `model_id` overrides win over wildcard patterns, and unmatched models use
-`model_runs`. Wildcards support `*` and `?`, for example `embedding-*`.
+`model_runs`. Wildcards support `*` and `?`, for example `embedding-*`. Each
+override must set exactly one of `model_id` or `pattern`; add `provider_id` when
+the override should apply only to one provider.
 
 Durations use Go strings such as `30s`, `5m`, or `24h`.
 See [Scheduled Tasks](tasks/README.md) for each registered task, stable task
 name, handler category, and trigger behavior.
 
-## Target Retry
+## Provider Retry
 
-The optional `target.retry` block controls retries for outbound LLM API calls.
+The optional `providers[].retry` block controls retries for outbound LLM API calls.
 Retries are enabled by default with `max_retries: 2`, `wait_min: 500ms`, and
-`wait_max: 5s`. Set `target.retry.enabled: false` or
-`target.retry.max_retries: 0` to disable retries.
+`wait_max: 5s`. Set `providers[].retry.enabled: false` or
+`providers[].retry.max_retries: 0` to disable retries for one provider.
 
 ## Retention
 

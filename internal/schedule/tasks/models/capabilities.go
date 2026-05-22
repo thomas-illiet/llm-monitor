@@ -20,16 +20,16 @@ func preservedRunnableCapability(detection capabilityDetection, knownCapability 
 	return ""
 }
 
-func (s *service) detectModelCapability(ctx context.Context, modelID, embeddingInput string) string {
-	return s.detectModelCapabilityDetails(ctx, modelID, embeddingInput).Capability
+func (s *service) detectModelCapability(ctx context.Context, providerID, modelID, embeddingInput string) string {
+	return s.detectModelCapabilityDetails(ctx, providerID, modelID, embeddingInput).Capability
 }
 
-func (s *service) detectModelCapabilityDetails(ctx context.Context, modelID, embeddingInput string) capabilityDetection {
-	return s.detectChatFirstCapability(ctx, modelID, embeddingInput)
+func (s *service) detectModelCapabilityDetails(ctx context.Context, providerID, modelID, embeddingInput string) capabilityDetection {
+	return s.detectChatFirstCapability(ctx, providerID, modelID, embeddingInput)
 }
 
-func (s *service) detectChatFirstCapability(ctx context.Context, modelID, embeddingInput string) capabilityDetection {
-	chat := s.client.RunChat(ctx, llm.ChatRequest{
+func (s *service) detectChatFirstCapability(ctx context.Context, providerID, modelID, embeddingInput string) capabilityDetection {
+	chat := s.client.RunChat(ctx, providerID, llm.ChatRequest{
 		Model:       modelID,
 		PromptID:    "capability-probe",
 		Prompt:      chatProbePrompt,
@@ -43,7 +43,7 @@ func (s *service) detectChatFirstCapability(ctx context.Context, modelID, embedd
 		details["selected_capability"] = capabilityChat
 		return capabilityDetection{Capability: capabilityChat, ProbeDetails: details}
 	}
-	embedding := s.client.RunEmbedding(ctx, modelID, embeddingInput)
+	embedding := s.client.RunEmbedding(ctx, providerID, modelID, embeddingInput)
 	details["embedding"] = runDetails(embedding)
 	if embedding.OK && embedding.VectorDimensions != nil && *embedding.VectorDimensions > 0 {
 		details["selected_capability"] = capabilityEmbedding

@@ -13,6 +13,7 @@ import (
 // NewModelRunTask creates the Asynq task for a one-model probe run.
 func NewModelRunTask(model store.RunnableModel, reason string) (*asynq.Task, error) {
 	payload, err := shared.MarshalModelRunPayload(shared.ModelRunPayload{
+		ProviderID:  model.ProviderID,
 		ModelID:     model.ModelID,
 		Capability:  model.Capability,
 		RequestedAt: time.Now().UTC(),
@@ -27,6 +28,7 @@ func NewModelRunTask(model store.RunnableModel, reason string) (*asynq.Task, err
 // NewScheduledModelRunTask creates a stable periodic model-run task config.
 func NewScheduledModelRunTask(model store.RunnableModel) (*asynq.Task, error) {
 	payload, err := shared.MarshalModelRunPayload(shared.ModelRunPayload{
+		ProviderID: model.ProviderID,
 		ModelID:    model.ModelID,
 		Capability: model.Capability,
 		Reason:     "scheduled",
@@ -43,5 +45,5 @@ func (c *Client) EnqueueModelRun(ctx context.Context, model store.RunnableModel,
 	if err != nil {
 		return EnqueuedTask{}, err
 	}
-	return c.enqueue(ctx, task, model.ModelID)
+	return c.enqueue(ctx, task, model.ProviderID, model.ModelID)
 }

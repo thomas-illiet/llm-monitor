@@ -21,7 +21,7 @@ type dashboardChartConfig struct {
 
 const (
 	authProviderLatencyLabel = "Auth provider"
-	targetHTTPLatencyLabel   = "Target HTTP"
+	providerHTTPLatencyLabel = "Provider HTTP"
 )
 
 var dashboardCharts = []dashboardChartConfig{
@@ -159,8 +159,8 @@ func (r *Router) buildHTTPCheckLatencyChart(ctx context.Context, cfg dashboardCh
 		response.Error = err.Error()
 		return response
 	}
-	combined := chartSamplesWithGroup(samples, targetHTTPLatencyLabel)
-	if r.cfg.Auth.Enabled {
+	combined := chartSamplesWithGroup(samples, providerHTTPLatencyLabel)
+	if r.anyProviderAuthEnabled() {
 		authSamples, err := r.store.MetricSamples(ctx, "auth_latency_ms", cfg.GroupBy, since)
 		if err != nil {
 			response.Error = err.Error()
@@ -169,7 +169,7 @@ func (r *Router) buildHTTPCheckLatencyChart(ctx context.Context, cfg dashboardCh
 		combined = append(combined, chartSamplesWithGroup(authSamples, authProviderLatencyLabel)...)
 	}
 	response.Labels, response.Datasets = bucketSamples(combined, cfg.Models, since, now, interval, isSummedMetric(cfg.Metric))
-	response.Datasets = orderChartDatasets(response.Datasets, []string{targetHTTPLatencyLabel, authProviderLatencyLabel})
+	response.Datasets = orderChartDatasets(response.Datasets, []string{providerHTTPLatencyLabel, authProviderLatencyLabel})
 	return response
 }
 
@@ -206,19 +206,28 @@ func orderChartDatasets(datasets []ChartDataset, preferredLabels []string) []Cha
 }
 
 // buildModelChart converts one static model chart into labels and datasets.
-func (r *Router) buildModelChart(ctx context.Context, cfg dashboardChartConfig, modelID string, since, now time.Time, window time.Duration) ChartResponse {
+func (r *Router) buildModelChart(ctx context.Context, cfg dashboardChartConfig, providerID, modelID string, since, now time.Time, window time.Duration) ChartResponse {
 	interval := cfg.Interval
 	if interval == 0 {
 		interval = dashboardChartInterval(window)
 	}
 	response := ChartResponse{ID: cfg.ID, Title: cfg.Title, Type: cfg.Type, Metric: cfg.Metric}
-	samples, err := r.store.MetricSamplesForModel(ctx, cfg.Metric, cfg.GroupBy, since, modelID)
+	samples, err := r.store.MetricSamplesForModel(ctx, cfg.Metric, cfg.GroupBy, since, providerID, modelID)
 	if err != nil {
 		response.Error = err.Error()
 		return response
 	}
 	response.Labels, response.Datasets = bucketSamples(samples, nil, since, now, interval, isSummedMetric(cfg.Metric))
 	return response
+}
+
+func (r *Router) anyProviderAuthEnabled() bool {
+	for _, provider := range r.cfg.Providers {
+		if provider.Auth.Enabled {
+			return true
+		}
+	}
+	return false
 }
 
 // dashboardChartInterval keeps static dashboard charts readable across KPI ranges.

@@ -23,7 +23,7 @@ const {
   clearFilters
 } = useModelEvents({
   open,
-  modelId: () => props.modelId
+  modelIdentity: () => props.modelId
 })
 </script>
 

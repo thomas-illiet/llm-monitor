@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"regexp"
 	"strings"
 
 	"llmservicemonitor/internal/wildcard"
@@ -48,43 +49,7 @@ func (c Config) Validate() error {
 	if !isLogLevel(c.Logging.Level) {
 		problems = append(problems, "logging.level must be debug, info, warn, or error")
 	}
-	if c.Target.BaseURL == "" {
-		problems = append(problems, "target.base_url is required")
-	} else if !isAbsoluteHTTPURL(c.Target.BaseURL) {
-		problems = append(problems, "target.base_url must be an absolute http or https URL")
-	}
-	if !isHTTPPathOrURL(c.Target.HTTPCheckPath) {
-		problems = append(problems, "target.http_check_path must start with / or be an absolute http or https URL")
-	}
-	if !isHTTPPathOrURL(c.Target.Endpoints.Models) {
-		problems = append(problems, "target.endpoints.models must start with / or be an absolute http or https URL")
-	}
-	if !isHTTPPathOrURL(c.Target.Endpoints.Chat) {
-		problems = append(problems, "target.endpoints.chat must start with / or be an absolute http or https URL")
-	}
-	if !isHTTPPathOrURL(c.Target.Endpoints.Embeddings) {
-		problems = append(problems, "target.endpoints.embeddings must start with / or be an absolute http or https URL")
-	}
-	if c.Target.Retry.MaxRetries != nil && *c.Target.Retry.MaxRetries < 0 {
-		problems = append(problems, "target.retry.max_retries must be greater than or equal to 0")
-	}
-	if c.Target.Retry.EnabledValue() {
-		if c.Target.Retry.WaitMin.Duration <= 0 {
-			problems = append(problems, "target.retry.wait_min must be greater than 0 when retry is enabled")
-		}
-		if c.Target.Retry.WaitMax.Duration <= 0 {
-			problems = append(problems, "target.retry.wait_max must be greater than 0 when retry is enabled")
-		}
-		if c.Target.Retry.WaitMax.Duration < c.Target.Retry.WaitMin.Duration {
-			problems = append(problems, "target.retry.wait_max must be greater than or equal to target.retry.wait_min")
-		}
-	}
-	if c.Auth.Enabled && c.Auth.TokenURL == "" {
-		problems = append(problems, "auth.token_url is required when auth.enabled=true")
-	}
-	if c.Auth.ClientAuthMethod != "client_secret_basic" && c.Auth.ClientAuthMethod != "client_secret_post" {
-		problems = append(problems, "auth.client_auth_method must be client_secret_basic or client_secret_post")
-	}
+	providerIDs := validateProviders(c.Providers, &problems)
 	if c.SMTP.Enabled {
 		if c.SMTP.Host == "" {
 			problems = append(problems, "smtp.host is required when smtp.enabled=true")
@@ -107,7 +72,7 @@ func (c Config) Validate() error {
 	if c.Retention.History.Duration < 0 {
 		problems = append(problems, "retention.history must be greater than or equal to 0")
 	}
-	validateModelRunOverrides(c.Schedules.ModelRunOverrides, &problems)
+	validateModelRunOverrides(c.Schedules.ModelRunOverrides, providerIDs, &problems)
 	if c.Dashboard.SiteURL != "" {
 		parsed, err := url.Parse(c.Dashboard.SiteURL)
 		if err != nil || parsed.Scheme == "" || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
@@ -120,10 +85,84 @@ func (c Config) Validate() error {
 	return nil
 }
 
-func validateModelRunOverrides(overrides []ModelRunScheduleOverride, problems *[]string) {
+var providerIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._~-]*$`)
+
+func validateProviders(providers []ProviderConfig, problems *[]string) map[string]struct{} {
+	seen := map[string]struct{}{}
+	if len(providers) == 0 {
+		*problems = append(*problems, "providers is required")
+		return seen
+	}
+	for i, provider := range providers {
+		prefix := fmt.Sprintf("providers[%d]", i)
+		id := strings.TrimSpace(provider.ID)
+		if id == "" {
+			*problems = append(*problems, prefix+".id is required")
+		} else if !providerIDPattern.MatchString(id) {
+			*problems = append(*problems, prefix+".id must be a URL-safe slug")
+		} else if _, exists := seen[id]; exists {
+			*problems = append(*problems, prefix+".id must be unique")
+		} else {
+			seen[id] = struct{}{}
+		}
+		if provider.BaseURL == "" {
+			*problems = append(*problems, prefix+".base_url is required")
+		} else if !isAbsoluteHTTPURL(provider.BaseURL) {
+			*problems = append(*problems, prefix+".base_url must be an absolute http or https URL")
+		}
+		validateProviderEndpoint(prefix+".http_check_path", provider.HTTPCheckPath, problems)
+		validateProviderEndpoint(prefix+".endpoints.models", provider.Endpoints.Models, problems)
+		validateProviderEndpoint(prefix+".endpoints.chat", provider.Endpoints.Chat, problems)
+		validateProviderEndpoint(prefix+".endpoints.embeddings", provider.Endpoints.Embeddings, problems)
+		validateProviderRetry(prefix+".retry", provider.Retry, problems)
+		validateProviderAuth(prefix+".auth", provider.Auth, problems)
+	}
+	return seen
+}
+
+func validateProviderEndpoint(name, value string, problems *[]string) {
+	if !isHTTPPathOrURL(value) {
+		*problems = append(*problems, name+" must start with / or be an absolute http or https URL")
+	}
+}
+
+func validateProviderRetry(prefix string, retry RetryConfig, problems *[]string) {
+	if retry.MaxRetries != nil && *retry.MaxRetries < 0 {
+		*problems = append(*problems, prefix+".max_retries must be greater than or equal to 0")
+	}
+	if !retry.EnabledValue() {
+		return
+	}
+	if retry.WaitMin.Duration <= 0 {
+		*problems = append(*problems, prefix+".wait_min must be greater than 0 when retry is enabled")
+	}
+	if retry.WaitMax.Duration <= 0 {
+		*problems = append(*problems, prefix+".wait_max must be greater than 0 when retry is enabled")
+	}
+	if retry.WaitMax.Duration < retry.WaitMin.Duration {
+		*problems = append(*problems, prefix+".wait_max must be greater than or equal to "+prefix+".wait_min")
+	}
+}
+
+func validateProviderAuth(prefix string, auth AuthConfig, problems *[]string) {
+	if auth.Enabled && auth.TokenURL == "" {
+		*problems = append(*problems, prefix+".token_url is required when enabled=true")
+	}
+	if auth.ClientAuthMethod != "client_secret_basic" && auth.ClientAuthMethod != "client_secret_post" {
+		*problems = append(*problems, prefix+".client_auth_method must be client_secret_basic or client_secret_post")
+	}
+}
+
+func validateModelRunOverrides(overrides []ModelRunScheduleOverride, providerIDs map[string]struct{}, problems *[]string) {
 	for i, override := range overrides {
 		modelID := strings.TrimSpace(override.ModelID)
 		pattern := strings.TrimSpace(override.Pattern)
+		providerID := strings.TrimSpace(override.ProviderID)
+		if providerID != "" {
+			if _, ok := providerIDs[providerID]; !ok {
+				*problems = append(*problems, fmt.Sprintf("schedules.model_run_overrides[%d].provider_id must reference a configured provider", i))
+			}
+		}
 		switch {
 		case modelID == "" && pattern == "":
 			*problems = append(*problems, fmt.Sprintf("schedules.model_run_overrides[%d] requires model_id or pattern", i))

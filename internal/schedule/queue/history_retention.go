@@ -15,5 +15,5 @@ func NewHistoryRetentionTask() *asynq.Task {
 
 // EnqueueHistoryRetention enqueues a manual/startup history pruning run.
 func (c *Client) EnqueueHistoryRetention(ctx context.Context) (EnqueuedTask, error) {
-	return c.enqueue(ctx, NewHistoryRetentionTask(), "")
+	return c.enqueue(ctx, NewHistoryRetentionTask(), "", "")
 }

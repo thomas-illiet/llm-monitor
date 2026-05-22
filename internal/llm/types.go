@@ -15,6 +15,95 @@ type TokenProvider interface {
 	Token(ctx context.Context) (string, time.Time, error)
 }
 
+// ProviderInfo is the non-secret runtime identity of one configured provider.
+type ProviderInfo struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+// ProviderClients dispatches OpenAI-compatible calls to provider-specific clients.
+type ProviderClients struct {
+	order     []ProviderInfo
+	providers map[string]ProviderInfo
+	byID      map[string]*Client
+}
+
+// Providers returns provider metadata in config order.
+func (c *ProviderClients) Providers() []ProviderInfo {
+	if c == nil {
+		return nil
+	}
+	return append([]ProviderInfo(nil), c.order...)
+}
+
+// ProviderIDs returns configured provider IDs in config order.
+func (c *ProviderClients) ProviderIDs() []string {
+	if c == nil {
+		return nil
+	}
+	ids := make([]string, 0, len(c.order))
+	for _, provider := range c.order {
+		ids = append(ids, provider.ID)
+	}
+	return ids
+}
+
+func (c *ProviderClients) client(providerID string) (*Client, error) {
+	if c == nil {
+		return nil, fmt.Errorf("llm providers are not configured")
+	}
+	client := c.byID[providerID]
+	if client == nil {
+		return nil, fmt.Errorf("llm provider %q is not configured", providerID)
+	}
+	return client, nil
+}
+
+// ListModels fetches the current model inventory for one provider.
+func (c *ProviderClients) ListModels(ctx context.Context, providerID string) ([]ProviderModel, error) {
+	client, err := c.client(providerID)
+	if err != nil {
+		return nil, err
+	}
+	return client.ListModels(ctx)
+}
+
+// HealthCheck probes one provider target path.
+func (c *ProviderClients) HealthCheck(ctx context.Context, providerID string) HTTPCheckResult {
+	client, err := c.client(providerID)
+	if err != nil {
+		return HTTPCheckResult{CheckedAt: time.Now().UTC(), Error: err.Error()}
+	}
+	return client.HealthCheck(ctx)
+}
+
+// RunChat sends a chat completion probe to one provider.
+func (c *ProviderClients) RunChat(ctx context.Context, providerID string, run ChatRequest) RunResult {
+	client, err := c.client(providerID)
+	if err != nil {
+		return RunResult{StartedAt: time.Now().UTC(), Error: err.Error()}
+	}
+	return client.RunChat(ctx, run)
+}
+
+// RunChatStream sends a streaming chat probe to one provider.
+func (c *ProviderClients) RunChatStream(ctx context.Context, providerID string, run ChatRequest) RunResult {
+	client, err := c.client(providerID)
+	if err != nil {
+		return RunResult{StartedAt: time.Now().UTC(), Error: err.Error()}
+	}
+	return client.RunChatStream(ctx, run)
+}
+
+// RunEmbedding sends one embedding probe to one provider.
+func (c *ProviderClients) RunEmbedding(ctx context.Context, providerID, model, input string) RunResult {
+	client, err := c.client(providerID)
+	if err != nil {
+		return RunResult{StartedAt: time.Now().UTC(), Error: err.Error()}
+	}
+	return client.RunEmbedding(ctx, model, input)
+}
+
 // Client calls an OpenAI-compatible LLM service and normalizes probe metrics.
 type Client struct {
 	baseURL            *url.URL

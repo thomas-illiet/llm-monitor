@@ -21,7 +21,7 @@ import (
 )
 
 // targetHTTPClient creates the outbound client used by all LLM API requests.
-func targetHTTPClient(cfg config.TargetConfig) (*http.Client, error) {
+func targetHTTPClient(cfg config.ProviderConfig) (*http.Client, error) {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	var tlsConfig *tls.Config
 	if cfg.CAFile != "" {

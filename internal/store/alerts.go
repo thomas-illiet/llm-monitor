@@ -5,9 +5,10 @@ import "context"
 const emailAlertExistsSQL = `SELECT EXISTS(SELECT 1 FROM email_alerts WHERE alert_key=$1 AND error='')`
 
 const recordEmailAlertSQL = `
-	INSERT INTO email_alerts(alert_key, model_id, alert_type, sent_at, subject, recipients, error)
-	VALUES($1, $2, $3, $4, $5, $6, $7)
+	INSERT INTO email_alerts(alert_key, provider_id, model_id, alert_type, sent_at, subject, recipients, error)
+	VALUES($1, $2, $3, $4, $5, $6, $7, $8)
 	ON CONFLICT(alert_key) DO UPDATE SET
+		provider_id=EXCLUDED.provider_id,
 		model_id=EXCLUDED.model_id,
 		alert_type=EXCLUDED.alert_type,
 		sent_at=EXCLUDED.sent_at,
@@ -30,14 +31,14 @@ func (s *Store) RecordEmailAlert(ctx context.Context, record EmailAlertRecord) e
 	if recipients == nil {
 		recipients = []string{}
 	}
-	_, err := s.pool.Exec(ctx, recordEmailAlertSQL, record.AlertKey, record.ModelID, record.Type, record.SentAt, record.Subject, recipients, record.Error)
+	_, err := s.pool.Exec(ctx, recordEmailAlertSQL, record.AlertKey, record.ProviderID, record.ModelID, record.Type, record.SentAt, record.Subject, recipients, record.Error)
 	return err
 }
 
 // RecentAlerts returns the latest alert emails for model lifecycle changes.
 func (s *Store) RecentAlerts(ctx context.Context, limit int) ([]RecentAlert, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT model_id, alert_type, sent_at, subject, recipients, error
+		SELECT provider_id, model_id, alert_type, sent_at, subject, recipients, error
 		FROM email_alerts
 		ORDER BY sent_at DESC
 		LIMIT $1
@@ -49,7 +50,7 @@ func (s *Store) RecentAlerts(ctx context.Context, limit int) ([]RecentAlert, err
 	var alerts []RecentAlert
 	for rows.Next() {
 		var alert RecentAlert
-		if err := rows.Scan(&alert.ModelID, &alert.Type, &alert.SentAt, &alert.Subject, &alert.Recipients, &alert.Error); err != nil {
+		if err := rows.Scan(&alert.ProviderID, &alert.ModelID, &alert.Type, &alert.SentAt, &alert.Subject, &alert.Recipients, &alert.Error); err != nil {
 			return nil, err
 		}
 		alerts = append(alerts, alert)

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { formatTimelineDateTime } from '@/features/dashboard/utils/formatters'
+import { modelIdentity } from '@/features/dashboard/utils/modelInventory'
 import type { ModelEvent } from '@/types'
 
 const props = defineProps<{
@@ -8,7 +9,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  openEvents: [modelId: string]
+  openEvents: [modelIdentity: string]
 }>()
 
 const visibleEvents = computed(() => props.events.slice(0, 15))
@@ -46,8 +47,8 @@ function eventColor(event: ModelEvent) {
         <button
           class="model-events-timeline-card__button"
           type="button"
-          :aria-label="`Open events for ${event.model_id}`"
-          @click="emit('openEvents', event.model_id)"
+          :aria-label="`Open events for ${event.provider_id}/${event.model_id}`"
+          @click="emit('openEvents', modelIdentity(event))"
         >
           <span class="model-events-timeline-card__rail" aria-hidden="true">
             <span class="model-events-timeline-card__dot" :class="`model-events-timeline-card__dot--${eventColor(event)}`" />
@@ -60,7 +61,7 @@ function eventColor(event: ModelEvent) {
               </VChip>
               <span>{{ event.source }}</span>
             </span>
-            <span class="model-events-timeline-card__model model-name">{{ event.model_id }}</span>
+            <span class="model-events-timeline-card__model model-name">{{ event.provider_id }}/{{ event.model_id }}</span>
             <strong>{{ event.title }}</strong>
             <span>{{ event.message }}</span>
           </span>

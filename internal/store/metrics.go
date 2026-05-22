@@ -69,16 +69,16 @@ func (s *Store) ModelStatusSamples(ctx context.Context, since time.Time) ([]Metr
 
 // KPISummary aggregates recent GuideLLM-style latency, throughput, SLO, and token metrics.
 func (s *Store) KPISummary(ctx context.Context, since time.Time, slo SLOThresholds) (KPISummary, error) {
-	return s.kpiSummary(ctx, since, slo, "")
+	return s.kpiSummary(ctx, since, slo, "", "")
 }
 
 // KPISummaryForModel aggregates recent latency, throughput, SLO, and token metrics for one model.
-func (s *Store) KPISummaryForModel(ctx context.Context, modelID string, since time.Time, slo SLOThresholds) (KPISummary, error) {
-	return s.kpiSummary(ctx, since, slo, modelID)
+func (s *Store) KPISummaryForModel(ctx context.Context, providerID, modelID string, since time.Time, slo SLOThresholds) (KPISummary, error) {
+	return s.kpiSummary(ctx, since, slo, providerID, modelID)
 }
 
 // kpiSummary runs the KPI aggregate query, optionally scoped to a model ID.
-func (s *Store) kpiSummary(ctx context.Context, since time.Time, slo SLOThresholds, modelID string) (KPISummary, error) {
+func (s *Store) kpiSummary(ctx context.Context, since time.Time, slo SLOThresholds, providerID, modelID string) (KPISummary, error) {
 	var summary KPISummary
 	var requestP50, requestP90, requestP95, requestP99 pgtype.Float8
 	var ttftP50, ttftP90, ttftP95, ttftP99 pgtype.Float8
@@ -88,6 +88,7 @@ func (s *Store) kpiSummary(ctx context.Context, since time.Time, slo SLOThreshol
 	err := s.pool.QueryRow(ctx, `
 			WITH runs AS (
 				SELECT
+					provider_id,
 					model_id,
 					ok,
 					COALESCE(request_latency_ms, latency_ms) AS request_latency_ms,
@@ -97,9 +98,10 @@ func (s *Store) kpiSummary(ctx context.Context, since time.Time, slo SLOThreshol
 				input_tokens,
 				output_tokens,
 				output_tokens_per_second
-				FROM chat_runs WHERE started_at >= $1 AND ($5 = '' OR model_id = $5)
+				FROM chat_runs WHERE started_at >= $1 AND ($5 = '' OR provider_id = $5) AND ($6 = '' OR model_id = $6)
 				UNION ALL
 				SELECT
+					provider_id,
 					model_id,
 					ok,
 					latency_ms AS request_latency_ms,
@@ -109,7 +111,7 @@ func (s *Store) kpiSummary(ctx context.Context, since time.Time, slo SLOThreshol
 				input_tokens,
 				NULL::integer AS output_tokens,
 				NULL::double precision AS output_tokens_per_second
-			FROM embedding_runs WHERE started_at >= $1 AND ($5 = '' OR model_id = $5)
+			FROM embedding_runs WHERE started_at >= $1 AND ($5 = '' OR provider_id = $5) AND ($6 = '' OR model_id = $6)
 		),
 		classified AS (
 			SELECT *,
@@ -142,12 +144,12 @@ func (s *Store) kpiSummary(ctx context.Context, since time.Time, slo SLOThreshol
 			percentile_cont(0.99) WITHIN GROUP (ORDER BY tpot_ms) FILTER (WHERE tpot_ms IS NOT NULL),
 			AVG(output_tokens_per_second) FILTER (WHERE output_tokens_per_second IS NOT NULL),
 			COUNT(*) FILTER (WHERE slo_violation),
-			COUNT(DISTINCT model_id) FILTER (WHERE slo_violation),
+			COUNT(DISTINCT provider_id || ':' || model_id) FILTER (WHERE slo_violation),
 			COUNT(*) FILTER (WHERE NOT ok),
 			COALESCE(SUM(input_tokens), 0),
 			COALESCE(SUM(output_tokens), 0)
 		FROM classified
-	`, since, slo.TTFTP99MS, slo.ITLP99MS, slo.RequestLatencyP99MS, modelID).Scan(
+	`, since, slo.TTFTP99MS, slo.ITLP99MS, slo.RequestLatencyP99MS, providerID, modelID).Scan(
 		&summary.TotalRuns,
 		&summary.SuccessRate,
 		&requestP50,
@@ -209,21 +211,21 @@ func safeFloat(value pgtype.Float8) float64 {
 
 // MetricSamples loads raw metric points used to build configured chart series.
 func (s *Store) MetricSamples(ctx context.Context, metric, groupBy string, since time.Time) ([]MetricSample, error) {
-	return s.metricSamples(ctx, metric, groupBy, since, "")
+	return s.metricSamples(ctx, metric, groupBy, since, "", "")
 }
 
 // MetricSamplesForModel loads raw metric points for one model.
-func (s *Store) MetricSamplesForModel(ctx context.Context, metric, groupBy string, since time.Time, modelID string) ([]MetricSample, error) {
-	return s.metricSamples(ctx, metric, groupBy, since, modelID)
+func (s *Store) MetricSamplesForModel(ctx context.Context, metric, groupBy string, since time.Time, providerID, modelID string) ([]MetricSample, error) {
+	return s.metricSamples(ctx, metric, groupBy, since, providerID, modelID)
 }
 
 // metricSamples loads raw metric points, optionally scoped to a model ID.
-func (s *Store) metricSamples(ctx context.Context, metric, groupBy string, since time.Time, modelID string) ([]MetricSample, error) {
+func (s *Store) metricSamples(ctx context.Context, metric, groupBy string, since time.Time, providerID, modelID string) ([]MetricSample, error) {
 	query, err := metricQuery(metric, groupBy)
 	args := []any{since}
 	if modelID != "" {
 		query, err = metricQueryForModel(metric, groupBy)
-		args = append(args, modelID)
+		args = append(args, providerID, modelID)
 	}
 	if err != nil {
 		return nil, err
@@ -236,7 +238,7 @@ func (s *Store) metricSamples(ctx context.Context, metric, groupBy string, since
 	var samples []MetricSample
 	for rows.Next() {
 		var sample MetricSample
-		if err := rows.Scan(&sample.At, &sample.ModelID, &sample.Capability, &sample.Group, &sample.Value); err != nil {
+		if err := rows.Scan(&sample.At, &sample.ProviderID, &sample.ModelID, &sample.Capability, &sample.Group, &sample.Value); err != nil {
 			return nil, err
 		}
 		samples = append(samples, sample)
@@ -253,6 +255,7 @@ func (s *Store) ModelPerformance(ctx context.Context, query ModelPerformanceQuer
 	rows, err := s.pool.Query(ctx, `
 		WITH runs AS (
 			SELECT
+				provider_id,
 				model_id,
 				started_at,
 				ok,
@@ -263,6 +266,7 @@ func (s *Store) ModelPerformance(ctx context.Context, query ModelPerformanceQuer
 			WHERE started_at >= $1
 			UNION ALL
 			SELECT
+				provider_id,
 				model_id,
 				started_at,
 				ok,
@@ -274,6 +278,7 @@ func (s *Store) ModelPerformance(ctx context.Context, query ModelPerformanceQuer
 		),
 		aggregated AS (
 			SELECT
+				provider_id,
 				model_id,
 				COUNT(*) AS runs,
 				COALESCE(AVG(CASE WHEN ok THEN 1.0 ELSE 0.0 END), 0) AS success_rate,
@@ -285,18 +290,20 @@ func (s *Store) ModelPerformance(ctx context.Context, query ModelPerformanceQuer
 				MIN(started_at) AS first_run_at,
 				MAX(started_at) AS last_run_at
 			FROM runs
-			GROUP BY model_id
+			GROUP BY provider_id, model_id
 		),
 		latest_errors AS (
-			SELECT DISTINCT ON (model_id)
+			SELECT DISTINCT ON (provider_id, model_id)
+				provider_id,
 				model_id,
 				status_code,
 				error
 			FROM runs
 			WHERE NOT ok
-			ORDER BY model_id, started_at DESC
+			ORDER BY provider_id, model_id, started_at DESC
 		)
 		SELECT
+			aggregated.provider_id,
 			aggregated.model_id,
 			aggregated.runs,
 			aggregated.success_rate,
@@ -310,7 +317,7 @@ func (s *Store) ModelPerformance(ctx context.Context, query ModelPerformanceQuer
 			latest_errors.status_code,
 			latest_errors.error
 		FROM aggregated
-		LEFT JOIN latest_errors ON latest_errors.model_id = aggregated.model_id
+		LEFT JOIN latest_errors ON latest_errors.provider_id = aggregated.provider_id AND latest_errors.model_id = aggregated.model_id
 		ORDER BY `+orderBy+`
 		LIMIT $2
 	`, query.Since, query.Limit)
@@ -326,6 +333,7 @@ func (s *Store) ModelPerformance(ctx context.Context, query ModelPerformanceQuer
 		var latestStatus pgtype.Int4
 		var latestError pgtype.Text
 		if err := rows.Scan(
+			&row.ProviderID,
 			&row.ModelID,
 			&row.Runs,
 			&row.SuccessRate,
@@ -345,6 +353,7 @@ func (s *Store) ModelPerformance(ctx context.Context, query ModelPerformanceQuer
 		row.P50LatencyMS = safeFloat(p50Latency)
 		row.P95LatencyMS = safeFloat(p95Latency)
 		row.P99LatencyMS = safeFloat(p99Latency)
+		row.ModelKey = ModelKey(row.ModelID)
 		if latestStatus.Valid || latestError.Valid {
 			row.LatestError = &ModelPerformanceError{
 				StatusCode: int(latestStatus.Int32),
@@ -409,7 +418,7 @@ func metricQueryWithModelScope(metric, groupBy string, modelScoped bool) (string
 	case "", "none":
 		groupExpr = "'all'"
 	case "model":
-		groupExpr = "model_id"
+		groupExpr = "provider_id || '/' || model_id"
 	case "capability":
 		groupExpr = "capability"
 	case "check":
@@ -422,7 +431,7 @@ func metricQueryWithModelScope(metric, groupBy string, modelScoped bool) (string
 			return "", fmt.Errorf("unsupported model-scoped chart metric %q", metric)
 		}
 		return fmt.Sprintf(`
-			SELECT checked_at AS at, 'auth' AS model_id, 'auth' AS capability, 'auth' AS sample_group, %s AS value
+			SELECT checked_at AS at, provider_id, provider_id AS model_id, 'auth' AS capability, provider_id AS sample_group, %s AS value
 			FROM auth_checks
 			WHERE checked_at >= $1
 			ORDER BY checked_at ASC
@@ -433,7 +442,7 @@ func metricQueryWithModelScope(metric, groupBy string, modelScoped bool) (string
 			return "", fmt.Errorf("unsupported model-scoped chart metric %q", metric)
 		}
 		return fmt.Sprintf(`
-			SELECT checked_at AS at, 'http' AS model_id, 'http' AS capability, 'http' AS sample_group, %s AS value
+			SELECT checked_at AS at, provider_id, provider_id AS model_id, 'http' AS capability, provider_id AS sample_group, %s AS value
 			FROM http_checks
 			WHERE checked_at >= $1
 			ORDER BY checked_at ASC
@@ -447,13 +456,14 @@ func metricQueryWithModelScope(metric, groupBy string, modelScoped bool) (string
 	chatWhere := "c.started_at >= $1"
 	embeddingWhere := "e.started_at >= $1"
 	if modelScoped {
-		chatWhere += " AND c.model_id = $2"
-		embeddingWhere += " AND e.model_id = $2"
+		chatWhere += " AND c.provider_id = $2 AND c.model_id = $3"
+		embeddingWhere += " AND e.provider_id = $2 AND e.model_id = $3"
 	}
 	return fmt.Sprintf(`
 		WITH runs AS (
 			SELECT
 				c.started_at AS at,
+				c.provider_id,
 				c.model_id,
 				COALESCE(m.capability, 'chat') AS capability,
 				c.ok,
@@ -466,11 +476,12 @@ func metricQueryWithModelScope(metric, groupBy string, modelScoped bool) (string
 				c.output_tokens_per_second,
 				NULL::integer AS vector_dimensions
 			FROM chat_runs c
-			LEFT JOIN model_states m ON m.model_id = c.model_id
+			LEFT JOIN model_states m ON m.provider_id = c.provider_id AND m.model_id = c.model_id
 			WHERE %s
 			UNION ALL
 			SELECT
 				e.started_at AS at,
+				e.provider_id,
 				e.model_id,
 				COALESCE(m.capability, 'embedding') AS capability,
 				e.ok,
@@ -483,10 +494,10 @@ func metricQueryWithModelScope(metric, groupBy string, modelScoped bool) (string
 				NULL::double precision AS output_tokens_per_second,
 				e.vector_dimensions
 			FROM embedding_runs e
-			LEFT JOIN model_states m ON m.model_id = e.model_id
+			LEFT JOIN model_states m ON m.provider_id = e.provider_id AND m.model_id = e.model_id
 			WHERE %s
 		)
-		SELECT at, model_id, capability, %s AS sample_group, %s AS value
+		SELECT at, provider_id, model_id, capability, %s AS sample_group, %s AS value
 		FROM runs
 		WHERE %s
 		ORDER BY at ASC

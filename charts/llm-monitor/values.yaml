@@ -76,44 +76,47 @@ config:
   # tls:
   #   insecure_skip_verify: true
 
-  target:
-    name: "production-llm"
-    base_url: "https://llm.example.com"
-    # Optional legacy health-check override. Defaults to target.endpoints.models.
-    # http_check_path: "/v1/models"
-    endpoints:
-      models: "/v1/models"
-      chat: "/v1/chat/completions"
-      embeddings: "/v1/embeddings"
-    timeout: "30s"
-    # ca_file: "/run/certs/llm-api-ca.crt"
-    # Set with --set-string config.target.api_key=... to render inline in config.yaml.
-    # api_key: ""
-    retry:
-      enabled: true
-      max_retries: 2
-      wait_min: "500ms"
-      wait_max: "5s"
-
-  auth:
-    enabled: false
-    token_url: "https://auth.example.com/oauth2/token"
-    client_id: "llm-monitor"
-    # Set with --set-string config.auth.client_secret=... to render inline in config.yaml.
-    # client_secret: ""
-    client_auth_method: "client_secret_basic"
-    scopes: []
-    audience: ""
-    timeout: "10s"
-    refresh_skew: "30s"
-    mtls:
-      cert_file: "/run/certs/client.crt"
-      # Base64-encoded data rendered into the cert Secret with --set-string.
-      cert_file_data: ""
-      key_file: "/run/certs/client.key"
-      # Base64-encoded data rendered into the cert Secret with --set-string.
-      key_file_data: ""
-      ca_file: "/run/certs/ca.crt"
+  providers:
+    - id: "production"
+      name: "production-llm"
+      base_url: "https://llm.example.com"
+      # Optional health-check override. Defaults to endpoints.models.
+      # http_check_path: "/v1/models"
+      endpoints:
+        models: "/v1/models"
+        chat: "/v1/chat/completions"
+        embeddings: "/v1/embeddings"
+      timeout: "30s"
+      # ca_file: "/run/certs/llm-api-ca.crt"
+      # For provider secrets, prefer a private values file or override the full
+      # config.providers array with --set-json. Helm --set on list items replaces
+      # the whole provider object.
+      # api_key: ""
+      retry:
+        enabled: true
+        max_retries: 2
+        wait_min: "500ms"
+        wait_max: "5s"
+      auth:
+        enabled: false
+        token_url: "https://auth.example.com/oauth2/token"
+        client_id: "llm-monitor"
+        # For auth secrets, prefer a private values file or override the full
+        # config.providers array with --set-json.
+        # client_secret: ""
+        client_auth_method: "client_secret_basic"
+        scopes: []
+        audience: ""
+        timeout: "10s"
+        refresh_skew: "30s"
+        mtls:
+          cert_file: "/run/certs/client.crt"
+          # Base64-encoded data rendered into the cert Secret with --set-string.
+          cert_file_data: ""
+          key_file: "/run/certs/client.key"
+          # Base64-encoded data rendered into the cert Secret with --set-string.
+          key_file_data: ""
+          ca_file: "/run/certs/ca.crt"
 
   smtp:
     enabled: false

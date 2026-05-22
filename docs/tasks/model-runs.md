@@ -9,16 +9,16 @@ runnable model.
 
 - Config key: `schedules.model_runs`
 - Default interval: `15m`
-- Per-model overrides: `schedules.model_run_overrides` with exact `model_id` or
-  wildcard `pattern`.
+- Per-model overrides: `schedules.model_run_overrides` with optional `provider_id`
+  plus exact `model_id` or wildcard `pattern`.
 - Startup behavior: the scheduler creates one periodic entry for each active
   runnable model loaded from PostgreSQL.
-- Payload: `model_id`, `capability`, optional `requested_at`, and `reason`.
+- Payload: `provider_id`, `model_id`, `capability`, optional `requested_at`, and `reason`.
 
 ## Inputs
 
 - Active, non-excluded runnable models from `model_states`.
-- `target.endpoints.chat` and `target.endpoints.embeddings`, defaulting to the
+- `providers[].endpoints.chat` and `providers[].endpoints.embeddings`, defaulting to the
   OpenAI-compatible routes.
 - `asynq.worker_concurrency` to bound parallel queued work per worker.
 - `tests.chat_prompts`: prompt IDs, prompt text, max token limits, and temperatures
@@ -45,6 +45,7 @@ endpoint. If no fixture path is configured, a small built-in fixture string is u
 
 Chat probe results are inserted into `chat_runs`:
 
+- `provider_id`
 - `model_id`
 - `prompt_id`
 - `started_at`
@@ -63,6 +64,7 @@ Chat probe results are inserted into `chat_runs`:
 
 Embedding probe results are inserted into `embedding_runs`:
 
+- `provider_id`
 - `model_id`
 - `fixture_path`
 - `fixture_bytes`

@@ -20,23 +20,27 @@ type modelRunClient struct {
 	results map[string]llm.RunResult
 }
 
-func (c *modelRunClient) ListModels(context.Context) ([]llm.ProviderModel, error) {
+func (c *modelRunClient) ProviderIDs() []string {
+	return []string{"openai"}
+}
+
+func (c *modelRunClient) ListModels(context.Context, string) ([]llm.ProviderModel, error) {
 	return nil, nil
 }
 
-func (c *modelRunClient) HealthCheck(context.Context) llm.HTTPCheckResult {
+func (c *modelRunClient) HealthCheck(context.Context, string) llm.HTTPCheckResult {
 	return llm.HTTPCheckResult{}
 }
 
-func (c *modelRunClient) RunChat(_ context.Context, run llm.ChatRequest) llm.RunResult {
+func (c *modelRunClient) RunChat(_ context.Context, _ string, run llm.ChatRequest) llm.RunResult {
 	return c.resultFor(run.Model)
 }
 
-func (c *modelRunClient) RunChatStream(_ context.Context, run llm.ChatRequest) llm.RunResult {
+func (c *modelRunClient) RunChatStream(_ context.Context, _ string, run llm.ChatRequest) llm.RunResult {
 	return c.resultFor(run.Model)
 }
 
-func (c *modelRunClient) RunEmbedding(context.Context, string, string) llm.RunResult {
+func (c *modelRunClient) RunEmbedding(context.Context, string, string, string) llm.RunResult {
 	return llm.RunResult{}
 }
 
@@ -87,8 +91,8 @@ func (r *spacingRunRepository) ReserveTaskStart(_ context.Context, key string, e
 func TestRunModelTestsRecordsHealthyModelWhenAnotherModelReturnsBadRequest(t *testing.T) {
 	plan := shared.NewMemoryModelPlanStore()
 	plan.Store([]shared.ModelPlanItem{
-		{ID: "broken-gateway-model", Capability: capabilityChat},
-		{ID: "healthy-chat-model", Capability: capabilityChat},
+		{ProviderID: "openai", ID: "broken-gateway-model", Capability: capabilityChat},
+		{ProviderID: "openai", ID: "healthy-chat-model", Capability: capabilityChat},
 	})
 	repo := &recordingRunRepository{}
 	service := newService(shared.Dependencies{
@@ -132,7 +136,7 @@ func TestRunModelTestsRecordsHealthyModelWhenAnotherModelReturnsBadRequest(t *te
 
 func TestRunModelTestsRemovesServiceUnavailableModelFromPlan(t *testing.T) {
 	plan := shared.NewMemoryModelPlanStore()
-	plan.Store([]shared.ModelPlanItem{{ID: "unavailable-model", Capability: capabilityChat}})
+	plan.Store([]shared.ModelPlanItem{{ProviderID: "openai", ID: "unavailable-model", Capability: capabilityChat}})
 	repo := &recordingRunRepository{}
 	service := newService(shared.Dependencies{
 		Config: config.Config{
@@ -188,7 +192,7 @@ func TestRunModelTestReservesSpacingForScheduledRunsOnly(t *testing.T) {
 	if len(repo.reserveCalls) != 1 {
 		t.Fatalf("reserve calls = %#v, want one scheduled reservation", repo.reserveCalls)
 	}
-	if repo.reserveCalls[0].key != shared.ModelRunTaskName || repo.reserveCalls[0].spacing != shared.ModelRunSpacing {
+	if repo.reserveCalls[0].key != shared.ModelRunTaskName+":openai" || repo.reserveCalls[0].spacing != shared.ModelRunSpacing {
 		t.Fatalf("reserve call = %#v, want model run spacing", repo.reserveCalls[0])
 	}
 }
@@ -200,6 +204,7 @@ func modelRunTaskContext(t *testing.T, modelID, capability string) runner.TaskCo
 func modelRunTaskContextWithReason(t *testing.T, modelID, capability, reason string) runner.TaskContext {
 	t.Helper()
 	payload, err := shared.MarshalModelRunPayload(shared.ModelRunPayload{
+		ProviderID: "openai",
 		ModelID:    modelID,
 		Capability: capability,
 		Reason:     reason,

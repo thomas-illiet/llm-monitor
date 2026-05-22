@@ -40,13 +40,13 @@ func main() {
 		os.Exit(1)
 	}
 	defer taskQueue.Close()
-	if _, err := taskQueue.EnqueueHTTPCheck(ctx); err != nil {
+	if _, err := taskQueue.EnqueueHTTPCheck(ctx, ""); err != nil {
 		logger.Error("enqueue startup http check", "error", err)
 	}
-	if _, err := taskQueue.EnqueueAuthCheck(ctx); err != nil {
+	if _, err := taskQueue.EnqueueAuthCheck(ctx, ""); err != nil {
 		logger.Error("enqueue startup auth check", "error", err)
 	}
-	if _, err := taskQueue.EnqueueModelSnapshot(ctx); err != nil {
+	if _, err := taskQueue.EnqueueModelSnapshot(ctx, ""); err != nil {
 		logger.Error("enqueue startup model snapshot", "error", err)
 	}
 	if cfg.Retention.History.Duration > 0 {

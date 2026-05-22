@@ -18,6 +18,7 @@ type Store struct {
 
 // ObservedModel is one model returned by the current inventory snapshot.
 type ObservedModel struct {
+	ProviderID       string         `json:"provider_id"`
 	ID               string         `json:"id"`
 	Capability       string         `json:"capability"`
 	Excluded         bool           `json:"excluded"`
@@ -29,6 +30,7 @@ type ObservedModel struct {
 // ModelEvent is the lifecycle event data returned to alert orchestration.
 type ModelEvent struct {
 	ID              int64
+	ProviderID      string
 	ModelID         string
 	EventType       string
 	Capability      string
@@ -41,7 +43,9 @@ type ModelEvent struct {
 
 // ModelState is the persisted current state of one model.
 type ModelState struct {
+	ProviderID   string     `json:"provider_id"`
 	ModelID      string     `json:"model_id"`
+	ModelKey     string     `json:"model_key"`
 	Capability   string     `json:"capability"`
 	Excluded     bool       `json:"excluded"`
 	Status       string     `json:"status"`
@@ -61,12 +65,15 @@ type ModelDetails struct {
 
 // RunnableModel identifies one active model that can receive scheduled probes.
 type RunnableModel struct {
+	ProviderID string `json:"provider_id"`
 	ModelID    string `json:"model_id"`
+	ModelKey   string `json:"model_key"`
 	Capability string `json:"capability"`
 }
 
 // CheckRecord stores one auth or target HTTP availability check.
 type CheckRecord struct {
+	ProviderID string     `json:"provider_id"`
 	At         time.Time  `json:"at"`
 	OK         bool       `json:"ok"`
 	StatusCode int        `json:"status_code"`
@@ -77,6 +84,7 @@ type CheckRecord struct {
 
 // ChatRunRecord stores metrics captured from one chat completion probe.
 type ChatRunRecord struct {
+	ProviderID            string
 	ModelID               string
 	PromptID              string
 	StartedAt             time.Time
@@ -96,6 +104,7 @@ type ChatRunRecord struct {
 
 // EmbeddingRunRecord stores metrics captured from one embedding probe.
 type EmbeddingRunRecord struct {
+	ProviderID       string
 	ModelID          string
 	FixturePath      string
 	FixtureBytes     int
@@ -111,19 +120,22 @@ type EmbeddingRunRecord struct {
 
 // EmailAlertRecord stores one attempted or successful model alert email.
 type EmailAlertRecord struct {
-	AlertKey string
-	ModelID  string
-	Type     string
-	SentAt   time.Time
-	Subject  string
-	To       []string
-	Error    string
+	AlertKey   string
+	ProviderID string
+	ModelID    string
+	Type       string
+	SentAt     time.Time
+	Subject    string
+	To         []string
+	Error      string
 }
 
 // RecentRun is a dashboard timeline row for recent chat and embedding probes.
 type RecentRun struct {
 	Capability       string    `json:"capability"`
+	ProviderID       string    `json:"provider_id"`
 	ModelID          string    `json:"model_id"`
+	ModelKey         string    `json:"model_key"`
 	PromptID         string    `json:"prompt_id,omitempty"`
 	StartedAt        time.Time `json:"started_at"`
 	OK               bool      `json:"ok"`
@@ -141,7 +153,9 @@ type RecentRun struct {
 // LatestRun stores the newest probe telemetry for one model and capability.
 type LatestRun struct {
 	Capability            string
+	ProviderID            string
 	ModelID               string
+	ModelKey              string
 	StartedAt             time.Time
 	OK                    bool
 	StatusCode            int
@@ -159,7 +173,9 @@ type LatestRun struct {
 // RecentEvent is a dashboard timeline row for model-scoped diagnostic events.
 type RecentEvent struct {
 	ID         int64          `json:"id"`
+	ProviderID string         `json:"provider_id"`
 	ModelID    string         `json:"model_id"`
+	ModelKey   string         `json:"model_key"`
 	EventType  string         `json:"event_type"`
 	Source     string         `json:"source"`
 	Severity   string         `json:"severity"`
@@ -174,6 +190,7 @@ type RecentEvent struct {
 
 // ModelEventQuery contains filters and pagination for a model event page.
 type ModelEventQuery struct {
+	ProviderID string
 	ModelID    string
 	Limit      int
 	Offset     int
@@ -198,6 +215,7 @@ type ModelEventPage struct {
 
 // ModelEventRecord is the write model for one model-scoped diagnostic event.
 type ModelEventRecord struct {
+	ProviderID string
 	ModelID    string
 	EventType  string
 	Source     string
@@ -213,6 +231,7 @@ type ModelEventRecord struct {
 
 // RecentAlert is a dashboard row for a recent model lifecycle email alert.
 type RecentAlert struct {
+	ProviderID string    `json:"provider_id"`
 	ModelID    string    `json:"model_id"`
 	Type       string    `json:"type"`
 	SentAt     time.Time `json:"sent_at"`
@@ -262,6 +281,7 @@ type SLOThresholds struct {
 // MetricSample is a raw time-series point before API chart bucketing.
 type MetricSample struct {
 	At         time.Time
+	ProviderID string
 	ModelID    string
 	Capability string
 	Group      string
@@ -283,7 +303,9 @@ type ModelPerformanceError struct {
 
 // ModelPerformanceRow aggregates recent probe performance for one model.
 type ModelPerformanceRow struct {
+	ProviderID   string                 `json:"provider_id"`
 	ModelID      string                 `json:"model_id"`
+	ModelKey     string                 `json:"model_key"`
 	Runs         int64                  `json:"runs"`
 	SuccessRate  float64                `json:"success_rate"`
 	ErrorCount   int64                  `json:"error_count"`

@@ -32,12 +32,7 @@ func main() {
 	logger = app.NewLogger(cfg.Logging.Level)
 	logger.Info("config loaded",
 		"log_level", cfg.Logging.Level,
-		"target", cfg.Target.Name,
-		"target_base_url", cfg.Target.BaseURL,
-		"models_endpoint", cfg.Target.Endpoints.Models,
-		"chat_endpoint", cfg.Target.Endpoints.Chat,
-		"embeddings_endpoint", cfg.Target.Endpoints.Embeddings,
-		"http_check_endpoint", cfg.Target.HTTPCheckPath,
+		"providers", len(cfg.Providers),
 	)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

@@ -12,20 +12,20 @@ because no token endpoint is configured.
 - Config key: `schedules.auth_check`
 - Default interval: `60s`
 - Startup behavior: runs once immediately, then repeats on the configured interval.
-- Payload: empty JSON payload.
+- Payload: empty JSON payload for all providers, or `provider_id` for one provider.
 
 ## Inputs
 
-- `auth.enabled`: selects OAuth client credentials or static target API key mode.
-- `auth.token_url`, `auth.client_id`, `auth.client_secret`, and `auth.client_auth_method`.
-- `auth.scopes`, `auth.audience`, `auth.timeout`, and `auth.refresh_skew`.
-- `auth.mtls.*` when the token endpoint requires mutual TLS.
-- `target.api_key` when `auth.enabled` is `false`.
+- `providers[].auth.enabled`: selects OAuth client credentials or static provider API key mode.
+- `providers[].auth.token_url`, `providers[].auth.client_id`, `providers[].auth.client_secret`, and `providers[].auth.client_auth_method`.
+- `providers[].auth.scopes`, `providers[].auth.audience`, `providers[].auth.timeout`, and `providers[].auth.refresh_skew`.
+- `providers[].auth.mtls.*` when the token endpoint requires mutual TLS.
+- `providers[].api_key` when `providers[].auth.enabled` is `false`.
 
 ## Execution
 
 The handler from `internal/schedule/tasks/checks/auth_check.go` delegates to the
-configured auth provider. With OAuth enabled, the provider performs a token
+configured auth providers. With OAuth enabled, each provider performs a token
 request using the
 `client_credentials` grant. A successful response updates the cached bearer token
 and captures the token expiration time.
@@ -37,6 +37,7 @@ an outbound token request.
 
 Results are inserted into `auth_checks` via `RecordAuthCheck`:
 
+- `provider_id`
 - `checked_at`
 - `ok`
 - `status_code`

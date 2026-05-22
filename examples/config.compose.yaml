@@ -16,22 +16,22 @@ asynq:
   scheduler_sync_interval: "30s"
   manual_task_retention: "10m"
 
-target:
-  name: "local-ollama"
-  base_url: "http://host.docker.internal:11434"
-  endpoints:
-    models: "/v1/models"
-    chat: "/v1/chat/completions"
-    embeddings: "/v1/embeddings"
-  timeout: "120s"
-  retry:
-    enabled: true
-    max_retries: 2
-    wait_min: "500ms"
-    wait_max: "5s"
-
-auth:
-  enabled: false
+providers:
+  - id: "local"
+    name: "local-ollama"
+    base_url: "http://host.docker.internal:11434"
+    endpoints:
+      models: "/v1/models"
+      chat: "/v1/chat/completions"
+      embeddings: "/v1/embeddings"
+    timeout: "120s"
+    retry:
+      enabled: true
+      max_retries: 2
+      wait_min: "500ms"
+      wait_max: "5s"
+    auth:
+      enabled: false
 
 smtp:
   enabled: true

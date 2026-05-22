@@ -14,7 +14,7 @@ Single-image monitor for OpenAI-compatible LLM services. The Go API, Asynq sched
 docker compose up --build
 ```
 
-Docker Compose starts PostgreSQL, Redis, the API server, scheduler, worker, and MailDev. It exposes the app at [http://localhost:18080](http://localhost:18080) and MailDev at [http://localhost:1080](http://localhost:1080). The sample compose config disables OAuth, sends SMTP alerts to MailDev on `maildev:1025`, and points the target at a local placeholder API. For a real target, copy [config.example.yaml](config.example.yaml), fill in the endpoint, auth, SMTP, and certificate settings, then mount secrets read-only.
+Docker Compose starts PostgreSQL, Redis, the API server, scheduler, worker, and MailDev. It exposes the app at [http://localhost:18080](http://localhost:18080) and MailDev at [http://localhost:1080](http://localhost:1080). The sample compose config disables OAuth, sends SMTP alerts to MailDev on `maildev:1025`, and points one provider at a local placeholder API. For real providers, copy [config.example.yaml](config.example.yaml), fill in provider endpoints, auth, SMTP, and certificate settings, then mount secrets read-only.
 
 ## Development
 

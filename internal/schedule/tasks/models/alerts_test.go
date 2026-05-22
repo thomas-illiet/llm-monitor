@@ -69,9 +69,9 @@ func TestSendModelAlertRetriesAfterFailureAndDedupesSuccess(t *testing.T) {
 		Notifier: notifier,
 		Logger:   slog.New(slog.NewTextHandler(io.Discard, nil)),
 	})
-	key := modelAlertKey("missing", "gpt-test", time.Unix(42, 0).UTC())
+	key := modelAlertKey("missing", "openai", "gpt-test", time.Unix(42, 0).UTC())
 
-	service.sendModelAlert(context.Background(), key, "gpt-test", "missing", "Model missing", "Model gpt-test is missing.", nil)
+	service.sendModelAlert(context.Background(), key, "openai", "gpt-test", "missing", "Model missing", "Model gpt-test is missing.", nil)
 	if notifier.calls != 1 {
 		t.Fatalf("send calls after failure = %d, want 1", notifier.calls)
 	}
@@ -79,7 +79,7 @@ func TestSendModelAlertRetriesAfterFailureAndDedupesSuccess(t *testing.T) {
 		t.Fatalf("first alert record error = %q, want failure preserved", repo.alerts[key].Error)
 	}
 
-	service.sendModelAlert(context.Background(), key, "gpt-test", "missing", "Model missing", "Model gpt-test is missing.", nil)
+	service.sendModelAlert(context.Background(), key, "openai", "gpt-test", "missing", "Model missing", "Model gpt-test is missing.", nil)
 	if notifier.calls != 2 {
 		t.Fatalf("send calls after retry = %d, want 2", notifier.calls)
 	}
@@ -87,7 +87,7 @@ func TestSendModelAlertRetriesAfterFailureAndDedupesSuccess(t *testing.T) {
 		t.Fatalf("retry alert record error = %q, want successful delivery", repo.alerts[key].Error)
 	}
 
-	service.sendModelAlert(context.Background(), key, "gpt-test", "missing", "Model missing", "Model gpt-test is missing.", nil)
+	service.sendModelAlert(context.Background(), key, "openai", "gpt-test", "missing", "Model missing", "Model gpt-test is missing.", nil)
 	if notifier.calls != 2 {
 		t.Fatalf("send calls after successful dedupe = %d, want 2", notifier.calls)
 	}

@@ -21,7 +21,7 @@ interface SummaryRow {
 
 const { data, loading, error, refresh } = useModelTechnicalDetails({
   open,
-  modelId: () => props.modelId
+  modelIdentity: () => props.modelId
 })
 
 const model = computed(() => data.value?.model ?? null)
@@ -70,7 +70,7 @@ function modelStatusLabel(selected: ModelState) {
       <VCardTitle class="model-dashboard-dialog__title">
         <div>
           <p class="eyebrow">Technical details</p>
-          <h2 class="model-name">{{ model?.model_id ?? modelId ?? 'Model details' }}</h2>
+          <h2 class="model-name">{{ model ? `${model.provider_id}/${model.model_id}` : modelId ?? 'Model details' }}</h2>
         </div>
         <div class="technical-details-dialog__title-actions">
           <VBtn
@@ -105,7 +105,7 @@ function modelStatusLabel(selected: ModelState) {
         <template v-else-if="data && model">
           <section class="technical-details-dialog__summary">
             <div class="technical-details-dialog__identity">
-              <span class="model-name">{{ model.model_id }}</span>
+              <span class="model-name">{{ model.provider_id }}/{{ model.model_id }}</span>
               <div class="technical-details-dialog__chips">
                 <VChip size="x-small" :color="statusColor(model)" variant="tonal">
                   {{ modelStatusLabel(model) }}

@@ -29,22 +29,29 @@ const (
 
 // LLMClient describes the OpenAI-compatible operations used by monitor tasks.
 type LLMClient interface {
-	ListModels(ctx context.Context) ([]llm.ProviderModel, error)
-	HealthCheck(ctx context.Context) llm.HTTPCheckResult
-	RunChat(ctx context.Context, run llm.ChatRequest) llm.RunResult
-	RunChatStream(ctx context.Context, run llm.ChatRequest) llm.RunResult
-	RunEmbedding(ctx context.Context, model, input string) llm.RunResult
+	ProviderIDs() []string
+	ListModels(ctx context.Context, providerID string) ([]llm.ProviderModel, error)
+	HealthCheck(ctx context.Context, providerID string) llm.HTTPCheckResult
+	RunChat(ctx context.Context, providerID string, run llm.ChatRequest) llm.RunResult
+	RunChatStream(ctx context.Context, providerID string, run llm.ChatRequest) llm.RunResult
+	RunEmbedding(ctx context.Context, providerID, model, input string) llm.RunResult
+}
+
+// AuthProviders describes provider-scoped auth health checks.
+type AuthProviders interface {
+	ProviderIDs() []string
+	Check(ctx context.Context, providerID string) auth.CheckResult
 }
 
 // Repository describes the persistence operations required by monitor tasks.
 type Repository interface {
 	RecordHTTPCheck(ctx context.Context, record store.CheckRecord) error
-	LatestHTTPCheck(ctx context.Context) (*store.CheckRecord, error)
+	LatestHTTPCheck(ctx context.Context, providerID string) (*store.CheckRecord, error)
 	RecordAuthCheck(ctx context.Context, record store.CheckRecord) error
-	ProcessModelObservation(ctx context.Context, observed []store.ObservedModel, now time.Time) ([]store.ModelEvent, error)
-	MarkModelInactive(ctx context.Context, modelID string, now time.Time, source, reason string) (*store.ModelEvent, error)
-	MarkAllModelsInactive(ctx context.Context, now time.Time, source, reason string) ([]store.ModelEvent, error)
-	LastRunnableCapabilities(ctx context.Context) (map[string]string, error)
+	ProcessModelObservation(ctx context.Context, providerID string, observed []store.ObservedModel, now time.Time) ([]store.ModelEvent, error)
+	MarkModelInactive(ctx context.Context, providerID, modelID string, now time.Time, source, reason string) (*store.ModelEvent, error)
+	MarkAllModelsInactive(ctx context.Context, providerID string, now time.Time, source, reason string) ([]store.ModelEvent, error)
+	LastRunnableCapabilities(ctx context.Context, providerID string) (map[string]string, error)
 	InactiveModelsForAlert(ctx context.Context, threshold time.Duration, now time.Time) ([]store.ModelState, error)
 	EmailAlertExists(ctx context.Context, key string) (bool, error)
 	RecordEmailAlert(ctx context.Context, record store.EmailAlertRecord) error
@@ -57,7 +64,7 @@ type Repository interface {
 
 // ModelRecoveryTrigger starts model inventory and probe work after target recovery.
 type ModelRecoveryTrigger interface {
-	TriggerModelRecovery(ctx context.Context) error
+	TriggerModelRecovery(ctx context.Context, providerID string) error
 }
 
 // Dependencies groups shared task dependencies.
@@ -65,7 +72,7 @@ type Dependencies struct {
 	Config          config.Config
 	Store           Repository
 	Client          LLMClient
-	Auth            auth.Provider
+	Auth            AuthProviders
 	Notifier        notify.Notifier
 	Logger          *slog.Logger
 	ModelPlanStore  ModelPlanStore
@@ -88,6 +95,7 @@ type ModelPlanStore interface {
 
 // ModelPlanItem is one runnable scheduled probe selected from model inventory.
 type ModelPlanItem struct {
+	ProviderID string
 	ID         string
 	Capability string
 	Excluded   bool
@@ -95,6 +103,7 @@ type ModelPlanItem struct {
 
 // ModelRunPayload scopes a queued probe to one runnable model.
 type ModelRunPayload struct {
+	ProviderID  string    `json:"provider_id"`
 	ModelID     string    `json:"model_id"`
 	Capability  string    `json:"capability"`
 	RequestedAt time.Time `json:"requested_at"`
@@ -105,6 +114,9 @@ type ModelRunPayload struct {
 func MarshalModelRunPayload(payload ModelRunPayload) ([]byte, error) {
 	if payload.ModelID == "" {
 		return nil, fmt.Errorf("model_id is required")
+	}
+	if payload.ProviderID == "" {
+		return nil, fmt.Errorf("provider_id is required")
 	}
 	if payload.Capability == "" {
 		return nil, fmt.Errorf("capability is required")
@@ -121,8 +133,37 @@ func UnmarshalModelRunPayload(raw []byte) (ModelRunPayload, error) {
 	if payload.ModelID == "" {
 		return ModelRunPayload{}, fmt.Errorf("model_id is required")
 	}
+	if payload.ProviderID == "" {
+		return ModelRunPayload{}, fmt.Errorf("provider_id is required")
+	}
 	if payload.Capability == "" {
 		return ModelRunPayload{}, fmt.Errorf("capability is required")
+	}
+	return payload, nil
+}
+
+// ProviderTaskPayload optionally scopes provider-level tasks to one provider.
+type ProviderTaskPayload struct {
+	ProviderID string `json:"provider_id,omitempty"`
+}
+
+// MarshalProviderTaskPayload serializes an optional provider-scoped task payload.
+func MarshalProviderTaskPayload(providerID string) []byte {
+	if providerID == "" {
+		return nil
+	}
+	raw, _ := json.Marshal(ProviderTaskPayload{ProviderID: providerID})
+	return raw
+}
+
+// UnmarshalProviderTaskPayload parses optional provider task payloads.
+func UnmarshalProviderTaskPayload(raw []byte) (ProviderTaskPayload, error) {
+	if len(raw) == 0 {
+		return ProviderTaskPayload{}, nil
+	}
+	var payload ProviderTaskPayload
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return ProviderTaskPayload{}, err
 	}
 	return payload, nil
 }

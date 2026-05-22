@@ -34,9 +34,9 @@ func NewPeriodicConfigProvider(cfg config.Config, store RunnableModelsStore) *Pe
 // GetConfigs returns static monitor schedules plus one model-run schedule per active model.
 func (p *PeriodicConfigProvider) GetConfigs() ([]*asynq.PeriodicTaskConfig, error) {
 	configs := []*asynq.PeriodicTaskConfig{
-		{Cronspec: every(p.cfg.Schedules.HTTPCheck.Duration), Task: NewHTTPCheckTask(), Opts: taskOptions(p.cfg)},
-		{Cronspec: every(p.cfg.Schedules.AuthCheck.Duration), Task: NewAuthCheckTask(), Opts: taskOptions(p.cfg)},
-		{Cronspec: every(p.cfg.Schedules.ModelSnapshot.Duration), Task: NewModelSnapshotTask(), Opts: taskOptions(p.cfg)},
+		{Cronspec: every(p.cfg.Schedules.HTTPCheck.Duration), Task: NewHTTPCheckTask(""), Opts: taskOptions(p.cfg)},
+		{Cronspec: every(p.cfg.Schedules.AuthCheck.Duration), Task: NewAuthCheckTask(""), Opts: taskOptions(p.cfg)},
+		{Cronspec: every(p.cfg.Schedules.ModelSnapshot.Duration), Task: NewModelSnapshotTask(""), Opts: taskOptions(p.cfg)},
 	}
 	if p.cfg.Retention.History.Duration > 0 {
 		configs = append(configs, &asynq.PeriodicTaskConfig{
@@ -58,7 +58,7 @@ func (p *PeriodicConfigProvider) GetConfigs() ([]*asynq.PeriodicTaskConfig, erro
 			return nil, err
 		}
 		configs = append(configs, &asynq.PeriodicTaskConfig{
-			Cronspec: every(p.modelInterval(model.ModelID)),
+			Cronspec: every(p.modelInterval(model.ProviderID, model.ModelID)),
 			Task:     task,
 			Opts:     scheduledModelRunTaskOptions(p.cfg, i),
 		})
@@ -66,9 +66,9 @@ func (p *PeriodicConfigProvider) GetConfigs() ([]*asynq.PeriodicTaskConfig, erro
 	return configs, nil
 }
 
-func (p *PeriodicConfigProvider) modelInterval(modelID string) time.Duration {
+func (p *PeriodicConfigProvider) modelInterval(providerID, modelID string) time.Duration {
 	for _, override := range p.cfg.Schedules.ModelRunOverrides {
-		if strings.TrimSpace(override.ModelID) == modelID && override.Interval.Duration > 0 {
+		if strings.TrimSpace(override.ModelID) == modelID && providerMatches(override.ProviderID, providerID) && override.Interval.Duration > 0 {
 			return override.Interval.Duration
 		}
 	}
@@ -77,11 +77,16 @@ func (p *PeriodicConfigProvider) modelInterval(modelID string) time.Duration {
 		if pattern == "" || override.Interval.Duration <= 0 {
 			continue
 		}
-		if wildcard.Match(pattern, modelID) {
+		if providerMatches(override.ProviderID, providerID) && wildcard.Match(pattern, modelID) {
 			return override.Interval.Duration
 		}
 	}
 	return p.cfg.Schedules.ModelRuns.Duration
+}
+
+func providerMatches(configured, actual string) bool {
+	configured = strings.TrimSpace(configured)
+	return configured == "" || configured == actual
 }
 
 func every(interval time.Duration) string {

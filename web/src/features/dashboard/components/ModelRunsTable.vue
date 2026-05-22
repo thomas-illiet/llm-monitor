@@ -8,6 +8,8 @@ defineProps<{
 
 const headers = [
   { title: 'Started', key: 'started_at', sortable: true },
+  { title: 'Provider', key: 'provider_id', sortable: true },
+  { title: 'Model', key: 'model_id', sortable: true },
   { title: 'Capability', key: 'capability', sortable: true },
   { title: 'Status', key: 'status', sortable: false },
   { title: 'Latency', key: 'latency_ms', sortable: true },
@@ -66,6 +68,12 @@ function metricSummary(run: RecentRun) {
     >
       <template #item.started_at="{ item }">
         {{ formatPreciseDateTime(item.started_at) }}
+      </template>
+      <template #item.provider_id="{ item }">
+        <VChip size="x-small" variant="tonal">{{ item.provider_id }}</VChip>
+      </template>
+      <template #item.model_id="{ item }">
+        <span class="model-name">{{ item.model_id }}</span>
       </template>
       <template #item.capability="{ item }">
         <VChip size="x-small" variant="tonal">{{ item.capability }}</VChip>

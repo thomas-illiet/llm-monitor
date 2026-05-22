@@ -20,8 +20,8 @@ func (r *Router) dashboard(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	models = r.attachModelNextChecks(ctx, models)
-	authCheck, _ := r.store.LatestAuthCheck(ctx)
-	httpCheck, _ := r.store.LatestHTTPCheck(ctx)
+	providers := r.providerStatuses(ctx)
+	authCheck, httpCheck := aggregateLatestChecks(providers)
 	slo := r.sloThresholds()
 	kpis, err := r.store.KPISummary(ctx, since, slo)
 	if err != nil {
@@ -54,6 +54,7 @@ func (r *Router) dashboard(w http.ResponseWriter, req *http.Request) {
 		SLO:                slo,
 		Charts:             charts,
 		ModelStatusHistory: r.buildModelStatusHistory(ctx, models, since, now, window),
+		Providers:          providers,
 		Models:             models,
 		Events:             events,
 		Runs:               runs,
@@ -78,7 +79,7 @@ func (r *Router) attachModelNextChecks(ctx context.Context, models []store.Model
 		return models
 	}
 	for i := range models {
-		nextCheck, ok := nextChecks[models[i].ModelID]
+		nextCheck, ok := nextChecks[store.ModelIdentityKey(models[i].ProviderID, models[i].ModelID)]
 		if !ok {
 			continue
 		}
@@ -94,10 +95,60 @@ func (r *Router) runtimeConfig() RuntimeConfig {
 		history = 0
 	}
 	return RuntimeConfig{
-		SiteName: r.cfg.Dashboard.SiteName,
-		SiteURL:  r.cfg.Dashboard.SiteURL,
+		SiteName:  r.cfg.Dashboard.SiteName,
+		SiteURL:   r.cfg.Dashboard.SiteURL,
+		Providers: r.providerRuntimeConfigs(),
 		Retention: RetentionRuntimeConfig{
 			HistorySeconds: int64(history / time.Second),
 		},
 	}
+}
+
+func (r *Router) providerStatuses(ctx context.Context) []ProviderStatusResponse {
+	statuses := make([]ProviderStatusResponse, 0, len(r.cfg.Providers))
+	for _, provider := range r.cfg.Providers {
+		authCheck, _ := r.store.LatestAuthCheck(ctx, provider.ID)
+		httpCheck, _ := r.store.LatestHTTPCheck(ctx, provider.ID)
+		statuses = append(statuses, ProviderStatusResponse{
+			ID:   provider.ID,
+			Name: provider.Name,
+			Auth: authCheck,
+			HTTP: httpCheck,
+		})
+	}
+	return statuses
+}
+
+func (r *Router) providerRuntimeConfigs() []ProviderRuntimeConfig {
+	providers := make([]ProviderRuntimeConfig, 0, len(r.cfg.Providers))
+	for _, provider := range r.cfg.Providers {
+		providers = append(providers, ProviderRuntimeConfig{ID: provider.ID, Name: provider.Name})
+	}
+	return providers
+}
+
+func aggregateLatestChecks(providers []ProviderStatusResponse) (*store.CheckRecord, *store.CheckRecord) {
+	var authCheck *store.CheckRecord
+	var httpCheck *store.CheckRecord
+	for _, provider := range providers {
+		authCheck = aggregateCheck(authCheck, provider.Auth)
+		httpCheck = aggregateCheck(httpCheck, provider.HTTP)
+	}
+	return authCheck, httpCheck
+}
+
+func aggregateCheck(current, next *store.CheckRecord) *store.CheckRecord {
+	if next == nil {
+		return current
+	}
+	if current == nil {
+		return next
+	}
+	if !next.OK && current.OK {
+		return next
+	}
+	if next.At.After(current.At) {
+		return next
+	}
+	return current
 }

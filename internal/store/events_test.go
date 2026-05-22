@@ -18,8 +18,8 @@ func TestMigrationDefinesModelEventChangedFlag(t *testing.T) {
 
 func TestMigrationDefinesProviderMetadataColumns(t *testing.T) {
 	assertContains(t, migrationSQL, "provider_metadata JSONB NOT NULL DEFAULT '{}'::jsonb")
-	assertContains(t, migrationSQL, "ALTER TABLE IF EXISTS model_snapshot_items")
-	assertContains(t, migrationSQL, "ALTER TABLE IF EXISTS model_states")
+	assertContains(t, migrationSQL, "provider_id TEXT NOT NULL")
+	assertContains(t, migrationSQL, "PRIMARY KEY (provider_id, model_id)")
 }
 
 func TestMigrationDefinesTaskSpacingState(t *testing.T) {
@@ -53,7 +53,7 @@ func TestSanitizeObservedModelsRedactsProviderMetadata(t *testing.T) {
 // TestModelEventSQLIncludesChangedColumn verifies event writes and dashboard reads use the changed flag.
 func TestModelEventSQLIncludesChangedColumn(t *testing.T) {
 	assertContains(t, insertModelEventSQL, "message, changed, details")
-	assertContains(t, insertModelEventSQL, "RETURNING id, model_id, event_type, capability, observed_at, changed")
+	assertContains(t, insertModelEventSQL, "RETURNING id, provider_id, model_id, event_type, capability, observed_at, changed")
 	assertContains(t, recordModelEventSQL, "message, changed, details")
 	assertContains(t, modelEventSelectColumns, "changed")
 	assertContains(t, recentModelEventsSQL, "WHERE changed")
@@ -62,21 +62,22 @@ func TestModelEventSQLIncludesChangedColumn(t *testing.T) {
 // TestModelEventWhereClauseBuildsStableFilters verifies filter ordering and parameters.
 func TestModelEventWhereClauseBuildsStableFilters(t *testing.T) {
 	where, args := modelEventWhereClause(ModelEventQuery{
+		ProviderID: "openai",
 		ModelID:    "model-a",
 		Statuses:   []string{"ok", "error"},
 		Sources:    []string{"scheduled_run"},
 		EventTypes: []string{"capability_probe"},
 	})
 
-	wantWhere := "WHERE model_id=$1 AND status = ANY($2) AND source = ANY($3) AND event_type = ANY($4)"
+	wantWhere := "WHERE provider_id=$1 AND model_id=$2 AND status = ANY($3) AND source = ANY($4) AND event_type = ANY($5)"
 	if where != wantWhere {
 		t.Fatalf("where = %q, want %q", where, wantWhere)
 	}
-	if len(args) != 4 {
-		t.Fatalf("args len = %d, want 4", len(args))
+	if len(args) != 5 {
+		t.Fatalf("args len = %d, want 5", len(args))
 	}
-	if args[0] != "model-a" {
-		t.Fatalf("model arg = %#v, want model-a", args[0])
+	if args[0] != "openai" || args[1] != "model-a" {
+		t.Fatalf("identity args = %#v, want openai/model-a", args[:2])
 	}
 }
 
@@ -86,6 +87,7 @@ func TestScanRecentEventsReadsChangedFlag(t *testing.T) {
 	rows := &fakeEventRows{
 		rows: []fakeEventRow{{
 			id:         42,
+			providerID: "openai",
 			modelID:    "model-a",
 			eventType:  "inactive",
 			source:     "inventory",
@@ -111,7 +113,7 @@ func TestScanRecentEventsReadsChangedFlag(t *testing.T) {
 	if !event.Changed {
 		t.Fatal("event.Changed = false, want true")
 	}
-	if event.ID != 42 || event.ModelID != "model-a" || event.EventType != "inactive" || !event.ObservedAt.Equal(observedAt) {
+	if event.ID != 42 || event.ProviderID != "openai" || event.ModelID != "model-a" || event.ModelKey == "" || event.EventType != "inactive" || !event.ObservedAt.Equal(observedAt) {
 		t.Fatalf("event = %#v, want scanned lifecycle event", event)
 	}
 	if got := event.Details["missing_since"]; got != "2026-05-18T12:00:00Z" {
@@ -128,6 +130,7 @@ func assertContains(t *testing.T, haystack, needle string) {
 
 type fakeEventRow struct {
 	id         int64
+	providerID string
 	modelID    string
 	eventType  string
 	source     string
@@ -177,22 +180,23 @@ func (r *fakeEventRows) Scan(dest ...any) error {
 	if r.index == 0 || r.index > len(r.rows) {
 		return errors.New("scan called without current row")
 	}
-	if len(dest) != 12 {
+	if len(dest) != 13 {
 		return errors.New("unexpected destination count")
 	}
 	row := r.rows[r.index-1]
 	*(dest[0].(*int64)) = row.id
-	*(dest[1].(*string)) = row.modelID
-	*(dest[2].(*string)) = row.eventType
-	*(dest[3].(*string)) = row.source
-	*(dest[4].(*string)) = row.severity
-	*(dest[5].(*string)) = row.status
-	*(dest[6].(*string)) = row.capability
-	*(dest[7].(*time.Time)) = row.observedAt
-	*(dest[8].(*string)) = row.title
-	*(dest[9].(*string)) = row.message
-	*(dest[10].(*bool)) = row.changed
-	*(dest[11].(*[]byte)) = row.details
+	*(dest[1].(*string)) = row.providerID
+	*(dest[2].(*string)) = row.modelID
+	*(dest[3].(*string)) = row.eventType
+	*(dest[4].(*string)) = row.source
+	*(dest[5].(*string)) = row.severity
+	*(dest[6].(*string)) = row.status
+	*(dest[7].(*string)) = row.capability
+	*(dest[8].(*time.Time)) = row.observedAt
+	*(dest[9].(*string)) = row.title
+	*(dest[10].(*string)) = row.message
+	*(dest[11].(*bool)) = row.changed
+	*(dest[12].(*[]byte)) = row.details
 	return nil
 }
 

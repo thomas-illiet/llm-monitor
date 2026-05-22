@@ -5,7 +5,7 @@ import KpiCards from '@/features/dashboard/components/KpiCards.vue'
 import ModelRunsTable from '@/features/dashboard/components/ModelRunsTable.vue'
 import { useModelDashboardData } from '@/features/dashboard/composables/useModelDashboardData'
 import { chartTheme } from '@/features/dashboard/utils/chartHelpers'
-import { formatTime, statusColor } from '@/features/dashboard/utils/modelInventory'
+import { formatTime, modelIdentity, statusColor } from '@/features/dashboard/utils/modelInventory'
 import type { KpiRangeValue, ModelState } from '@/types'
 
 const selectedModelId = defineModel<string | null>('modelId', { default: null })
@@ -16,29 +16,35 @@ const props = defineProps<{
   models: ModelState[]
 }>()
 
+const theme = computed(() => chartTheme(props.isDark))
+const modelIdsKey = computed(() => props.models.map(model => modelIdentity(model)).join('\u0000'))
+const modelOptions = computed(() => props.models.map(model => ({
+  title: model.model_id,
+  subtitle: model.provider_id,
+  value: modelIdentity(model)
+})))
+
+const selectedRequestedModel = computed(() => {
+  return props.models.find(model => modelIdentity(model) === selectedModelId.value) ?? null
+})
+
 const {
   data,
   loading,
   error,
   refresh
 } = useModelDashboardData({
-  modelId: selectedModelId,
+  providerId: () => selectedRequestedModel.value?.provider_id ?? null,
+  modelId: () => selectedRequestedModel.value?.model_id ?? null,
   kpiRange: () => props.kpiRange
 })
 
-const theme = computed(() => chartTheme(props.isDark))
-const modelIdsKey = computed(() => props.models.map(model => model.model_id).join('\u0000'))
-const modelOptions = computed(() => props.models.map(model => ({
-  title: model.model_id,
-  value: model.model_id
-})))
-
 const selectedModel = computed(() => {
-  return data.value?.model ?? props.models.find(model => model.model_id === selectedModelId.value) ?? null
+  return data.value?.model ?? selectedRequestedModel.value
 })
 
 watch(modelIdsKey, () => {
-  const modelIds = new Set(props.models.map(model => model.model_id))
+  const modelIds = new Set(props.models.map(model => modelIdentity(model)))
   if (props.models.length === 0) {
     selectedModelId.value = null
     return
@@ -49,7 +55,8 @@ watch(modelIdsKey, () => {
 
 /** Picks the default model for the detail dashboard. */
 function preferredModelId() {
-  return props.models.find(model => model.status === 'active' && !model.excluded && model.capability !== 'skip')?.model_id ?? props.models[0]?.model_id ?? null
+  const preferred = props.models.find(model => model.status === 'active' && !model.excluded && model.capability !== 'skip') ?? props.models[0]
+  return preferred ? modelIdentity(preferred) : null
 }
 </script>
 
@@ -58,7 +65,7 @@ function preferredModelId() {
     <div class="model-dashboard-panel__header">
       <div>
         <p class="eyebrow">Selected model</p>
-        <h2>{{ selectedModel?.model_id ?? 'No model selected' }}</h2>
+        <h2>{{ selectedModel ? `${selectedModel.provider_id}/${selectedModel.model_id}` : 'No model selected' }}</h2>
       </div>
       <div class="model-dashboard-panel__actions">
         <VSelect
@@ -105,6 +112,7 @@ function preferredModelId() {
         <VChip size="small" :color="statusColor(data.model)" variant="tonal">
           {{ data.model.excluded ? 'excluded' : data.model.status }}
         </VChip>
+        <VChip size="small" variant="tonal">{{ data.model.provider_id }}</VChip>
         <VChip size="small" variant="tonal">{{ data.model.capability }}</VChip>
         <span>First seen {{ formatTime(data.model.first_seen_at) }}</span>
         <span>Last seen {{ formatTime(data.model.last_seen_at) }}</span>

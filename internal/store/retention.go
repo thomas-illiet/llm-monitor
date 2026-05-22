@@ -43,7 +43,8 @@ func historyPruneStatements(cutoff time.Time) []historyPruneStatement {
 						AND EXISTS (
 							SELECT 1
 							FROM model_states states
-							WHERE states.model_id = alerts.model_id
+							WHERE states.provider_id = alerts.provider_id
+								AND states.model_id = alerts.model_id
 								AND states.status = 'inactive'
 								AND states.missing_since IS NOT NULL
 						)

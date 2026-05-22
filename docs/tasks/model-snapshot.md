@@ -11,13 +11,12 @@ capabilities, updates lifecycle state, and emits model lifecycle alerts.
 - Default interval: `5m`
 - Startup behavior: enqueued at scheduler startup, then repeats on the configured
   interval.
-- Payload: empty JSON payload.
+- Payload: empty JSON payload for all providers, or `provider_id` for one provider.
 
 ## Inputs
 
-- `target.base_url`, `target.endpoints.models`, and authentication settings for
-  model inventory requests.
-- `target.endpoints.chat` and `target.endpoints.embeddings` for capability probes.
+- `providers[].base_url`, `providers[].endpoints.models`, and authentication settings for model inventory requests.
+- `providers[].endpoints.chat` and `providers[].endpoints.embeddings` for capability probes.
 - `models.max_concurrency`, defaulting to `4`, to bound parallel capability probes.
 - `models.absence_alert_after`, defaulting to `24h`, for inactive and returned alerts.
 - `tests.embedding_fixture.path` and `tests.embedding_fixture.max_bytes` for
@@ -28,11 +27,12 @@ capabilities, updates lifecycle state, and emits model lifecycle alerts.
 
 The handler from `internal/schedule/tasks/models/model_snapshot.go` first calls
 the configured model inventory endpoint and extracts model IDs plus redacted
-provider metadata. Each model is classified by probing chat first, then
+provider metadata. Each model is persisted as `(provider_id, model_id)`. Each
+model is classified by probing chat first, then
 embeddings:
 
-- Chat probe: `POST target.endpoints.chat` with prompt `Reply with ok.`
-- Embedding probe: `POST target.endpoints.embeddings` with the configured embedding fixture or a fallback probe string.
+- Chat probe: `POST providers[].endpoints.chat` with prompt `Reply with ok.`
+- Embedding probe: `POST providers[].endpoints.embeddings` with the configured embedding fixture or a fallback probe string.
 
 If a chat probe succeeds, the model is classified as `chat`. If chat fails and the
 embedding probe returns a non-empty vector, the model is classified as `embedding`.
@@ -77,7 +77,7 @@ model events.
 
 ## Failure Behavior
 
-If the configured model inventory endpoint fails after configured retries, currently runnable models are marked inactive and the task returns the upstream error.
+If one provider's model inventory endpoint fails after configured retries, currently runnable models for that provider are marked inactive and the task returns the upstream error for that provider.
 Individual capability probe failures are captured in model event details where
 possible. If persistence fails while processing the observation, the task returns
 an error so the worker records the failure.

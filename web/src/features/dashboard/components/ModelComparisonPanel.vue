@@ -4,7 +4,7 @@ import ConfiguredChartCard from '@/features/dashboard/components/ConfiguredChart
 import { useModelDashboardData } from '@/features/dashboard/composables/useModelDashboardData'
 import { chartTheme } from '@/features/dashboard/utils/chartHelpers'
 import { comparisonCharts, comparisonMetrics } from '@/features/dashboard/utils/modelComparison'
-import { formatTime, statusColor } from '@/features/dashboard/utils/modelInventory'
+import { formatTime, modelIdentity, statusColor } from '@/features/dashboard/utils/modelInventory'
 import type { KpiRangeValue, ModelState } from '@/types'
 
 const selectedReferenceModelId = defineModel<string | null>('modelId', { default: null })
@@ -17,13 +17,30 @@ const props = defineProps<{
 
 const selectedComparedModelId = shallowRef<string | null>(null)
 
+const theme = computed(() => chartTheme(props.isDark))
+const modelOptionsKey = computed(() => props.models.map(model => `${modelIdentity(model)}:${model.capability}`).join('\u0000'))
+const referenceModels = computed(() => props.models.filter(model => model.capability !== 'skip'))
+const selectedReferenceModel = computed(() => {
+  return props.models.find(model => modelIdentity(model) === selectedReferenceModelId.value) ?? null
+})
+const compatibleComparedModels = computed(() => {
+  const reference = selectedReferenceModel.value
+  if (!reference) return []
+  return props.models.filter(model => {
+    return modelIdentity(model) !== modelIdentity(reference) && model.capability === reference.capability && model.capability !== 'skip'
+  })
+})
+const selectedComparedModel = computed(() => {
+  return props.models.find(model => modelIdentity(model) === selectedComparedModelId.value) ?? null
+})
 const {
   data: referenceData,
   loading: referenceLoading,
   error: referenceError,
   refresh: refreshReference
 } = useModelDashboardData({
-  modelId: selectedReferenceModelId,
+  providerId: () => selectedReferenceModel.value?.provider_id ?? null,
+  modelId: () => selectedReferenceModel.value?.model_id ?? null,
   kpiRange: () => props.kpiRange
 })
 
@@ -33,32 +50,17 @@ const {
   error: comparedError,
   refresh: refreshCompared
 } = useModelDashboardData({
-  modelId: selectedComparedModelId,
+  providerId: () => selectedComparedModel.value?.provider_id ?? null,
+  modelId: () => selectedComparedModel.value?.model_id ?? null,
   kpiRange: () => props.kpiRange
-})
-
-const theme = computed(() => chartTheme(props.isDark))
-const modelOptionsKey = computed(() => props.models.map(model => `${model.model_id}:${model.capability}`).join('\u0000'))
-const referenceModels = computed(() => props.models.filter(model => model.capability !== 'skip'))
-const selectedReferenceModel = computed(() => {
-  return props.models.find(model => model.model_id === selectedReferenceModelId.value) ?? null
-})
-const compatibleComparedModels = computed(() => {
-  const reference = selectedReferenceModel.value
-  if (!reference) return []
-  return props.models.filter(model => {
-    return model.model_id !== reference.model_id && model.capability === reference.capability && model.capability !== 'skip'
-  })
-})
-const selectedComparedModel = computed(() => {
-  return props.models.find(model => model.model_id === selectedComparedModelId.value) ?? null
 })
 const referenceModelOptions = computed(() => referenceModels.value.map(modelOption))
 const comparedModelOptions = computed(() => compatibleComparedModels.value.map(modelOption))
 const loading = computed(() => referenceLoading.value || comparedLoading.value)
 const hasComparisonData = computed(() => {
-  return referenceData.value?.model.model_id === selectedReferenceModelId.value &&
-    comparedData.value?.model.model_id === selectedComparedModelId.value
+  return referenceData.value && comparedData.value &&
+    modelIdentity(referenceData.value.model) === selectedReferenceModelId.value &&
+    modelIdentity(comparedData.value.model) === selectedComparedModelId.value
 })
 const summaryModels = computed(() => {
   return [
@@ -75,8 +77,8 @@ const charts = computed(() => {
   return comparisonCharts(
     referenceData.value.charts,
     comparedData.value.charts,
-    referenceData.value.model.model_id,
-    comparedData.value.model.model_id
+    `${referenceData.value.model.provider_id}/${referenceData.value.model.model_id}`,
+    `${comparedData.value.model.provider_id}/${comparedData.value.model.model_id}`
   )
 })
 
@@ -87,11 +89,11 @@ watch([modelOptionsKey, selectedReferenceModelId], () => {
     return
   }
 
-  if (!selectedReferenceModelId.value || !referenceModels.value.some(model => model.model_id === selectedReferenceModelId.value)) {
+  if (!selectedReferenceModelId.value || !referenceModels.value.some(model => modelIdentity(model) === selectedReferenceModelId.value)) {
     selectedReferenceModelId.value = preferredReferenceModelId()
   }
 
-  if (!selectedComparedModelId.value || !compatibleComparedModels.value.some(model => model.model_id === selectedComparedModelId.value)) {
+  if (!selectedComparedModelId.value || !compatibleComparedModels.value.some(model => modelIdentity(model) === selectedComparedModelId.value)) {
     selectedComparedModelId.value = preferredComparedModelId()
   }
 }, { immediate: true })
@@ -104,21 +106,21 @@ function refresh() {
 
 /** Picks the initial reference model, favoring runnable active models. */
 function preferredReferenceModelId() {
-  return referenceModels.value.find(model => model.status === 'active' && !model.excluded)?.model_id ?? referenceModels.value[0]?.model_id ?? null
+  const preferred = referenceModels.value.find(model => model.status === 'active' && !model.excluded) ?? referenceModels.value[0]
+  return preferred ? modelIdentity(preferred) : null
 }
 
 /** Picks the initial compared model from the reference capability. */
 function preferredComparedModelId() {
-  return compatibleComparedModels.value.find(model => model.status === 'active' && !model.excluded)?.model_id ??
-    compatibleComparedModels.value[0]?.model_id ??
-    null
+  const preferred = compatibleComparedModels.value.find(model => model.status === 'active' && !model.excluded) ?? compatibleComparedModels.value[0]
+  return preferred ? modelIdentity(preferred) : null
 }
 
 function modelOption(model: ModelState) {
   return {
     subtitle: model.capability,
-    title: model.model_id,
-    value: model.model_id
+    title: `${model.provider_id}/${model.model_id}`,
+    value: modelIdentity(model)
   }
 }
 </script>
@@ -128,7 +130,7 @@ function modelOption(model: ModelState) {
     <div class="model-comparison-panel__header">
       <div>
         <p class="eyebrow">Model A/B</p>
-        <h2>{{ selectedReferenceModel?.model_id ?? 'No model selected' }}</h2>
+        <h2>{{ selectedReferenceModel ? `${selectedReferenceModel.provider_id}/${selectedReferenceModel.model_id}` : 'No model selected' }}</h2>
       </div>
       <div class="model-comparison-panel__actions">
         <VSelect
@@ -188,7 +190,7 @@ function modelOption(model: ModelState) {
       <div v-if="summaryModels.length > 0" class="model-comparison-panel__summary-grid">
         <div v-for="entry in summaryModels" :key="entry.label" class="model-comparison-panel__summary">
           <p class="eyebrow">{{ entry.label }}</p>
-          <strong>{{ entry.model.model_id }}</strong>
+          <strong>{{ entry.model.provider_id }}/{{ entry.model.model_id }}</strong>
           <div class="model-comparison-panel__summary-chips">
             <VChip size="x-small" :color="statusColor(entry.model)" variant="tonal">
               {{ entry.model.excluded ? 'excluded' : entry.model.status }}

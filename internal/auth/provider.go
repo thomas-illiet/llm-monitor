@@ -62,13 +62,61 @@ type clientCredentialsProvider struct {
 	expiresAt time.Time
 }
 
+// Providers stores one auth provider per configured LLM provider.
+type Providers struct {
+	order []string
+	byID  map[string]Provider
+}
+
+// NewProviders builds auth providers for every configured LLM provider.
+func NewProviders(providerCfgs []config.ProviderConfig, logger *slog.Logger) (*Providers, error) {
+	providers := &Providers{
+		order: make([]string, 0, len(providerCfgs)),
+		byID:  make(map[string]Provider, len(providerCfgs)),
+	}
+	for _, providerCfg := range providerCfgs {
+		provider, err := NewProvider(providerCfg.Auth, providerCfg, logger)
+		if err != nil {
+			return nil, fmt.Errorf("build auth provider %s: %w", providerCfg.ID, err)
+		}
+		providers.order = append(providers.order, providerCfg.ID)
+		providers.byID[providerCfg.ID] = provider
+	}
+	return providers, nil
+}
+
+// ProviderIDs returns the configured provider IDs in config order.
+func (p *Providers) ProviderIDs() []string {
+	if p == nil {
+		return nil
+	}
+	return append([]string(nil), p.order...)
+}
+
+// ForProvider returns the token provider for one configured provider ID.
+func (p *Providers) ForProvider(providerID string) Provider {
+	if p == nil {
+		return nil
+	}
+	return p.byID[providerID]
+}
+
+// Check runs an auth health check for one provider.
+func (p *Providers) Check(ctx context.Context, providerID string) CheckResult {
+	provider := p.ForProvider(providerID)
+	if provider == nil {
+		return CheckResult{CheckedAt: time.Now().UTC(), Error: "auth provider is not configured"}
+	}
+	return provider.Check(ctx)
+}
+
 // NewProvider builds either a static token provider or an OAuth2 mTLS provider.
-func NewProvider(authCfg config.AuthConfig, targetCfg config.TargetConfig, logger *slog.Logger) (Provider, error) {
+func NewProvider(authCfg config.AuthConfig, providerCfg config.ProviderConfig, logger *slog.Logger) (Provider, error) {
 	if authCfg.ClientAuthMethod == "" {
 		authCfg.ClientAuthMethod = "client_secret_basic"
 	}
 	if !authCfg.Enabled {
-		return staticProvider{token: strings.TrimSpace(targetCfg.APIKey)}, nil
+		return staticProvider{token: strings.TrimSpace(providerCfg.APIKey)}, nil
 	}
 
 	httpClient, err := mtlsHTTPClient(authCfg)
